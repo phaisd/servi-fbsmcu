@@ -58,6 +58,7 @@ export const sidebarGroups: NavGroup[] = [
       children: [
         { title: "curriculum.title", href: "/curriculum", permission: CURRICULUM_P.read },
         { title: "curriculum.departments_title", href: "/curriculum/departments", permission: CURRICULUM_P.read },
+        { title: "curriculum.timetables_title", href: "/curriculum/timetables", permission: CURRICULUM_P.read },
       ],
     }],
   },

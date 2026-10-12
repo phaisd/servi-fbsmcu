@@ -52,6 +52,7 @@ model Tenant {
   attendanceRecords   AttendanceRecord[]
   events              Event[]
   eventRegistrations  EventRegistration[]
+  curriculumTimetables CurriculumTimetable[]
 
   @@map("tenants")
 }
@@ -389,6 +390,7 @@ model Department {
   tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   personnel   Personnel[]
   curriculums Curriculum[]
+  timetables  CurriculumTimetable[]
 
   @@index([tenantId])
   @@map("departments")
@@ -460,10 +462,46 @@ model Curriculum {
 
   tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  timetables CurriculumTimetable[]
 
   @@index([tenantId, degree])
   @@index([departmentId])
   @@map("curriculums")
+}
+
+model CurriculumTimetable {
+  id           String      @id @default(uuid()) @db.Uuid
+  tenantId     String      @map("tenant_id") @db.Uuid
+  curriculumId String?     @map("curriculum_id") @db.Uuid
+  departmentId String?     @map("department_id") @db.Uuid
+
+  titleTh      String      @map("title_th") @db.VarChar(255)
+  titleEn      String?     @map("title_en") @db.VarChar(255)
+  academicYear String      @default("2569") @map("academic_year") @db.VarChar(20)
+  semester     Int         @default(1)
+  yearLevel    Int         @default(1) @map("year_level")
+  room         String?     @db.VarChar(100)
+  termDates    String?     @map("term_dates") @db.VarChar(255)
+  description  String?     @db.Text
+  notes        String?     @db.Text
+
+  /// รายการวิชาในตารางเรียน [{ id, dayOfWeek: 1..7, startTime: "09.00", endTime: "11.30", courseCode: "101 101", courseName: "Buddhism and Science", instructor: "...", room?: "...", periodLabel?: "Morning" }]
+  scheduleData Json        @default("[]") @map("schedule_data") @db.JsonB
+
+  isActive     Boolean     @default(true) @map("is_active")
+  orderIndex   Int         @default(0) @map("order_index")
+
+  createdAt    DateTime    @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime    @updatedAt @map("updated_at") @db.Timestamptz()
+
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  curriculum   Curriculum? @relation(fields: [curriculumId], references: [id], onDelete: SetNull)
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, academicYear, semester])
+  @@index([curriculumId])
+  @@index([departmentId])
+  @@map("curriculum_timetables")
 }
 
 // =============================================================

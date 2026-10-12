@@ -10,4 +10,12 @@ export {
   createDepartment,
   updateDepartment,
   deleteDepartment,
+  getTimetables,
+  getPublicTimetables,
+  getTimetableById,
+  createTimetable,
+  updateTimetable,
+  deleteTimetable,
+  batchImportTimetables,
+  type BatchImportTimetableItem,
 } from "./_internal/services";

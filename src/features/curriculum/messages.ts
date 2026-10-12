@@ -20,4 +20,7 @@ export const MESSAGES: Dictionary = {
   "roles.module.curriculum": { th: "ระบบจัดการหลักสูตรและภาควิชา", en: "Curriculum & Department Management" },
   "perm.curriculum:read": { th: "ดูข้อมูลหลักสูตรและภาควิชา", en: "View curriculum and department data" },
   "perm.curriculum:manage": { th: "จัดการข้อมูลหลักสูตรและภาควิชา", en: "Manage curriculum and department data" },
+
+  "curriculum.timetables_title": { th: "ตารางเรียน / ตารางสอน", en: "Class Timetables" },
+  "curriculum.timetables_subtitle": { th: "จัดการตารางเรียนตารางสอนแยกตามหลักสูตร สาขาวิชา และชั้นปี", en: "Manage class schedules by curriculum, program, and year level" },
 };

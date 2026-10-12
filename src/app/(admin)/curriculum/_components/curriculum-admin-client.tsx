@@ -233,7 +233,13 @@ export function CurriculumAdminClient({
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Link href="/curriculum/timetables">
+            <Button variant="outline" className="gap-2 text-xs">
+              <Clock className="w-4 h-4 text-primary" />
+              <span>ตารางเรียน / ตารางสอน</span>
+            </Button>
+          </Link>
           <Link href="/curriculum/departments">
             <Button variant="outline" className="gap-2 text-xs">
               <Building2 className="w-4 h-4 text-primary" />

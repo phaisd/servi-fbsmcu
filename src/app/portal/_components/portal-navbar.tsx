@@ -103,6 +103,7 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
   // บริการออนไลน์อื่นๆ ที่ยังคงมีให้เข้าถึงได้เสมอ
   const serviceItems = [
     { label: locale === "th" ? "หลักสูตรการศึกษา" : "Curriculums", href: "/programs" },
+    { label: locale === "th" ? "ตารางเรียน / ตารางสอน" : "Class Timetables", href: "/timetables" },
     { label: locale === "th" ? "ข่าวประชาสัมพันธ์" : "Announcements", href: "/portal/news" },
     { label: locale === "th" ? "ทำเนียบบุคลากร" : "Personnel Directory", href: "/portal/personnel" },
     { label: locale === "th" ? "เอกสารดาวน์โหลด" : "Download Documents", href: "/documents" },

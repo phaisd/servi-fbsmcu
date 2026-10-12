@@ -24,6 +24,8 @@ const nextConfig: NextConfig = {
       { source: "/programs/:path*", destination: "/portal/programs/:path*" },
       { source: "/documents", destination: "/portal/documents" },
       { source: "/documents/:path*", destination: "/portal/documents/:path*" },
+      { source: "/timetables", destination: "/portal/timetables" },
+      { source: "/timetables/:path*", destination: "/portal/timetables/:path*" },
     ];
   },
 };

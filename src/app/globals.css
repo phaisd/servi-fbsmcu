@@ -82,3 +82,156 @@
 .animate-float {
   animation: emberFloat 6s ease-in-out infinite;
 }
+
+/* ═══════════════════════════════════════════
+   PRINT STYLES (A4 TIMETABLE PDF / PRINT)
+   ═══════════════════════════════════════════ */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 6mm 8mm;
+  }
+
+  /* ซ่อน Navbar, Header, Footer และปุ่มอื่นๆ ในหน้า Portal ทั้งหมดเมื่อพิมพ์ */
+  header,
+  nav,
+  footer,
+  aside,
+  .portal-navbar,
+  .portal-footer,
+  .print-hide {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* บังคับให้การ์ดตารางเรียนแผ่เต็มหน้ากระดาษ A4 ไม่มีขอบหลุด */
+  .timetable-print-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* โหมดประหยัดหมึก: ล้างสีพื้นหลังของตารางและกล่องวิชาทั้งหมดออกเป็นโปร่งใส/ขาว แต่คงสีตัวอักษรและเส้นกรอบ */
+  .timetable-container th,
+  .timetable-container td,
+  .timetable-container tr {
+    background-color: transparent !important;
+    background-image: none !important;
+    border-color: #333333 !important;
+  }
+
+  /* หัวข้อตารางคงสีตัวอักษรประจำช่วง */
+  .print-text-sky {
+    color: #0284c7 !important; /* sky-600 */
+  }
+  .print-text-emerald {
+    color: #059669 !important; /* emerald-600 */
+  }
+  .print-text-purple {
+    color: #7c3aed !important; /* purple-600 */
+  }
+  .print-text-amber {
+    color: #d97706 !important; /* amber-600 */
+  }
+
+  /* กล่องวิชาในตาราง: พื้นหลังโปร่งใส/ขาว ไม่ใส่สีพื้น แต่คงเส้นกรอบสีตามหมวด */
+  .timetable-course-box {
+    background-color: transparent !important;
+    background-image: none !important;
+    box-shadow: none !important;
+  }
+
+  .timetable-course-box-sky {
+    border: 1.5px solid #0284c7 !important;
+  }
+  .timetable-course-box-emerald {
+    border: 1.5px solid #059669 !important;
+  }
+  .timetable-course-box-purple {
+    border: 1.5px solid #7c3aed !important;
+  }
+  .timetable-course-box-amber {
+    border: 1.5px solid #d97706 !important;
+  }
+
+  /* ป้ายรหัสวิชา: ไม่มีสีพื้นหลัง แต่แสดงสีตัวอักษรและเส้นขอบตามหมวดวิชา */
+  .timetable-course-badge {
+    background-color: transparent !important;
+    background-image: none !important;
+    font-weight: 700 !important;
+  }
+
+  .timetable-course-badge-sky {
+    border: 1px solid #0284c7 !important;
+    color: #0284c7 !important;
+  }
+  .timetable-course-badge-emerald {
+    border: 1px solid #059669 !important;
+    color: #059669 !important;
+  }
+  .timetable-course-badge-purple {
+    border: 1px solid #7c3aed !important;
+    color: #7c3aed !important;
+  }
+  .timetable-course-badge-amber {
+    border: 1px solid #d97706 !important;
+    color: #d97706 !important;
+  }
+
+  /* ชื่อวิชา: แสดงสีตัวอักษรตามหมวดวิชา */
+  .timetable-course-title-sky {
+    color: #0369a1 !important;
+  }
+  .timetable-course-title-emerald {
+    color: #047857 !important;
+  }
+  .timetable-course-title-purple {
+    color: #6d28d9 !important;
+  }
+  .timetable-course-title-amber {
+    color: #b45309 !important;
+  }
+
+  .timetable-time-badge {
+    background-color: transparent !important;
+    background-image: none !important;
+    border: 1px solid #94a3b8 !important;
+    color: #334155 !important;
+  }
+
+  /* ลายน้ำตรามหาวิทยาลัย/คณะตรงกลางเอกสาร */
+  .timetable-watermark {
+    display: flex !important;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0.08 !important;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ตารางเรียนให้คงเส้นตารางให้ชัดเจน */
+  table {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    border-collapse: collapse !important;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}

@@ -39,6 +39,10 @@ export function LiyonDialog({ open, onOpenChange, danger, wide, children }: Liyo
             wide && "wide",
           )}
         >
+          {/* Fallback VisuallyHidden title เพื่อให้ screen reader และ Radix UI a11y ผ่านเสมอ */}
+          <DialogPrimitive.Title className="sr-only">
+            Dialog
+          </DialogPrimitive.Title>
           <div className="box">{children}</div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

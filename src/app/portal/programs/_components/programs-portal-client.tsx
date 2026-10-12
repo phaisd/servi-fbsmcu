@@ -2,7 +2,8 @@
 "use client";
 
 import * as React from "react";
-import { BookOpen, GraduationCap, Clock, Building2, Search, Filter } from "lucide-react";
+import Link from "next/link";
+import { BookOpen, GraduationCap, Clock, Building2, Search, Filter, Calendar } from "lucide-react";
 import type { Curriculum, Department, DegreeLevel } from "@/generated/prisma";
 
 type CurriculumWithDept = Curriculum & { department?: Department | null };
@@ -70,16 +71,25 @@ export function ProgramsPortalClient({
           </p>
         </div>
 
-        {/* Search */}
-        <div className="relative w-full md:w-72">
-          <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={locale === "th" ? "ค้นหาชื่อหลักสูตร..." : "Search programs..."}
-            className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-border bg-background shadow-xs focus:outline-hidden focus:ring-2 focus:ring-primary/20"
-          />
+        {/* Actions */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+          <Link
+            href="/portal/timetables"
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-xs transition-colors shrink-0"
+          >
+            <Calendar className="w-4 h-4" />
+            <span>{locale === "th" ? "ดูตารางเรียน / ตารางสอน" : "Class Timetables"}</span>
+          </Link>
+          <div className="relative w-full sm:w-64">
+            <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={locale === "th" ? "ค้นหาชื่อหลักสูตร..." : "Search programs..."}
+              className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-border bg-background shadow-xs focus:outline-hidden focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
         </div>
       </div>
 
@@ -217,11 +227,13 @@ export function ProgramsPortalClient({
                     {item.durationYears} {locale === "th" ? "ปีการศึกษา" : "Years"}
                   </span>
                 </div>
-                {item.department?.code && (
-                  <span className="font-mono text-[10px] px-2 py-0.5 rounded-md bg-muted">
-                    {item.department.code}
-                  </span>
-                )}
+                <Link
+                  href={`/portal/timetables?curriculumId=${item.id}`}
+                  className="inline-flex items-center gap-1 font-semibold text-primary hover:underline text-xs"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>{locale === "th" ? "ดูตารางเรียน" : "Timetable"}</span>
+                </Link>
               </div>
             </div>
           </div>

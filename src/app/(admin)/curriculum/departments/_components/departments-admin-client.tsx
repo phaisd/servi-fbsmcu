@@ -197,9 +197,36 @@ export function DepartmentsAdminClient({ initialItems }: DepartmentsAdminClientP
   };
 
   // Stats
-  const totalCurriculums = React.useMemo(() => {
-    return items.reduce((sum, item) => sum + (item._count?.curriculums ?? item.curriculums?.length ?? 0), 0);
+  const stats = React.useMemo(() => {
+    const departmentsCount = items.filter(
+      (i) => (i.type || "DEPARTMENT") === "DEPARTMENT" && !i.nameTh.includes("สาขาวิชา")
+    ).length;
+
+    // หน่วยงานที่เป็นสาขาวิชาโดยตรง (type === "PROGRAM" หรือชื่อมี "สาขาวิชา")
+    const explicitProgramDepts = items.filter(
+      (i) => i.type === "PROGRAM" || i.nameTh.includes("สาขาวิชา")
+    ).length;
+
+    // จำนวนหลักสูตร/สาขาวิชาที่มีการเปิดสอนในสังกัด
+    const totalCurriculumsCount = items.reduce(
+      (sum, item) => sum + (item._count?.curriculums ?? item.curriculums?.length ?? 0),
+      0
+    );
+
+    // หากยังไม่มีหน่วยงานที่ตั้ง type เป็น PROGRAM ให้สะท้อนจากหลักสูตร/สาขาวิชาที่เปิดสอน หรือหน่วยงานสาขาวิชา
+    const programsCount = explicitProgramDepts > 0 ? explicitProgramDepts : totalCurriculumsCount;
+
+    const divisionsCount = items.filter((i) => i.type === "DIVISION").length;
+
+    return {
+      departmentsCount,
+      programsCount,
+      divisionsCount,
+      totalCurriculumsCount,
+    };
   }, [items]);
+
+  const totalCurriculums = stats.totalCurriculumsCount;
 
   // Filtered
   const filteredItems = React.useMemo(() => {
@@ -211,7 +238,16 @@ export function DepartmentsAdminClient({ initialItems }: DepartmentsAdminClientP
         const matchCode = (item.code || "").toLowerCase().includes(q);
         if (!matchTh && !matchEn && !matchCode) return false;
       }
-      if (filterType !== "ALL" && (item.type || "DEPARTMENT") !== filterType) return false;
+      if (filterType !== "ALL") {
+        const itemType = item.type || "DEPARTMENT";
+        if (filterType === "PROGRAM") {
+          if (itemType !== "PROGRAM" && !item.nameTh.includes("สาขาวิชา")) return false;
+        } else if (filterType === "DEPARTMENT") {
+          if (itemType !== "DEPARTMENT" || item.nameTh.includes("สาขาวิชา")) return false;
+        } else if (itemType !== filterType) {
+          return false;
+        }
+      }
       return true;
     });
   }, [items, search, filterType]);
@@ -265,9 +301,7 @@ export function DepartmentsAdminClient({ initialItems }: DepartmentsAdminClientP
             </div>
             <div>
               <p className="text-xs text-muted-foreground">ภาควิชา</p>
-              <p className="text-lg font-bold">
-                {items.filter((i) => (i.type || "DEPARTMENT") === "DEPARTMENT").length}
-              </p>
+              <p className="text-lg font-bold">{stats.departmentsCount}</p>
             </div>
           </div>
         </LiyonCard>
@@ -279,9 +313,7 @@ export function DepartmentsAdminClient({ initialItems }: DepartmentsAdminClientP
             </div>
             <div>
               <p className="text-xs text-muted-foreground">สาขาวิชา</p>
-              <p className="text-lg font-bold">
-                {items.filter((i) => i.type === "PROGRAM").length}
-              </p>
+              <p className="text-lg font-bold">{stats.programsCount}</p>
             </div>
           </div>
         </LiyonCard>
@@ -293,9 +325,7 @@ export function DepartmentsAdminClient({ initialItems }: DepartmentsAdminClientP
             </div>
             <div>
               <p className="text-xs text-muted-foreground">ส่วนงาน / ศูนย์</p>
-              <p className="text-lg font-bold">
-                {items.filter((i) => i.type === "DIVISION").length}
-              </p>
+              <p className="text-lg font-bold">{stats.divisionsCount}</p>
             </div>
           </div>
         </LiyonCard>
@@ -307,7 +337,7 @@ export function DepartmentsAdminClient({ initialItems }: DepartmentsAdminClientP
             </div>
             <div>
               <p className="text-xs text-muted-foreground">หลักสูตรในสังกัดรวม</p>
-              <p className="text-lg font-bold">{totalCurriculums}</p>
+              <p className="text-lg font-bold">{stats.totalCurriculumsCount}</p>
             </div>
           </div>
         </LiyonCard>

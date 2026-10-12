@@ -10,12 +10,19 @@ import {
   createDepartment,
   updateDepartment,
   deleteDepartment,
+  createTimetable,
+  updateTimetable,
+  deleteTimetable,
+  batchImportTimetables,
+  type BatchImportTimetableItem,
 } from "./_internal/services";
 import {
   curriculumSchema,
   updateCurriculumSchema,
   departmentSchema,
   updateDepartmentSchema,
+  timetableSchema,
+  updateTimetableSchema,
 } from "./_internal/validations";
 
 // ── Curriculum Actions ──
@@ -27,7 +34,11 @@ export async function createCurriculumAction(data: unknown) {
   const res = await createCurriculum(session.tenantId, session.userId, parsed);
   revalidatePath("/curriculum");
   revalidatePath("/curriculum/departments");
+  revalidatePath("/curriculum/timetables");
+  revalidatePath("/curriculum/timetables/batch");
   revalidatePath("/portal/programs");
+  revalidatePath("/portal/timetables");
+  revalidatePath("/timetables");
   return res;
 }
 
@@ -38,7 +49,11 @@ export async function updateCurriculumAction(id: string, data: unknown) {
   const res = await updateCurriculum(session.tenantId, session.userId, id, parsed);
   revalidatePath("/curriculum");
   revalidatePath("/curriculum/departments");
+  revalidatePath("/curriculum/timetables");
+  revalidatePath("/curriculum/timetables/batch");
   revalidatePath("/portal/programs");
+  revalidatePath("/portal/timetables");
+  revalidatePath("/timetables");
   return res;
 }
 
@@ -48,7 +63,11 @@ export async function deleteCurriculumAction(id: string) {
   const res = await deleteCurriculum(session.tenantId, session.userId, id);
   revalidatePath("/curriculum");
   revalidatePath("/curriculum/departments");
+  revalidatePath("/curriculum/timetables");
+  revalidatePath("/curriculum/timetables/batch");
   revalidatePath("/portal/programs");
+  revalidatePath("/portal/timetables");
+  revalidatePath("/timetables");
   return res;
 }
 
@@ -58,7 +77,11 @@ export async function toggleCurriculumActiveAction(id: string, isActive: boolean
   const res = await updateCurriculum(session.tenantId, session.userId, id, { isActive });
   revalidatePath("/curriculum");
   revalidatePath("/curriculum/departments");
+  revalidatePath("/curriculum/timetables");
+  revalidatePath("/curriculum/timetables/batch");
   revalidatePath("/portal/programs");
+  revalidatePath("/portal/timetables");
+  revalidatePath("/timetables");
   return res;
 }
 
@@ -71,7 +94,11 @@ export async function createDepartmentAction(data: unknown) {
   const res = await createDepartment(session.tenantId, session.userId, parsed);
   revalidatePath("/curriculum");
   revalidatePath("/curriculum/departments");
+  revalidatePath("/curriculum/timetables");
+  revalidatePath("/curriculum/timetables/batch");
   revalidatePath("/portal/programs");
+  revalidatePath("/portal/timetables");
+  revalidatePath("/timetables");
   return res;
 }
 
@@ -82,7 +109,11 @@ export async function updateDepartmentAction(id: string, data: unknown) {
   const res = await updateDepartment(session.tenantId, session.userId, id, parsed);
   revalidatePath("/curriculum");
   revalidatePath("/curriculum/departments");
+  revalidatePath("/curriculum/timetables");
+  revalidatePath("/curriculum/timetables/batch");
   revalidatePath("/portal/programs");
+  revalidatePath("/portal/timetables");
+  revalidatePath("/timetables");
   return res;
 }
 
@@ -92,6 +123,71 @@ export async function deleteDepartmentAction(id: string) {
   const res = await deleteDepartment(session.tenantId, session.userId, id);
   revalidatePath("/curriculum");
   revalidatePath("/curriculum/departments");
+  revalidatePath("/curriculum/timetables");
+  revalidatePath("/curriculum/timetables/batch");
   revalidatePath("/portal/programs");
+  revalidatePath("/portal/timetables");
+  revalidatePath("/timetables");
   return res;
 }
+
+// ── Timetable Actions ──
+
+export async function createTimetableAction(data: unknown) {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const parsed = timetableSchema.parse(data);
+  const res = await createTimetable(session.tenantId, session.userId, parsed);
+  revalidatePath("/curriculum");
+  revalidatePath("/curriculum/timetables");
+  revalidatePath("/portal/programs");
+  revalidatePath("/portal/timetables");
+  return res;
+}
+
+export async function updateTimetableAction(id: string, data: unknown) {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const parsed = updateTimetableSchema.parse(data);
+  const res = await updateTimetable(session.tenantId, session.userId, id, parsed);
+  revalidatePath("/curriculum");
+  revalidatePath("/curriculum/timetables");
+  revalidatePath("/portal/programs");
+  revalidatePath("/portal/timetables");
+  return res;
+}
+
+export async function deleteTimetableAction(id: string) {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const res = await deleteTimetable(session.tenantId, session.userId, id);
+  revalidatePath("/curriculum");
+  revalidatePath("/curriculum/timetables");
+  revalidatePath("/portal/programs");
+  revalidatePath("/portal/timetables");
+  return res;
+}
+
+export async function toggleTimetableActiveAction(id: string, isActive: boolean) {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const res = await updateTimetable(session.tenantId, session.userId, id, { isActive });
+  revalidatePath("/curriculum");
+  revalidatePath("/curriculum/timetables");
+  revalidatePath("/portal/programs");
+  revalidatePath("/portal/timetables");
+  return res;
+}
+
+export async function batchImportTimetablesAction(items: BatchImportTimetableItem[]) {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const res = await batchImportTimetables(session.tenantId, session.userId, items);
+  revalidatePath("/curriculum");
+  revalidatePath("/curriculum/timetables");
+  revalidatePath("/portal/programs");
+  revalidatePath("/portal/timetables");
+  return res;
+}
+
+
