@@ -1963,6 +1963,8 @@ export async function syncCoursesFromTimetable(
         .replace(/พุทธศาสตร(ดุษฎีบัณฑิต|มหาบัณฑิต|บัณฑิต)/g, "")
         .replace(/(ดุษฎีบัณฑิต|มหาบัณฑิต|บัณฑิต)/g, "")
         .replace(/ปริญญา(เอก|โท|ตรี)/g, "")
+        .replace(/ประกาศนียบัตร/g, "")
+        .replace(/หลักสูตร/g, "")
         .replace(/ภาควิชา/g, "")
         .replace(/สาขาวิชา/g, "")
         .replace(/\(หลักสูตร(ภาษาอังกฤษ|ภาษาไทย|นานาชาติ)\)/g, "")
@@ -1973,6 +1975,8 @@ export async function syncCoursesFromTimetable(
           ? "ปริญญาโท"
           : timetable.curriculum?.degree === "DOCTORATE" || /ปริญญาเอก|ดุษฎีบัณฑิต/.test(timetable.titleTh)
           ? "ปริญญาเอก"
+          : timetable.curriculum?.degree === "CERTIFICATE" || /ประกาศนียบัตร/.test(timetable.titleTh)
+          ? "ประกาศนียบัตร"
           : timetable.curriculum?.degree === "BACHELOR" || /ปริญญาตรี|พุทธศาสตรบัณฑิต/.test(timetable.titleTh)
           ? "ปริญญาตรี"
           : undefined;
@@ -2142,6 +2146,8 @@ export async function syncCoursesFromTimetable(
         .replace(/พุทธศาสตร(ดุษฎีบัณฑิต|มหาบัณฑิต|บัณฑิต)/g, "")
         .replace(/(ดุษฎีบัณฑิต|มหาบัณฑิต|บัณฑิต)/g, "")
         .replace(/ปริญญา(เอก|โท|ตรี)/g, "")
+        .replace(/ประกาศนียบัตร/g, "")
+        .replace(/หลักสูตร/g, "")
         .replace(/ภาควิชา/g, "")
         .replace(/สาขาวิชา/g, "")
         .replace(/\(หลักสูตร(ภาษาอังกฤษ|ภาษาไทย|นานาชาติ)\)/g, "")
@@ -2152,6 +2158,8 @@ export async function syncCoursesFromTimetable(
           ? "ปริญญาโท"
           : timetable.curriculum?.degree === "DOCTORATE" || /ปริญญาเอก|ดุษฎีบัณฑิต/.test(timetable.titleTh)
           ? "ปริญญาเอก"
+          : timetable.curriculum?.degree === "CERTIFICATE" || /ประกาศนียบัตร/.test(timetable.titleTh)
+          ? "ประกาศนียบัตร"
           : timetable.curriculum?.degree === "BACHELOR" || /ปริญญาตรี|พุทธศาสตรบัณฑิต/.test(timetable.titleTh)
           ? "ปริญญาตรี"
           : undefined;
