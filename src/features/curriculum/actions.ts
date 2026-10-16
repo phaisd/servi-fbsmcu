@@ -15,6 +15,12 @@ import {
   deleteTimetable,
   batchImportTimetables,
   type BatchImportTimetableItem,
+  createAcademicCalendar,
+  updateAcademicCalendar,
+  deleteAcademicCalendar,
+  createAcademicCalendarEvent,
+  updateAcademicCalendarEvent,
+  deleteAcademicCalendarEvent,
 } from "./_internal/services";
 import {
   curriculumSchema,
@@ -189,5 +195,84 @@ export async function batchImportTimetablesAction(items: BatchImportTimetableIte
   revalidatePath("/portal/timetables");
   return res;
 }
+
+// ── Academic Calendar Actions ──
+
+export async function createAcademicCalendarAction(data: {
+  academicYear: string;
+  title: string;
+  titleTh?: string;
+  degreeLevel?: string;
+  authority?: string;
+  announcedDate?: string;
+  signatory?: string;
+  description?: string;
+}) {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const res = await createAcademicCalendar(session.tenantId, session.userId, data);
+  revalidatePath("/curriculum/calendar");
+  revalidatePath("/attendance/classes");
+  return { success: true, calendar: res };
+}
+
+export async function updateAcademicCalendarAction(id: string, data: any) {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const res = await updateAcademicCalendar(session.tenantId, session.userId, id, data);
+  revalidatePath("/curriculum/calendar");
+  revalidatePath("/attendance/classes");
+  return { success: true, calendar: res };
+}
+
+export async function deleteAcademicCalendarAction(id: string) {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const res = await deleteAcademicCalendar(session.tenantId, session.userId, id);
+  revalidatePath("/curriculum/calendar");
+  revalidatePath("/attendance/classes");
+  return { success: true, ...res };
+}
+
+export async function createAcademicCalendarEventAction(data: {
+  calendarId: string;
+  semester: number;
+  semesterLabel: string;
+  titleEn: string;
+  titleTh?: string;
+  startDate: string;
+  endDate: string;
+  dateDisplayEn: string;
+  dateDisplayTh?: string;
+  eventType?: string;
+  description?: string;
+  orderIndex?: number;
+}) {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const res = await createAcademicCalendarEvent(session.tenantId, session.userId, data);
+  revalidatePath("/curriculum/calendar");
+  revalidatePath("/attendance/classes");
+  return { success: true, event: res };
+}
+
+export async function updateAcademicCalendarEventAction(id: string, data: any) {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const res = await updateAcademicCalendarEvent(session.tenantId, session.userId, id, data);
+  revalidatePath("/curriculum/calendar");
+  revalidatePath("/attendance/classes");
+  return { success: true, event: res };
+}
+
+export async function deleteAcademicCalendarEventAction(id: string) {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const res = await deleteAcademicCalendarEvent(session.tenantId, session.userId, id);
+  revalidatePath("/curriculum/calendar");
+  revalidatePath("/attendance/classes");
+  return { success: true, ...res };
+}
+
 
 

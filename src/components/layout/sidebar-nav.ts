@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Settings, Layers, Newspaper, FileText, GraduationCap, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Users, Settings, Layers, Newspaper, FileText, GraduationCap, Calendar, type LucideIcon } from "lucide-react";
 import { hasPermission, P } from "@/features/identity";
 import { SAMPLE_P } from "@/features/sample";
 import { NEWS_P } from "@/features/news";
@@ -59,6 +59,7 @@ export const sidebarGroups: NavGroup[] = [
         { title: "curriculum.title", href: "/curriculum", permission: CURRICULUM_P.read },
         { title: "curriculum.departments_title", href: "/curriculum/departments", permission: CURRICULUM_P.read },
         { title: "curriculum.timetables_title", href: "/curriculum/timetables", permission: CURRICULUM_P.read },
+        { title: "curriculum.calendar_title", href: "/curriculum/calendar", permission: CURRICULUM_P.read },
       ],
     }],
   },
@@ -81,6 +82,7 @@ export const sidebarGroups: NavGroup[] = [
     items: [
       { title: "attendance.dashboard.title", href: "/attendance", icon: LayoutDashboard, permission: ATTENDANCE_P.manage },
       { title: "attendance.classes.title", href: "/attendance/classes", icon: FileText, permission: ATTENDANCE_P.manage },
+      { title: "curriculum.calendar_title", href: "/curriculum/calendar", icon: Calendar, permission: ATTENDANCE_P.manage },
     ],
   },
   {

@@ -324,7 +324,15 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Link
+            href="/curriculum/calendar"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/60 font-medium text-sm shadow-xs transition"
+          >
+            <Calendar className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            <span>ปฏิทินการศึกษา (Academic Calendar)</span>
+          </Link>
+
           <button
             type="button"
             onClick={handleOpenSyncModal}
@@ -345,6 +353,34 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
         </div>
       </div>
 
+      {/* แถบแจ้งเตือนกำหนดการสำคัญสำหรับอาจารย์ผู้สอน */}
+      <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 rounded-2xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+            <Calendar className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-xs uppercase px-2 py-0.5 rounded-md bg-amber-500 text-white">
+                ภาคการศึกษาที่ 2/2569
+              </span>
+              <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                กำหนดการสำคัญสำหรับอาจารย์ผู้บรรยาย
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+              เปิดภาคเรียน: <strong className="text-slate-800 dark:text-slate-200">2 พ.ย. 2569</strong> • ประเมินการสอน: <strong className="text-slate-800 dark:text-slate-200">1 - 26 ก.พ. 2570</strong> • ปิดภาคเรียน: <strong className="text-slate-800 dark:text-slate-200">26 ก.พ. 2570</strong> • สอบปลายภาค: <strong className="text-rose-600 dark:text-rose-400">8 - 17 มี.ค. 2570</strong>
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/curriculum/calendar"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 hover:bg-amber-50 text-xs font-semibold shrink-0 transition"
+        >
+          <span>ดูปฏิทินฉบับเต็ม</span>
+          <ExternalLink className="w-3.5 h-3.5" />
+        </Link>
+      </div>
 
       {/* แถบค้นหา ตัวกรองภาคการศึกษา และสถานะวิชา */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">

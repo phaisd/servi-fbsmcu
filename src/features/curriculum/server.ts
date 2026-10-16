@@ -18,4 +18,12 @@ export {
   deleteTimetable,
   batchImportTimetables,
   type BatchImportTimetableItem,
+  getAcademicCalendars,
+  getAcademicCalendarWithEvents,
+  createAcademicCalendar,
+  updateAcademicCalendar,
+  createAcademicCalendarEvent,
+  updateAcademicCalendarEvent,
+  deleteAcademicCalendarEvent,
+  deleteAcademicCalendar,
 } from "./_internal/services";

@@ -353,6 +353,15 @@ export function SessionsClient({ initialItems, classObj, isSuperAdmin: _isSuperA
             บันทึกคะแนน/เกรด
           </Link>
 
+          <Link
+            href="/curriculum/calendar"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100 text-xs font-semibold shadow-2xs transition"
+            title="ดูปฏิทินการศึกษาและกำหนดการสอบ"
+          >
+            <Calendar className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+            ปฏิทินการศึกษา
+          </Link>
+
           <button
             type="button"
             onClick={handleExportMatrixCsv}

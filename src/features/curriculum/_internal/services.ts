@@ -732,4 +732,265 @@ export async function batchImportTimetables(
   };
 }
 
+// =========================================================================
+// ACADEMIC CALENDAR SERVICES
+// =========================================================================
+
+export async function getAcademicCalendars(tenantId: string) {
+  return db.academicCalendar.findMany({
+    where: { tenantId },
+    orderBy: { academicYear: "desc" },
+    include: {
+      _count: { select: { events: true } },
+    },
+  });
+}
+
+export async function getAcademicCalendarWithEvents(
+  tenantId: string,
+  academicYear?: string
+) {
+  const where: any = { tenantId, degreeLevel: "BACHELOR" };
+  if (academicYear) {
+    where.academicYear = academicYear;
+  } else {
+    where.isActive = true;
+  }
+
+  let calendar = await db.academicCalendar.findFirst({
+    where,
+    orderBy: { academicYear: "desc" },
+    include: {
+      events: {
+        orderBy: [
+          { semester: "asc" },
+          { orderIndex: "asc" },
+          { startDate: "asc" },
+        ],
+      },
+    },
+  });
+
+  if (!calendar && academicYear) {
+    calendar = await db.academicCalendar.findFirst({
+      where: { tenantId },
+      orderBy: { academicYear: "desc" },
+      include: {
+        events: {
+          orderBy: [
+            { semester: "asc" },
+            { orderIndex: "asc" },
+            { startDate: "asc" },
+          ],
+        },
+      },
+    });
+  }
+
+  return calendar;
+}
+
+export async function createAcademicCalendar(
+  tenantId: string,
+  actorId: string,
+  data: {
+    academicYear: string;
+    title: string;
+    titleTh?: string | null;
+    degreeLevel?: string;
+    authority?: string | null;
+    announcedDate?: string | null;
+    signatory?: string | null;
+    description?: string | null;
+    isActive?: boolean;
+  }
+) {
+  const result = await db.academicCalendar.create({
+    data: {
+      tenantId,
+      academicYear: data.academicYear,
+      title: data.title,
+      titleTh: data.titleTh,
+      degreeLevel: data.degreeLevel || "BACHELOR",
+      authority: data.authority,
+      announcedDate: data.announcedDate,
+      signatory: data.signatory,
+      description: data.description,
+      isActive: data.isActive ?? true,
+    },
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "academicCalendar.create",
+    entity: "AcademicCalendar",
+    entityId: result.id,
+    after: result,
+  });
+
+  return result;
+}
+
+export async function updateAcademicCalendar(
+  tenantId: string,
+  actorId: string,
+  id: string,
+  data: Partial<{
+    title: string;
+    titleTh?: string | null;
+    authority?: string | null;
+    announcedDate?: string | null;
+    signatory?: string | null;
+    description?: string | null;
+    isActive?: boolean;
+  }>
+) {
+  const result = await db.academicCalendar.update({
+    where: { id },
+    data,
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "academicCalendar.update",
+    entity: "AcademicCalendar",
+    entityId: id,
+    after: result,
+  });
+
+  return result;
+}
+
+export async function createAcademicCalendarEvent(
+  tenantId: string,
+  actorId: string,
+  data: {
+    calendarId: string;
+    semester: number;
+    semesterLabel: string;
+    titleEn: string;
+    titleTh?: string | null;
+    startDate: string;
+    endDate: string;
+    dateDisplayEn: string;
+    dateDisplayTh?: string | null;
+    eventType?: string;
+    description?: string | null;
+    orderIndex?: number;
+  }
+) {
+  const result = await db.academicCalendarEvent.create({
+    data: {
+      tenantId,
+      calendarId: data.calendarId,
+      semester: data.semester,
+      semesterLabel: data.semesterLabel,
+      titleEn: data.titleEn,
+      titleTh: data.titleTh,
+      startDate: new Date(data.startDate),
+      endDate: new Date(data.endDate),
+      dateDisplayEn: data.dateDisplayEn,
+      dateDisplayTh: data.dateDisplayTh,
+      eventType: data.eventType || "OTHER",
+      description: data.description,
+      orderIndex: data.orderIndex ?? 0,
+    },
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "academicCalendarEvent.create",
+    entity: "AcademicCalendarEvent",
+    entityId: result.id,
+    after: result,
+  });
+
+  return result;
+}
+
+export async function updateAcademicCalendarEvent(
+  tenantId: string,
+  actorId: string,
+  id: string,
+  data: Partial<{
+    semester: number;
+    semesterLabel: string;
+    titleEn: string;
+    titleTh?: string | null;
+    startDate: string;
+    endDate: string;
+    dateDisplayEn: string;
+    dateDisplayTh?: string | null;
+    eventType?: string;
+    description?: string | null;
+    orderIndex?: number;
+  }>
+) {
+  const updateData: any = { ...data };
+  if (data.startDate) updateData.startDate = new Date(data.startDate);
+  if (data.endDate) updateData.endDate = new Date(data.endDate);
+
+  const result = await db.academicCalendarEvent.update({
+    where: { id },
+    data: updateData,
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "academicCalendarEvent.update",
+    entity: "AcademicCalendarEvent",
+    entityId: id,
+    after: result,
+  });
+
+  return result;
+}
+
+export async function deleteAcademicCalendarEvent(
+  tenantId: string,
+  actorId: string,
+  id: string
+) {
+  const result = await db.academicCalendarEvent.delete({
+    where: { id },
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "academicCalendarEvent.delete",
+    entity: "AcademicCalendarEvent",
+    entityId: id,
+    before: result,
+  });
+
+  return result;
+}
+
+export async function deleteAcademicCalendar(
+  tenantId: string,
+  actorId: string,
+  id: string
+) {
+  const result = await db.academicCalendar.delete({
+    where: { id },
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "academicCalendar.delete",
+    entity: "AcademicCalendar",
+    entityId: id,
+    before: result,
+  });
+
+  return result;
+}
+
+
 

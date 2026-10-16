@@ -59,6 +59,8 @@ model Tenant {
   events              Event[]
   eventRegistrations  EventRegistration[]
   curriculumTimetables CurriculumTimetable[]
+  academicCalendars    AcademicCalendar[]
+  academicCalendarEvents AcademicCalendarEvent[]
 
   @@map("tenants")
 }
@@ -930,3 +932,56 @@ model EventRegistration {
   @@index([tenantId, eventId])
   @@map("event_registrations")
 }
+
+// =============================================================
+// ACADEMIC CALENDAR MODULE (ปฏิทินการศึกษา)
+// =============================================================
+
+model AcademicCalendar {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  academicYear  String   @map("academic_year") @db.VarChar(20) // e.g. "2026", "2569", "2027", "2570"
+  title         String   @db.VarChar(255)
+  titleTh       String?  @map("title_th") @db.VarChar(255)
+  degreeLevel   String   @default("BACHELOR") @map("degree_level") @db.VarChar(50)
+  authority     String?  @db.VarChar(255)
+  announcedDate String?  @map("announced_date") @db.VarChar(100)
+  signatory     String?  @db.VarChar(255)
+  description   String?  @db.Text
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  tenant        Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  events        AcademicCalendarEvent[]
+
+  @@unique([tenantId, academicYear, degreeLevel])
+  @@index([tenantId, academicYear])
+  @@map("academic_calendars")
+}
+
+model AcademicCalendarEvent {
+  id            String   @id @default(uuid()) @db.Uuid
+  tenantId      String   @map("tenant_id") @db.Uuid
+  calendarId    String   @map("calendar_id") @db.Uuid
+  semester      Int      @default(1) // 1=1st Semester, 2=2nd Semester, 3=Summer
+  semesterLabel String   @map("semester_label") @db.VarChar(50)
+  titleEn       String   @map("title_en") @db.VarChar(255)
+  titleTh       String?  @map("title_th") @db.VarChar(255)
+  startDate     DateTime @map("start_date") @db.Date
+  endDate       DateTime @map("end_date") @db.Date
+  dateDisplayEn String   @map("date_display_en") @db.VarChar(100)
+  dateDisplayTh String?  @map("date_display_th") @db.VarChar(100)
+  eventType     String   @default("OTHER") @map("event_type") @db.VarChar(50)
+  description   String?  @db.Text
+  orderIndex    Int      @default(0) @map("order_index")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  calendar      AcademicCalendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, calendarId, semester])
+  @@map("academic_calendar_events")
+}
+

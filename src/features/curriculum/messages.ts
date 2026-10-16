@@ -23,4 +23,6 @@ export const MESSAGES: Dictionary = {
 
   "curriculum.timetables_title": { th: "ตารางเรียน / ตารางสอน", en: "Class Timetables" },
   "curriculum.timetables_subtitle": { th: "จัดการตารางเรียนตารางสอนแยกตามหลักสูตร สาขาวิชา และชั้นปี", en: "Manage class schedules by curriculum, program, and year level" },
+  "curriculum.calendar_title": { th: "ปฏิทินการศึกษา", en: "Academic Calendar" },
+  "curriculum.calendar_subtitle": { th: "ปฏิทินการศึกษาระดับปริญญาตรีและกำหนดการสำคัญสำหรับอาจารย์และนิสิต", en: "Academic calendar for degree programs and key instructional milestones" },
 };
