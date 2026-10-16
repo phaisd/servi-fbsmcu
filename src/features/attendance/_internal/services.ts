@@ -1960,16 +1960,29 @@ export async function syncCoursesFromTimetable(
     if (existingCourse) {
       // กรณีห้องเรียนรวม (สอนรวมหลายสาขาวิชา): ดึงนิสิตของสาขา/ตารางนี้เข้าเรียนเพิ่มเติมอัตโนมัติ
       const matchingDept = (timetable.department?.nameTh || timetable.curriculum?.nameTh || "")
-        .replace("พุทธศาสตรบัณฑิต", "")
-        .replace("ภาควิชา", "")
-        .replace("สาขาวิชา", "")
+        .replace(/พุทธศาสตร(ดุษฎีบัณฑิต|มหาบัณฑิต|บัณฑิต)/g, "")
+        .replace(/(ดุษฎีบัณฑิต|มหาบัณฑิต|บัณฑิต)/g, "")
+        .replace(/ปริญญา(เอก|โท|ตรี)/g, "")
+        .replace(/ภาควิชา/g, "")
+        .replace(/สาขาวิชา/g, "")
+        .replace(/\(หลักสูตร(ภาษาอังกฤษ|ภาษาไทย|นานาชาติ)\)/g, "")
         .trim();
+
+      const targetDegree =
+        timetable.curriculum?.degree === "MASTER" || /ปริญญาโท|มหาบัณฑิต/.test(timetable.titleTh)
+          ? "ปริญญาโท"
+          : timetable.curriculum?.degree === "DOCTORATE" || /ปริญญาเอก|ดุษฎีบัณฑิต/.test(timetable.titleTh)
+          ? "ปริญญาเอก"
+          : timetable.curriculum?.degree === "BACHELOR" || /ปริญญาตรี|พุทธศาสตรบัณฑิต/.test(timetable.titleTh)
+          ? "ปริญญาตรี"
+          : undefined;
 
       const candidateStudents = await db.student.findMany({
         where: {
           tenantId,
           yearLevel: timetable.yearLevel,
           isActive: true,
+          ...(targetDegree ? { degree: targetDegree } : {}),
           ...(matchingDept
             ? {
                 OR: [
@@ -2126,16 +2139,29 @@ export async function syncCoursesFromTimetable(
 
       // ดึงนิสิตที่ตรงกับชั้นปีและสาขาวิชาเข้าห้องเรียนให้อัตโนมัติ (Auto-Enroll matching cohort students)
       const matchingDept = (timetable.department?.nameTh || timetable.curriculum?.nameTh || "")
-        .replace("พุทธศาสตรบัณฑิต", "")
-        .replace("ภาควิชา", "")
-        .replace("สาขาวิชา", "")
+        .replace(/พุทธศาสตร(ดุษฎีบัณฑิต|มหาบัณฑิต|บัณฑิต)/g, "")
+        .replace(/(ดุษฎีบัณฑิต|มหาบัณฑิต|บัณฑิต)/g, "")
+        .replace(/ปริญญา(เอก|โท|ตรี)/g, "")
+        .replace(/ภาควิชา/g, "")
+        .replace(/สาขาวิชา/g, "")
+        .replace(/\(หลักสูตร(ภาษาอังกฤษ|ภาษาไทย|นานาชาติ)\)/g, "")
         .trim();
+
+      const targetDegree =
+        timetable.curriculum?.degree === "MASTER" || /ปริญญาโท|มหาบัณฑิต/.test(timetable.titleTh)
+          ? "ปริญญาโท"
+          : timetable.curriculum?.degree === "DOCTORATE" || /ปริญญาเอก|ดุษฎีบัณฑิต/.test(timetable.titleTh)
+          ? "ปริญญาเอก"
+          : timetable.curriculum?.degree === "BACHELOR" || /ปริญญาตรี|พุทธศาสตรบัณฑิต/.test(timetable.titleTh)
+          ? "ปริญญาตรี"
+          : undefined;
 
       const candidateStudents = await tx.student.findMany({
         where: {
           tenantId,
           yearLevel: timetable.yearLevel,
           isActive: true,
+          ...(targetDegree ? { degree: targetDegree } : {}),
           ...(matchingDept
             ? {
                 OR: [
@@ -2156,6 +2182,7 @@ export async function syncCoursesFromTimetable(
                 tenantId,
                 yearLevel: timetable.yearLevel,
                 isActive: true,
+                ...(targetDegree ? { degree: targetDegree } : {}),
               },
             });
 
