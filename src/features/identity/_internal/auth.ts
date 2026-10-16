@@ -65,18 +65,64 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
-    /** OAuth: ต้องมีบัญชีอยู่ก่อน (แอดมินสร้าง) ไม่สร้างอัตโนมัติ */
+    /** OAuth: หากมีบัญชีเดิม ให้อัปเดตข้อมูล / หากไม่มีบัญชี ให้สร้างอัตโนมัติพร้อมสิทธิ์ "ผู้ดู" (VIEWER) เท่านั้น */
     async signIn({ user, account }) {
       if (!account || account.provider === "credentials") return true;
       const providerKey: OAuthProviderId = account.provider === "microsoft-entra-id" ? "microsoft" : "google";
       if (!user.email) return "/login?error=NoAccount";
-      const existing = await prisma.user.findUnique({ where: { email: user.email.toLowerCase() } });
-      if (!existing || !existing.isActive) return "/login?error=NoAccount";
-      await prisma.user.update({
-        where: { id: existing.id },
-        data: { provider: providerKey, providerId: account.providerAccountId, imageUrl: user.image ?? existing.imageUrl, lastLoginAt: new Date() },
+      const normalizedEmail = user.email.toLowerCase();
+      const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+
+      if (existing) {
+        if (!existing.isActive) return "/login?error=NoAccount";
+        await prisma.user.update({
+          where: { id: existing.id },
+          data: { provider: providerKey, providerId: account.providerAccountId, imageUrl: user.image ?? existing.imageUrl, lastLoginAt: new Date() },
+        });
+        user.id = existing.id;
+        return true;
+      }
+
+      // ผู้ใช้ใหม่ผ่าน Google / OAuth: สร้างบัญชีให้อัตโนมัติและมอบสิทธิ์ "ผู้ดู" (VIEWER) เท่านั้น
+      const defaultTenant = (await prisma.tenant.findFirst({ where: { code: "MCU" } })) ?? (await prisma.tenant.findFirst());
+      if (!defaultTenant) return "/login?error=NoTenant";
+
+      const viewerRole = await prisma.role.findFirst({
+        where: { tenantId: defaultTenant.id, code: "VIEWER" },
       });
-      user.id = existing.id;
+
+      const newUser = await prisma.user.create({
+        data: {
+          email: normalizedEmail,
+          name: user.name || normalizedEmail.split("@")[0],
+          provider: providerKey,
+          providerId: account.providerAccountId,
+          imageUrl: user.image ?? null,
+          emailVerified: true,
+          isActive: true,
+          lastLoginAt: new Date(),
+        },
+      });
+
+      const ut = await prisma.userTenant.create({
+        data: {
+          userId: newUser.id,
+          tenantId: defaultTenant.id,
+          isActive: true,
+        },
+      });
+
+      if (viewerRole) {
+        await prisma.userRole.create({
+          data: {
+            userTenantId: ut.id,
+            roleId: viewerRole.id,
+            scopeType: "ALL",
+          },
+        });
+      }
+
+      user.id = newUser.id;
       return true;
     },
 
