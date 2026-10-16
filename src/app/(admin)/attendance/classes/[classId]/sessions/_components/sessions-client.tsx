@@ -171,7 +171,7 @@ export function SessionsClient({ initialItems, classObj, isSuperAdmin: _isSuperA
       const csvContent =
         "\uFEFF" +
         `"สมุดบันทึกเวลาเรียนรายคาบ (Matrix 16 คาบ) รายวิชา: ${classObj.courseCode} ${classObj.courseName}"\n` +
-        `"ภาคการศึกษา: ${classObj.term} | อาจารย์ผู้สอน: ${classObj.instructor?.name || "-"} | เกณฑ์สิทธิ์สอบ: ${(classObj.calculationRules as any)?.minPercent || 80}%"\n` +
+        `"ภาคการศึกษา: ${classObj.term} | อาจารย์ผู้สอน: ${classObj.primaryTeacher?.name || classObj.instructor?.name || "-"} | เกณฑ์สิทธิ์สอบ: ${(classObj.calculationRules as any)?.minPercent || 80}%"\n` +
         `"พิมพ์เมื่อ: ${new Date().toLocaleString("th-TH")}"\n\n` +
         [headers.join(","), ...rows].join("\n");
 

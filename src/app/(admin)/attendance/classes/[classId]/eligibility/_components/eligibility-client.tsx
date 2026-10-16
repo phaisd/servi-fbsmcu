@@ -280,7 +280,7 @@ export function EligibilityReportClient({
       const csvContent =
         "\uFEFF" +
         `"สมุดบันทึกเวลาเรียนรายคาบ (Matrix 16 คาบ) รายวิชา: ${classObj.courseCode} ${classObj.courseName}"\n` +
-        `"ภาคการศึกษา: ${classObj.term} | อาจารย์ผู้สอน: ${classObj.instructor?.name || "-"} | เกณฑ์สิทธิ์สอบ: ${rulesForm.minPercent}%"\n` +
+        `"ภาคการศึกษา: ${classObj.term} | อาจารย์ผู้สอน: ${classObj.primaryTeacher?.name || classObj.instructor?.name || "-"} | เกณฑ์สิทธิ์สอบ: ${rulesForm.minPercent}%"\n` +
         `"พิมพ์เมื่อ: ${new Date().toLocaleString("th-TH")}"\n\n` +
         [headers.join(","), ...rows].join("\n");
 
@@ -472,7 +472,7 @@ export function EligibilityReportClient({
           รายงานผลการตรวจสอบเวลาเข้าเรียนและสิทธิ์สอบปลายภาค (เกณฑ์ไม่น้อยกว่า 80%)
         </h3>
         <p className="text-xs mt-1">
-          รายวิชา: {classObj.courseCode} {classObj.courseName} | ภาคการศึกษา: {classObj.term} | อาจารย์ผู้สอน: {classObj.instructor?.name || "-"}
+          รายวิชา: {classObj.courseCode} {classObj.courseName} | ภาคการศึกษา: {classObj.term} | อาจารย์ผู้สอน: {classObj.primaryTeacher?.name || classObj.instructor?.name || "-"}
         </p>
         <p className="text-2xs text-gray-500 mt-1">
           ออกรายงานเมื่อ: {new Intl.DateTimeFormat("th-TH", { dateStyle: "long", timeStyle: "medium" }).format(new Date())}

@@ -59,8 +59,8 @@ interface ClassItem {
   dayOfWeek?: number | null;
   startTime?: string | null;
   endTime?: string | null;
-  targetSessions: number;
   status: string;
+  primaryTeacher?: { id: string; name: string; email: string } | null;
   instructor?: { name: string; email: string } | null;
   teachers?: Array<{ user: { name: string; email: string }; isPrimary: boolean }>;
   _count?: {
@@ -110,11 +110,19 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
 
   const filteredItems = items.filter((item) => {
     const q = searchTerm.toLowerCase();
+    const teacherName =
+      item.primaryTeacher?.name ||
+      item.instructor?.name ||
+      item.teachers?.find((t) => t.isPrimary)?.user?.name ||
+      item.teachers?.[0]?.user?.name ||
+      "";
+
     const matchSearch =
       item.courseCode.toLowerCase().includes(q) ||
       item.courseName.toLowerCase().includes(q) ||
+      (item.courseNameEn && item.courseNameEn.toLowerCase().includes(q)) ||
       item.term.toLowerCase().includes(q) ||
-      (item.instructor?.name && item.instructor.name.toLowerCase().includes(q));
+      (teacherName && teacherName.toLowerCase().includes(q));
 
     const matchTerm = selectedTerm === "ALL" || item.term === selectedTerm;
     const matchStatus =
@@ -318,8 +326,14 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
     >();
 
     for (const item of items) {
-      if (item.instructor?.email) {
-        const email = item.instructor.email;
+      const teacher =
+        item.primaryTeacher ||
+        item.instructor ||
+        item.teachers?.find((t) => t.isPrimary)?.user ||
+        item.teachers?.[0]?.user;
+
+      if (teacher?.email) {
+        const email = teacher.email;
         const existing = credsMap.get(email);
         if (existing) {
           if (!existing.courses.includes(item.courseCode)) {
@@ -327,7 +341,7 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
           }
         } else {
           credsMap.set(email, {
-            teacherName: item.instructor.name,
+            teacherName: teacher.name,
             email,
             initialPassword: "Teacher1234!",
             courses: [item.courseCode],
@@ -495,8 +509,12 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredItems.map((item) => {
             const enrollCount = item._count?.enrollments ?? 0;
-            const sessionCount = item._count?.sessions ?? item.targetSessions;
-            const primaryTeacherName = item.instructor?.name || "ไม่ระบุผู้สอน";
+            const primaryTeacherName =
+              item.primaryTeacher?.name ||
+              item.instructor?.name ||
+              item.teachers?.find((t) => t.isPrimary)?.user?.name ||
+              item.teachers?.[0]?.user?.name ||
+              "ไม่ระบุผู้สอน";
 
             return (
               <div
