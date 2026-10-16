@@ -536,6 +536,11 @@ export async function enrollStudentInCourse(
     title?: string | null;
     yearLevel?: number;
     department?: string | null;
+    degree?: string | null;
+    curriculumName?: string | null;
+    major?: string | null;
+    gender?: string | null;
+    studyStatus?: string | null;
   }
 ) {
   const result = await db.$transaction(async (tx) => {
@@ -557,6 +562,28 @@ export async function enrollStudentInCourse(
           title: studentData.title,
           yearLevel: studentData.yearLevel || 1,
           department: studentData.department,
+          degree: studentData.degree || "ปริญญาตรี",
+          curriculumName: studentData.curriculumName,
+          major: studentData.major,
+          gender: studentData.gender,
+          studyStatus: studentData.studyStatus || "ปกติ",
+        },
+      });
+    } else {
+      // อัปเดตข้อมูลนิสิตหากมีการระบุข้อมูลเพิ่มเติม
+      student = await tx.student.update({
+        where: { id: student.id },
+        data: {
+          ...(studentData.firstName ? { firstName: studentData.firstName } : {}),
+          ...(studentData.lastName ? { lastName: studentData.lastName } : {}),
+          ...(studentData.title !== undefined ? { title: studentData.title } : {}),
+          ...(studentData.yearLevel ? { yearLevel: studentData.yearLevel } : {}),
+          ...(studentData.department !== undefined ? { department: studentData.department } : {}),
+          ...(studentData.degree !== undefined ? { degree: studentData.degree } : {}),
+          ...(studentData.curriculumName !== undefined ? { curriculumName: studentData.curriculumName } : {}),
+          ...(studentData.major !== undefined ? { major: studentData.major } : {}),
+          ...(studentData.gender !== undefined ? { gender: studentData.gender } : {}),
+          ...(studentData.studyStatus !== undefined ? { studyStatus: studentData.studyStatus } : {}),
         },
       });
     }
@@ -660,6 +687,11 @@ export async function batchEnrollStudents(
     title?: string;
     yearLevel?: number;
     department?: string;
+    degree?: string;
+    curriculumName?: string;
+    major?: string;
+    gender?: string;
+    studyStatus?: string;
   }>
 ) {
   let successCount = 0;
@@ -2061,10 +2093,11 @@ export async function syncCoursesFromTimetable(
           isActive: true,
           ...(matchingDept
             ? {
-                department: {
-                  contains: matchingDept,
-                  mode: "insensitive",
-                },
+                OR: [
+                  { department: { contains: matchingDept, mode: "insensitive" } },
+                  { major: { contains: matchingDept, mode: "insensitive" } },
+                  { curriculumName: { contains: matchingDept, mode: "insensitive" } },
+                ],
               }
             : {}),
         },
