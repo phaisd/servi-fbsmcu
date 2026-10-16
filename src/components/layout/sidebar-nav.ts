@@ -78,7 +78,10 @@ export const sidebarGroups: NavGroup[] = [
   },
   {
     label: "attendance.nav",
-    items: [{ title: "attendance.classes.title", href: "/attendance/classes", icon: FileText, permission: ATTENDANCE_P.manage }],
+    items: [
+      { title: "attendance.dashboard.title", href: "/attendance", icon: LayoutDashboard, permission: ATTENDANCE_P.manage },
+      { title: "attendance.classes.title", href: "/attendance/classes", icon: FileText, permission: ATTENDANCE_P.manage },
+    ],
   },
   {
     label: "events.nav",

@@ -47,9 +47,15 @@ model Tenant {
   adminDocuments      AdminDocument[]
   meetingRooms        MeetingRoom[]
   meetingBookings     MeetingBooking[]
+  students            Student[]
+  courses             Course[]
+  courseTeachers      CourseTeacher[]
+  courseEnrollments   CourseEnrollment[]
+  classSessions       ClassSession[]
+  attendanceRecords   AttendanceRecord[]
+  attendanceAuditLogs AttendanceAuditLog[]
   attendanceClasses   AttendanceClass[]
   attendanceSessions  AttendanceSession[]
-  attendanceRecords   AttendanceRecord[]
   events              Event[]
   eventRegistrations  EventRegistration[]
   curriculumTimetables CurriculumTimetable[]
@@ -85,6 +91,8 @@ model User {
   certificateRequests CertificateRequest[]
   meetingBookings     MeetingBooking[]
   attendanceClasses   AttendanceClass[]
+  primaryCourses      Course[]             @relation("CoursePrimaryInstructor")
+  taughtCourses       CourseTeacher[]
 
   @@map("users")
 }
@@ -598,77 +606,261 @@ model MeetingBooking {
 }
 
 // =============================================================
-// ATTENDANCE MODULE
+// ACADEMIC & ATTENDANCE MODULE (OPTION B - ENTERPRISE DOMAIN DESIGN)
 // =============================================================
 
-model AttendanceClass {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @map("tenant_id") @db.Uuid
-
-  courseCode   String  @db.VarChar(50)
-  courseName   String  @db.VarChar(255)
-  term         String  @db.VarChar(50) // เช่น "1/2569"
-  instructorId String  @map("instructor_id") @db.Uuid
-  isActive     Boolean @default(true) @map("is_active")
-
-  sessions AttendanceSession[]
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
-
-  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  instructor User   @relation(fields: [instructorId], references: [id], onDelete: Cascade)
-
-  @@index([tenantId])
-  @@map("attendance_classes")
+enum CourseStatus {
+  ACTIVE
+  ARCHIVED
+  CANCELLED
 }
 
-model AttendanceSession {
-  id       String @id @default(uuid()) @db.Uuid
-  tenantId String @map("tenant_id") @db.Uuid
-  classId  String @map("class_id") @db.Uuid
+enum SessionType {
+  REGULAR
+  SPECIAL
+}
 
-  date  DateTime @db.Timestamptz()
-  topic String?  @db.VarChar(255)
-
-  records AttendanceRecord[]
-
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
-
-  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  classObj AttendanceClass @relation(fields: [classId], references: [id], onDelete: Cascade)
-
-  @@index([tenantId, classId])
-  @@map("attendance_sessions")
+enum SessionStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
 }
 
 enum AttendanceStatus {
+  PENDING
   PRESENT
   ABSENT
   LATE
   EXCUSED
 }
 
-model AttendanceRecord {
-  id        String @id @default(uuid()) @db.Uuid
-  tenantId  String @map("tenant_id") @db.Uuid
-  sessionId String @map("session_id") @db.Uuid
+enum EnrollmentStatus {
+  ENROLLED
+  DROPPED
+  WITHDRAWN
+}
 
-  studentCode String           @map("student_code") @db.VarChar(50)
-  studentName String           @map("student_name") @db.VarChar(255)
-  status      AttendanceStatus @default(PRESENT)
-  note        String?          @db.Text
+model Student {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  studentCode String   @map("student_code") @db.VarChar(50)
+  firstName   String   @map("first_name") @db.VarChar(100)
+  lastName    String   @map("last_name") @db.VarChar(100)
+  title       String?  @db.VarChar(50)
+  yearLevel   Int      @default(1) @map("year_level")
+  department  String?  @db.VarChar(255)
+  faculty     String?  @default("คณะพุทธศาสตร์") @db.VarChar(255)
+  email       String?  @db.VarChar(255)
+  phoneNumber String?  @map("phone_number") @db.VarChar(50)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  enrollments CourseEnrollment[]
+
+  @@unique([tenantId, studentCode])
+  @@index([tenantId, yearLevel])
+  @@map("students")
+}
+
+model Course {
+  id             String       @id @default(uuid()) @db.Uuid
+  tenantId       String       @map("tenant_id") @db.Uuid
+  courseCode     String       @map("course_code") @db.VarChar(50)
+  courseName     String       @map("course_name") @db.VarChar(255)
+  courseNameEn   String?      @map("course_name_en") @db.VarChar(255)
+  credits        Int          @default(3)
+  section        String       @default("1") @db.VarChar(20)
+  term           String       @db.VarChar(50) // e.g. "1/2569"
+  academicYear   String       @default("2569") @map("academic_year") @db.VarChar(20)
+  semester       Int          @default(1)
+  description    String?      @db.Text
+  targetSessions Int          @default(16) @map("target_sessions")
+  room           String?      @db.VarChar(100)
+  dayOfWeek      Int?         @map("day_of_week") // 1=จันทร์ .. 7=อาทิตย์
+  startTime      String?      @map("start_time") @db.VarChar(20)
+  endTime        String?      @map("end_time") @db.VarChar(20)
+  status         CourseStatus @default(ACTIVE)
+
+  /// กฎการคำนวณ: lateCountsAsFull (default true), excuseDeductsDenominator (default false), minPercent (default 80.0)
+  calculationRules Json       @default("{\"lateCountsAsFull\": true, \"excuseDeductsDenominator\": false, \"minPercent\": 80.0}") @map("calculation_rules") @db.JsonB
+
+  primaryTeacherId String     @map("primary_teacher_id") @db.Uuid
+  isActive         Boolean    @default(true) @map("is_active")
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz()
+
+  tenant           Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  primaryTeacher   User               @relation("CoursePrimaryInstructor", fields: [primaryTeacherId], references: [id], onDelete: Cascade)
+  teachers         CourseTeacher[]
+  enrollments      CourseEnrollment[]
+  sessions         ClassSession[]
+
+  @@unique([tenantId, courseCode, academicYear, semester, section])
+  @@index([tenantId, academicYear, semester])
+  @@index([tenantId, primaryTeacherId])
+  @@map("courses")
+}
+
+model CourseTeacher {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  courseId  String   @map("course_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  isPrimary Boolean  @default(false) @map("is_primary")
+  role      String   @default("TEACHER") @db.VarChar(50)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
-  tenant  Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  session AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, userId])
+  @@index([tenantId, userId])
+  @@map("course_teachers")
+}
+
+model CourseEnrollment {
+  id         String           @id @default(uuid()) @db.Uuid
+  tenantId   String           @map("tenant_id") @db.Uuid
+  courseId   String           @map("course_id") @db.Uuid
+  studentId  String           @map("student_id") @db.Uuid
+  status     EnrollmentStatus @default(ENROLLED)
+  enrolledAt DateTime         @default(now()) @map("enrolled_at") @db.Timestamptz()
+  notes      String?          @db.Text
+  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt  DateTime         @updatedAt @map("updated_at") @db.Timestamptz()
+
+  tenant     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  course     Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student    Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  records    AttendanceRecord[]
+
+  @@unique([courseId, studentId])
+  @@index([tenantId, courseId])
+  @@index([tenantId, studentId])
+  @@map("course_enrollments")
+}
+
+model ClassSession {
+  id            String        @id @default(uuid()) @db.Uuid
+  tenantId      String        @map("tenant_id") @db.Uuid
+  courseId      String        @map("course_id") @db.Uuid
+  sessionNumber Int           @default(1) @map("session_number")
+  date          DateTime      @db.Timestamptz()
+  startTime     String?       @map("start_time") @db.VarChar(20)
+  endTime       String?       @map("end_time") @db.VarChar(20)
+  room          String?       @db.VarChar(100)
+  topic         String?       @db.VarChar(255)
+  description   String?       @db.Text
+  sessionType   SessionType   @default(REGULAR) @map("session_type")
+  status        SessionStatus @default(SCHEDULED)
+  isCounted     Boolean       @default(true) @map("is_counted") // คิดเวลาเรียนและสิทธิ์สอบหรือไม่
+  
+  // ฟิลด์สำหรับ Attendance Lock
+  isLocked      Boolean       @default(false) @map("is_locked")
+  lockedAt      DateTime?     @map("locked_at") @db.Timestamptz()
+  lockedBy      String?       @map("locked_by") @db.VarChar(255)
+
+  // ฟิลด์สำหรับ Dynamic Rolling QR Code เช็กชื่อในห้องเรียน
+  qrCodeSecret  String?       @map("qr_code_secret") @db.VarChar(100)
+  qrActiveUntil DateTime?     @map("qr_active_until") @db.Timestamptz()
+
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz()
+
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  course        Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  records       AttendanceRecord[]
+  auditLogs     AttendanceAuditLog[]
+
+  @@unique([courseId, sessionNumber])
+  @@index([tenantId, courseId, date])
+  @@map("class_sessions")
+}
+
+model AttendanceRecord {
+  id           String           @id @default(uuid()) @db.Uuid
+  tenantId     String           @map("tenant_id") @db.Uuid
+  sessionId    String           @map("session_id") @db.Uuid
+  enrollmentId String?          @map("enrollment_id") @db.Uuid
+
+  studentCode  String           @map("student_code") @db.VarChar(50)
+  studentName  String           @map("student_name") @db.VarChar(255)
+  status       AttendanceStatus @default(PENDING)
+  note         String?          @db.Text
+  recordedBy   String?          @map("recorded_by") @db.VarChar(255) // ชื่อหรือรหัสผู้บันทึก
+
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime         @updatedAt @map("updated_at") @db.Timestamptz()
+
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session      ClassSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  enrollment   CourseEnrollment? @relation(fields: [enrollmentId], references: [id], onDelete: SetNull)
 
   @@unique([sessionId, studentCode])
   @@index([tenantId, sessionId])
+  @@index([enrollmentId])
   @@map("attendance_records")
+}
+
+model AttendanceAuditLog {
+  id           String           @id @default(uuid()) @db.Uuid
+  tenantId     String           @map("tenant_id") @db.Uuid
+  sessionId    String           @map("session_id") @db.Uuid
+  studentCode  String           @map("student_code") @db.VarChar(50)
+  studentName  String           @map("student_name") @db.VarChar(255)
+  oldStatus    AttendanceStatus @map("old_status")
+  newStatus    AttendanceStatus @map("new_status")
+  reason       String           @db.Text
+  actorId      String           @map("actor_id") @db.Uuid
+  actorName    String           @map("actor_name") @db.VarChar(255)
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz()
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  session      ClassSession     @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, sessionId])
+  @@index([studentCode])
+  @@map("attendance_audit_logs")
+}
+
+// -------------------------------------------------------------
+// LEGACY COMPATIBILITY MODELS (FOR TRANSITION)
+// -------------------------------------------------------------
+model AttendanceClass {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  courseCode   String   @db.VarChar(50)
+  courseName   String   @db.VarChar(255)
+  term         String   @db.VarChar(50)
+  instructorId String   @map("instructor_id") @db.Uuid
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  instructor   User     @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+  sessions     AttendanceSession[]
+
+  @@map("attendance_classes")
+}
+
+model AttendanceSession {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  classId   String   @map("class_id") @db.Uuid
+  date      DateTime @db.Timestamptz()
+  topic     String?  @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  tenant    Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  classObj  AttendanceClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@map("legacy_attendance_sessions")
 }
 
 // =============================================================

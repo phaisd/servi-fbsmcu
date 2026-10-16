@@ -5,7 +5,10 @@ import { ClassesClient } from "./_components/classes-client";
 
 export default async function AttendanceClassesPage() {
   const ctx = await requirePermission(ATTENDANCE_P.manage);
-  const items = await getClasses(ctx.tenantId, ctx.userId);
+  const items = await getClasses(ctx.tenantId, {
+    userId: ctx.userId,
+    isSuperAdmin: ctx.isSuperAdmin,
+  });
 
-  return <ClassesClient initialItems={items} />;
+  return <ClassesClient initialItems={items} isSuperAdmin={ctx.isSuperAdmin} currentUserId={ctx.userId} />;
 }

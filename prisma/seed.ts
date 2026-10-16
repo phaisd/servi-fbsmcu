@@ -33,6 +33,8 @@ async function main() {
   const users = [
     { email: "admin@buddhist.mcu.ac.th", name: "ผู้ดูแลระบบ คณะพุทธศาสตร์", roles: ["SUPER_ADMIN"] },
     { email: "admin@app.local", name: "ผู้ดูแลสูงสุด (Local Dev)", roles: ["SUPER_ADMIN"] },
+    { email: "teacher@buddhist.mcu.ac.th", name: "ผศ.ดร.พระมหาสมโภช ญาณสิทฺธิ", roles: ["TEACHER"] },
+    { email: "teacher2@buddhist.mcu.ac.th", name: "ดร.วิสุทธิ์ สิทธิธรรม", roles: ["TEACHER"] },
     { email: "staff@buddhist.mcu.ac.th", name: "เจ้าหน้าที่บริหารงานทั่วไป", roles: ["STAFF"] },
     { email: "staff@app.local", name: "เจ้าหน้าที่", roles: ["STAFF"] },
     { email: "student@buddhist.mcu.ac.th", name: "พระมหาธีรภัทร นิสิตชั้นปีที่ 3", roles: ["VIEWER"] },
@@ -288,37 +290,167 @@ async function main() {
       });
     }
 
-    // Seed Attendance
-    const attClass = await prisma.attendanceClass.findFirst({ where: { tenantId: core.tenantId, courseCode: "BUD101" } }) ?? await prisma.attendanceClass.create({
-      data: {
-        tenantId: core.tenantId,
-        courseCode: "BUD101",
-        courseName: "พุทธประวัติและวรรณกรรมทางพระพุทธศาสนา",
-        term: "1/2569",
-        instructorId: adminUser!.id,
-      }
+    // Seed Teacher & Attendance Class
+    const teacherUser = await prisma.user.findUnique({ where: { email: "teacher@buddhist.mcu.ac.th" } }) ?? adminUser!;
+    
+    // Seed Sample Students
+    const sampleStudentsData = [
+      { studentCode: "660101001", firstName: "พระมหาธีรภัทร", lastName: "ญาณเมธี", title: "พระมหา", yearLevel: 3, department: "สาขาวิชาพระพุทธศาสนา" },
+      { studentCode: "660101002", firstName: "พระชยานันท์", lastName: "วชิรญาโณ", title: "พระ", yearLevel: 3, department: "สาขาวิชาพระพุทธศาสนา" },
+      { studentCode: "660101003", firstName: "สามเณรสมพร", lastName: "ใจบุญ", title: "สามเณร", yearLevel: 3, department: "สาขาวิชาปรัชญา" },
+      { studentCode: "660101004", firstName: "สมชาย", lastName: "สิทธิพงษ์", title: "นาย", yearLevel: 3, department: "สาขาวิชาพระพุทธศาสนา" },
+      { studentCode: "660101005", firstName: "กัญญา", lastName: "เมตตาจิต", title: "นางสาว", yearLevel: 3, department: "สาขาวิชาบาลีพุทธศาสตร์" },
+    ];
+
+    const seededStudents: any[] = [];
+    for (const s of sampleStudentsData) {
+      const student = await prisma.student.upsert({
+        where: { tenantId_studentCode: { tenantId: core.tenantId, studentCode: s.studentCode } },
+        update: { firstName: s.firstName, lastName: s.lastName, yearLevel: s.yearLevel, department: s.department },
+        create: {
+          tenantId: core.tenantId,
+          studentCode: s.studentCode,
+          firstName: s.firstName,
+          lastName: s.lastName,
+          title: s.title,
+          yearLevel: s.yearLevel,
+          department: s.department,
+          faculty: "คณะพุทธศาสตร์",
+        },
+      });
+      seededStudents.push(student);
+    }
+
+    // Seed Course (Option B Enterprise Model)
+    let course = await prisma.course.findFirst({
+      where: { tenantId: core.tenantId, courseCode: "BUD101" },
     });
 
-    const session1 = await prisma.attendanceSession.findFirst({ where: { tenantId: core.tenantId, classId: attClass.id } }) ?? await prisma.attendanceSession.create({
-      data: {
-        tenantId: core.tenantId,
-        classId: attClass.id,
-        date: new Date(Date.now() - 86400000), // Yesterday
-        topic: "แนะนำรายวิชาและปฐมนิเทศ",
-      }
-    });
-
-    const existingRecord = await prisma.attendanceRecord.findFirst({ where: { tenantId: core.tenantId, sessionId: session1.id } });
-    if (!existingRecord) {
-      await prisma.attendanceRecord.create({
+    if (!course) {
+      course = await prisma.course.create({
         data: {
           tenantId: core.tenantId,
-          sessionId: session1.id,
-          studentCode: "660001",
-          studentName: "นาย สมชาย ใจดี",
-          status: "PRESENT",
-        }
+          courseCode: "BUD101",
+          courseName: "พุทธประวัติและวรรณกรรมทางพระพุทธศาสนา",
+          courseNameEn: "Life of the Buddha and Buddhist Literature",
+          credits: 3,
+          section: "1",
+          term: "1/2569",
+          academicYear: "2569",
+          semester: 1,
+          description: "ศึกษาประวัติความเป็นมาและวรรณกรรมพุทธศาสนาชั้นต้น",
+          targetSessions: 16,
+          room: "B302 อาคารเรียนรวม",
+          dayOfWeek: 1, // จันทร์
+          startTime: "09.00",
+          endTime: "11.30",
+          primaryTeacherId: teacherUser.id,
+        },
       });
+    }
+
+    // Link Course Teacher
+    await prisma.courseTeacher.upsert({
+      where: { courseId_userId: { courseId: course.id, userId: teacherUser.id } },
+      update: { isPrimary: true },
+      create: {
+        tenantId: core.tenantId,
+        courseId: course.id,
+        userId: teacherUser.id,
+        isPrimary: true,
+        role: "TEACHER",
+      },
+    });
+
+    // Enroll Students in Course
+    const enrollments: any[] = [];
+    for (const s of seededStudents) {
+      const enr = await prisma.courseEnrollment.upsert({
+        where: { courseId_studentId: { courseId: course.id, studentId: s.id } },
+        update: {},
+        create: {
+          tenantId: core.tenantId,
+          courseId: course.id,
+          studentId: s.id,
+          status: "ENROLLED",
+        },
+      });
+      enrollments.push(enr);
+    }
+
+    // Generate Standard 16 Class Sessions
+    const baseDate = new Date();
+    baseDate.setHours(9, 0, 0, 0);
+    // ย้อนหลัง 4 สัปดาห์ เพื่อให้มี 4 คาบที่สอนแล้ว และ 12 คาบในอนาคต
+    baseDate.setDate(baseDate.getDate() - 28);
+
+    for (let i = 1; i <= 16; i++) {
+      const sessionDate = new Date(baseDate);
+      sessionDate.setDate(baseDate.getDate() + (i - 1) * 7);
+
+      const isPast = i <= 4;
+      const status = isPast ? "COMPLETED" : "SCHEDULED";
+
+      const session = await prisma.classSession.upsert({
+        where: { courseId_sessionNumber: { courseId: course.id, sessionNumber: i } },
+        update: {
+          sessionNumber: i,
+          status,
+        },
+        create: {
+          tenantId: core.tenantId,
+          courseId: course.id,
+          sessionNumber: i,
+          date: sessionDate,
+          startTime: "09.00",
+          endTime: "11.30",
+          room: "B302 อาคารเรียนรวม",
+          topic: `การบรรยายประจำสัปดาห์ที่ ${i}: หัวข้อการเรียนรู้บทที่ ${Math.min(i, 12)}`,
+          sessionType: "REGULAR",
+          status,
+          isCounted: true,
+        },
+      });
+
+      // ถ้าเป็น 4 คาบแรกที่ COMPLETED แล้ว ให้สร้างบันทึกการเข้าเรียนตัวอย่าง
+      if (isPast) {
+        for (let sIdx = 0; sIdx < seededStudents.length; sIdx++) {
+          const st = seededStudents[sIdx];
+          const enr = enrollments[sIdx];
+          
+          let attStatus: "PRESENT" | "ABSENT" | "LATE" | "EXCUSED" = "PRESENT";
+          let note: string | null = null;
+          if (sIdx === 1 && i === 2) {
+            attStatus = "LATE";
+            note = "มาสาย 15 นาที";
+          } else if (sIdx === 2 && i === 3) {
+            attStatus = "ABSENT";
+            note = "ไม่แจ้งเหตุขัดข้อง";
+          } else if (sIdx === 3 && i === 4) {
+            attStatus = "EXCUSED";
+            note = "ลาป่วย มีใบรับรองแพทย์";
+          }
+
+          await prisma.attendanceRecord.upsert({
+            where: { sessionId_studentCode: { sessionId: session.id, studentCode: st.studentCode } },
+            update: {
+              status: attStatus,
+              note,
+              enrollmentId: enr.id,
+            },
+            create: {
+              tenantId: core.tenantId,
+              sessionId: session.id,
+              enrollmentId: enr.id,
+              studentCode: st.studentCode,
+              studentName: `${st.title || ""} ${st.firstName} ${st.lastName}`.trim(),
+              status: attStatus,
+              note,
+              recordedBy: teacherUser.name,
+            },
+          });
+        }
+      }
     }
 
     // Seed Events
