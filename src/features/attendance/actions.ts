@@ -39,6 +39,8 @@ import {
   getCourseGrades,
   batchUpdateCourseGrades,
   updateCourseGradingConfig,
+  createOrUpdateStudent,
+  deleteStudent,
 } from "./_internal/services";
 
 import {
@@ -456,5 +458,41 @@ export async function updateCourseGradingConfigAction(
   revalidatePath(`/attendance/classes/${courseId}/grades`);
   return { success: true, course: result };
 }
+
+export async function createOrUpdateStudentAction(data: {
+  id?: string;
+  studentCode: string;
+  title?: string | null;
+  firstName: string;
+  lastName: string;
+  yearLevel: number;
+  department?: string | null;
+  degree?: string | null;
+  curriculumName?: string | null;
+  major?: string | null;
+  faculty?: string | null;
+  studyStatus?: string | null;
+  email?: string | null;
+  phoneNumber?: string | null;
+}) {
+  const session = await requireSession();
+  await requirePermission(ATTENDANCE_P.manage);
+
+  const result = await createOrUpdateStudent(session.tenantId, session.userId, data);
+  revalidatePath("/attendance/students");
+  revalidatePath("/attendance/classes");
+  return { success: true, student: result };
+}
+
+export async function deleteStudentAction(studentId: string) {
+  const session = await requireSession();
+  await requirePermission(ATTENDANCE_P.manage);
+
+  const result = await deleteStudent(session.tenantId, session.userId, studentId);
+  revalidatePath("/attendance/students");
+  revalidatePath("/attendance/classes");
+  return result;
+}
+
 
 

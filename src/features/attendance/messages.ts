@@ -4,6 +4,7 @@ export const MESSAGES: Dictionary = {
   "attendance.nav": { th: "เวลาเรียนและสิทธิ์สอบ", en: "Attendance & Eligibility" },
   "attendance.dashboard.title": { th: "แดชบอร์ดภาพรวม", en: "Dashboard Overview" },
   "attendance.classes.title": { th: "รายวิชาและเวลาเรียน", en: "Course Attendance" },
+  "attendance.students.title": { th: "ทะเบียนนิสิต", en: "Student Directory" },
   "attendance.sessions.title": { th: "ตารางคาบเรียนและการเช็กชื่อ", en: "Sessions & Attendance" },
   
   "attendance.status.PRESENT": { th: "มาเรียน", en: "Present" },

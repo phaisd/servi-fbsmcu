@@ -82,6 +82,7 @@ export const sidebarGroups: NavGroup[] = [
     items: [
       { title: "attendance.dashboard.title", href: "/attendance", icon: LayoutDashboard, permission: ATTENDANCE_P.manage },
       { title: "attendance.classes.title", href: "/attendance/classes", icon: FileText, permission: ATTENDANCE_P.manage },
+      { title: "attendance.students.title", href: "/attendance/students", icon: Users, permission: ATTENDANCE_P.manage },
       { title: "curriculum.calendar_title", href: "/curriculum/calendar", icon: Calendar, permission: ATTENDANCE_P.manage },
     ],
   },

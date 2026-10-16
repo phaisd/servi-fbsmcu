@@ -43,6 +43,9 @@ export {
   getCourseGrades,
   batchUpdateCourseGrades,
   updateCourseGradingConfig,
+  getAllStudentsDirectory,
+  createOrUpdateStudent,
+  deleteStudent,
 } from "./_internal/services";
 
 export {

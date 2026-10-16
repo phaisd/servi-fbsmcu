@@ -3064,3 +3064,143 @@ export async function updateCourseGradingConfig(
   return updated;
 }
 
+/**
+ * ดึงข้อมูลนิสิตทั้งหมดในระบบสำหรับหน้าทะเบียนนิสิตกลาง (Student Directory)
+ */
+export async function getAllStudentsDirectory(tenantId: string) {
+  const students = await db.student.findMany({
+    where: { tenantId },
+    include: {
+      enrollments: {
+        where: { status: { not: EnrollmentStatus.DROPPED } },
+        include: {
+          course: {
+            select: {
+              id: true,
+              courseCode: true,
+              courseName: true,
+              courseNameEn: true,
+              academicYear: true,
+              semester: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: [
+      { yearLevel: "asc" },
+      { studentCode: "asc" },
+    ],
+  });
+
+  return students;
+}
+
+export async function createOrUpdateStudent(
+  tenantId: string,
+  actorId: string,
+  data: {
+    id?: string;
+    studentCode: string;
+    title?: string | null;
+    firstName: string;
+    lastName: string;
+    yearLevel: number;
+    department?: string | null;
+    degree?: string | null;
+    curriculumName?: string | null;
+    major?: string | null;
+    faculty?: string | null;
+    studyStatus?: string | null;
+    email?: string | null;
+    phoneNumber?: string | null;
+  }
+) {
+  if (data.id) {
+    const updated = await db.student.update({
+      where: { id: data.id },
+      data: {
+        studentCode: data.studentCode,
+        title: data.title,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        yearLevel: data.yearLevel,
+        department: data.department,
+        degree: data.degree,
+        curriculumName: data.curriculumName,
+        major: data.major,
+        faculty: data.faculty || "คณะพุทธศาสตร์",
+        studyStatus: data.studyStatus || "ปกติ",
+        email: data.email,
+        phoneNumber: data.phoneNumber,
+      },
+    });
+
+    await writeAudit({
+      tenantId,
+      actorId,
+      action: "attendance.student.updated",
+      entity: "Student",
+      entityId: updated.id,
+      after: updated,
+    });
+
+    return updated;
+  }
+
+  const created = await db.student.create({
+    data: {
+      tenantId,
+      studentCode: data.studentCode,
+      title: data.title,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      yearLevel: data.yearLevel,
+      department: data.department,
+      degree: data.degree || "ปริญญาตรี",
+      curriculumName: data.curriculumName,
+      major: data.major,
+      faculty: data.faculty || "คณะพุทธศาสตร์",
+      studyStatus: data.studyStatus || "ปกติ",
+      email: data.email,
+      phoneNumber: data.phoneNumber,
+    },
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "attendance.student.created",
+    entity: "Student",
+    entityId: created.id,
+    after: created,
+  });
+
+  return created;
+}
+
+export async function deleteStudent(tenantId: string, actorId: string, studentId: string) {
+  const student = await db.student.findUnique({
+    where: { id: studentId },
+  });
+
+  if (!student || student.tenantId !== tenantId) {
+    throw new Error("NOT_FOUND: ไม่พบนิสิต");
+  }
+
+  await db.student.delete({
+    where: { id: studentId },
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "attendance.student.deleted",
+    entity: "Student",
+    entityId: studentId,
+    before: student,
+  });
+
+  return { success: true };
+}
+
