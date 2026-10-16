@@ -80,6 +80,9 @@ export function TimetableGridView({
 }: TimetableGridViewProps) {
   const isEn = locale === "en" || Boolean(timetable.titleEn && !timetable.titleTh.includes("พุทธศาสตร"));
 
+  // การแสดงผลหมายเหตุ: "both" (2 คอลัมน์: ไทยซ้าย อังกฤษขวา), "th" (ภาษาไทย), "en" (English)
+  const [notesMode, setNotesMode] = React.useState<"both" | "th" | "en">("both");
+
   const slots: TimetableSlot[] = Array.isArray(timetable.scheduleData)
     ? (timetable.scheduleData as TimetableSlot[])
     : [];
@@ -722,48 +725,124 @@ export function TimetableGridView({
       </div>
 
       {/* ── FOOTNOTE / NOTES SECTION ── */}
-      <div className="p-4 sm:p-5 print:p-2 rounded-xl print:rounded-none border border-border/80 print:border-none bg-card/60 print:bg-transparent space-y-2 print:space-y-1 text-xs print:text-[11px] print:break-inside-avoid shadow-2xs">
-        <div className="flex flex-col sm:flex-row items-start gap-2.5 sm:gap-4 font-sans">
-          <div className="font-bold text-foreground print:text-black shrink-0 tracking-wide text-xs sm:text-sm">
-            {isEn ? "Remarks / หมายเหตุ :" : "หมายเหตุ :"}
+      <div className="p-4 sm:p-5 print:p-2 rounded-xl print:rounded-none border border-border/80 print:border-none bg-card/60 print:bg-transparent space-y-3 print:space-y-1.5 text-xs print:text-[11px] print:break-inside-avoid shadow-2xs">
+        {/* Header with Title and Interactive Language Switcher */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-border/50 print:border-none print:pb-0">
+          <div className="flex items-center gap-2 font-bold text-foreground print:text-black tracking-wide text-xs sm:text-sm">
+            <Info className="w-4 h-4 text-amber-500 print:hidden shrink-0" />
+            <span>
+              {notesMode === "both"
+                ? "หมายเหตุ / Remarks :"
+                : notesMode === "th"
+                ? "หมายเหตุ :"
+                : "Remarks :"}
+            </span>
           </div>
-          <div className="space-y-1.5 text-foreground/90 print:text-black leading-relaxed font-normal flex-1">
-            {isEn ? (
-              <>
-                <p>
-                  1. Buddhist Holy Days (Wan Phra) and public holidays are general holidays (any class falling on a Buddhist Holy Day will be moved to Friday).
-                </p>
-                <p>
-                  2. An asterisk (*) after a course name indicates a Centralized Examination.
-                </p>
-                <p>
-                  3. An asterisk (*) after an instructor&apos;s name indicates the Course Coordinator / Primary Instructor.
-                </p>
-                <p className="text-[11px] text-muted-foreground pt-1.5 border-t border-border/30 print:text-neutral-700">
-                  หมายเหตุ: ๑. วันพระและวันนักขัตฤกษ์เป็นวันหยุดทั่วไป (ตารางเรียนวันใดตรงกับวันพระให้ยกไปเรียนวันศุกร์)  ๒. เครื่องหมายดอกจัน (*) อยู่หลังชื่อรายวิชาหมายถึง ข้อสอบกลาง  ๓. เครื่องหมายดอกจัน (*) อยู่หลังชื่อ หมายถึง อาจารย์ผู้รับผิดชอบรายวิชา
-                </p>
-              </>
-            ) : (
-              <>
-                <p>
-                  ๑. วันพระและวันนักขัตฤกษ์เป็นวันหยุดทั่วไป (ตารางเรียนวันใดตรงกับวันพระให้ยกไปเรียนวันศุกร์)
-                </p>
-                <p>
-                  ๒. เครื่องหมายดอกจัน (*) อยู่หลังชื่อรายวิชาหมายถึง ข้อสอบกลาง
-                </p>
-                <p>
-                  ๓. เครื่องหมายดอกจัน (*) อยู่หลังชื่อ หมายถึง อาจารย์ผู้รับผิดชอบรายวิชา
-                </p>
-              </>
-            )}
 
-            {timetable.notes && (
-              <p className="pt-2 mt-2 border-t border-border/40 text-muted-foreground print:text-neutral-700 whitespace-pre-line text-[11px]">
-                {timetable.notes}
-              </p>
-            )}
+          {/* Toggle pill buttons (hidden in print) */}
+          <div className="inline-flex items-center p-0.5 rounded-lg bg-muted/80 border border-border/60 text-[11px] print:hidden">
+            <button
+              type="button"
+              onClick={() => setNotesMode("both")}
+              className={`px-2.5 py-1 rounded-md transition-all font-medium cursor-pointer ${
+                notesMode === "both"
+                  ? "bg-background text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              ทั้ง 2 ภาษา (2 คอลัมน์)
+            </button>
+            <button
+              type="button"
+              onClick={() => setNotesMode("th")}
+              className={`px-2.5 py-1 rounded-md transition-all font-medium cursor-pointer ${
+                notesMode === "th"
+                  ? "bg-background text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              ภาษาไทย
+            </button>
+            <button
+              type="button"
+              onClick={() => setNotesMode("en")}
+              className={`px-2.5 py-1 rounded-md transition-all font-medium cursor-pointer ${
+                notesMode === "en"
+                  ? "bg-background text-foreground shadow-xs font-semibold"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              English
+            </button>
           </div>
         </div>
+
+        {/* Content: 2 Columns (Thai Left, English Right) or Single Column */}
+        <div
+          className={
+            notesMode === "both"
+              ? "grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 md:gap-6 print:gap-4 divide-y md:divide-y-0 md:divide-x print:divide-x divide-border/60 font-sans"
+              : "space-y-1.5 font-sans"
+          }
+        >
+          {/* Left Column: ภาษาไทย */}
+          {(notesMode === "both" || notesMode === "th") && (
+            <div className="space-y-1.5 text-foreground/90 print:text-black leading-relaxed font-normal">
+              {notesMode === "both" && (
+                <div className="font-semibold text-foreground print:text-black text-[11px] sm:text-xs mb-1 flex items-center gap-1.5">
+                  <span className="print:hidden">🇹🇭</span>
+                  <span>หมายเหตุ (ภาษาไทย)</span>
+                </div>
+              )}
+              <p>
+                ๑. วันพระและวันนักขัตฤกษ์เป็นวันหยุดทั่วไป (ตารางเรียนวันใดตรงกับวันพระให้ยกไปเรียนวันศุกร์)
+              </p>
+              <p>
+                ๒. เครื่องหมายดอกจัน (*) อยู่หลังชื่อรายวิชาหมายถึง ข้อสอบกลาง
+              </p>
+              <p>
+                ๓. เครื่องหมายดอกจัน (*) อยู่หลังชื่อ หมายถึง อาจารย์ผู้รับผิดชอบรายวิชา
+              </p>
+            </div>
+          )}
+
+          {/* Right Column: English */}
+          {(notesMode === "both" || notesMode === "en") && (
+            <div
+              className={
+                notesMode === "both"
+                  ? "md:pl-6 print:pl-4 pt-3 md:pt-0 space-y-1.5 text-foreground/90 print:text-black leading-relaxed font-normal"
+                  : "space-y-1.5 text-foreground/90 print:text-black leading-relaxed font-normal"
+              }
+            >
+              {notesMode === "both" && (
+                <div className="font-semibold text-foreground print:text-black text-[11px] sm:text-xs mb-1 flex items-center gap-1.5">
+                  <span className="print:hidden">🇬🇧</span>
+                  <span>Remarks (English)</span>
+                </div>
+              )}
+              <p>
+                1. Buddhist Holy Days (Wan Phra) and public holidays are general holidays (any class falling on a Buddhist Holy Day will be moved to Friday).
+              </p>
+              <p>
+                2. An asterisk (*) after a course name indicates a Centralized Examination.
+              </p>
+              <p>
+                3. An asterisk (*) after an instructor&apos;s name indicates the Course Coordinator / Primary Instructor.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Additional Timetable Notes if present in database */}
+        {timetable.notes && (
+          <div className="pt-2 mt-2 border-t border-border/40 text-muted-foreground print:text-neutral-700 whitespace-pre-line text-[11px]">
+            <span className="font-semibold text-foreground print:text-black mr-1.5">
+              {notesMode === "en" ? "Additional Notes:" : "หมายเหตุเพิ่มเติม:"}
+            </span>
+            {timetable.notes}
+          </div>
+        )}
       </div>
     </div>
   );
