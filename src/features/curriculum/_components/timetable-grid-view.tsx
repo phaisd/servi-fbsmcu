@@ -65,7 +65,7 @@ const DEGREE_LABELS: Record<string, { th: string; en: string }> = {
   CERTIFICATE: { th: "หลักสูตรประกาศนียบัตร", en: "Certificate Program" },
 };
 
-const DAY_NAMES = [
+const ALL_DAYS = [
   { num: 1, th: "จันทร์", en: "Mon.", fullTh: "วันจันทร์", fullEn: "Monday", color: "border-l-amber-400" },
   { num: 2, th: "อังคาร", en: "Tue.", fullTh: "วันอังคาร", fullEn: "Tuesday", color: "border-l-pink-400" },
   { num: 3, th: "พุธ", en: "Wed.", fullTh: "วันพุธ", fullEn: "Wednesday", color: "border-l-emerald-400" },
@@ -83,6 +83,12 @@ export function TimetableGridView({
   const slots: TimetableSlot[] = Array.isArray(timetable.scheduleData)
     ? (timetable.scheduleData as TimetableSlot[])
     : [];
+
+  // ซ่อนแถววันศุกร์หากไม่มีวิชาเรียนในวันศุกร์ (ตารางเรียนปกติเรียนวันจันทร์-พฤหัสบดี)
+  const activeDays = React.useMemo(() => {
+    const hasFriday = slots.some((s) => s.dayOfWeek === 5);
+    return hasFriday ? ALL_DAYS : ALL_DAYS.filter((d) => d.num !== 5);
+  }, [slots]);
 
   const handlePrint = () => {
     window.print();
@@ -396,7 +402,7 @@ export function TimetableGridView({
           </thead>
 
           <tbody className="divide-y divide-border">
-            {DAY_NAMES.map((day) => {
+            {activeDays.map((day) => {
               const daySlots = getSlotsForDay(day.num);
 
               // Helper: calculate period bounds for a slot
@@ -640,7 +646,7 @@ export function TimetableGridView({
 
       {/* ── MOBILE RESPONSIVE CARDS VIEW (For screens < md) ── */}
       <div className="md:hidden space-y-4 print:hidden">
-        {DAY_NAMES.map((day) => {
+        {activeDays.map((day) => {
           const daySlots = getSlotsForDay(day.num);
           if (daySlots.length === 0) return null;
 
@@ -716,17 +722,49 @@ export function TimetableGridView({
       </div>
 
       {/* ── FOOTNOTE / NOTES SECTION ── */}
-      {timetable.notes && (
-        <div className="p-4 sm:p-5 print:p-3 rounded-xl print:rounded-lg border border-amber-500/20 print:border-black/30 bg-amber-500/5 print:bg-transparent space-y-2 print:space-y-1 text-xs print:text-[10px] print:break-inside-avoid">
-          <div className="flex items-center gap-1.5 font-bold text-amber-900 dark:text-amber-200 print:text-black">
-            <Info className="w-4 h-4 print:w-3.5 print:h-3.5 text-amber-600 dark:text-amber-400 print:text-black" />
-            <span>{locale === "th" ? "ข้อความและหมายเหตุสำคัญ" : "Important Notes"}</span>
+      <div className="p-4 sm:p-5 print:p-2 rounded-xl print:rounded-none border border-border/80 print:border-none bg-card/60 print:bg-transparent space-y-2 print:space-y-1 text-xs print:text-[11px] print:break-inside-avoid shadow-2xs">
+        <div className="flex flex-col sm:flex-row items-start gap-2.5 sm:gap-4 font-sans">
+          <div className="font-bold text-foreground print:text-black shrink-0 tracking-wide text-xs sm:text-sm">
+            {isEn ? "Remarks / หมายเหตุ :" : "หมายเหตุ :"}
           </div>
-          <div className="text-muted-foreground print:text-neutral-900 leading-relaxed print:leading-normal whitespace-pre-line pl-5 print:pl-4 font-normal">
-            {timetable.notes}
+          <div className="space-y-1.5 text-foreground/90 print:text-black leading-relaxed font-normal flex-1">
+            {isEn ? (
+              <>
+                <p>
+                  1. Buddhist Holy Days (Wan Phra) and public holidays are general holidays (any class falling on a Buddhist Holy Day will be moved to Friday).
+                </p>
+                <p>
+                  2. An asterisk (*) after a course name indicates a Centralized Examination.
+                </p>
+                <p>
+                  3. An asterisk (*) after an instructor&apos;s name indicates the Course Coordinator / Primary Instructor.
+                </p>
+                <p className="text-[11px] text-muted-foreground pt-1.5 border-t border-border/30 print:text-neutral-700">
+                  หมายเหตุ: ๑. วันพระและวันนักขัตฤกษ์เป็นวันหยุดทั่วไป (ตารางเรียนวันใดตรงกับวันพระให้ยกไปเรียนวันศุกร์)  ๒. เครื่องหมายดอกจัน (*) อยู่หลังชื่อรายวิชาหมายถึง ข้อสอบกลาง  ๓. เครื่องหมายดอกจัน (*) อยู่หลังชื่อ หมายถึง อาจารย์ผู้รับผิดชอบรายวิชา
+                </p>
+              </>
+            ) : (
+              <>
+                <p>
+                  ๑. วันพระและวันนักขัตฤกษ์เป็นวันหยุดทั่วไป (ตารางเรียนวันใดตรงกับวันพระให้ยกไปเรียนวันศุกร์)
+                </p>
+                <p>
+                  ๒. เครื่องหมายดอกจัน (*) อยู่หลังชื่อรายวิชาหมายถึง ข้อสอบกลาง
+                </p>
+                <p>
+                  ๓. เครื่องหมายดอกจัน (*) อยู่หลังชื่อ หมายถึง อาจารย์ผู้รับผิดชอบรายวิชา
+                </p>
+              </>
+            )}
+
+            {timetable.notes && (
+              <p className="pt-2 mt-2 border-t border-border/40 text-muted-foreground print:text-neutral-700 whitespace-pre-line text-[11px]">
+                {timetable.notes}
+              </p>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
