@@ -305,6 +305,48 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
     window.print();
   }
 
+  function handleOpenAllTeacherHandover() {
+    const credsMap = new Map<
+      string,
+      {
+        teacherName: string;
+        email: string;
+        initialPassword?: string;
+        courses: string[];
+        isNew: boolean;
+      }
+    >();
+
+    for (const item of items) {
+      if (item.instructor?.email) {
+        const email = item.instructor.email;
+        const existing = credsMap.get(email);
+        if (existing) {
+          if (!existing.courses.includes(item.courseCode)) {
+            existing.courses.push(item.courseCode);
+          }
+        } else {
+          credsMap.set(email, {
+            teacherName: item.instructor.name,
+            email,
+            initialPassword: "Teacher1234!",
+            courses: [item.courseCode],
+            isNew: true,
+          });
+        }
+      }
+    }
+
+    setSyncResult({
+      importedCount: items.length,
+      skippedCount: 0,
+      teacherCredentials: Array.from(credsMap.values()).sort((a, b) =>
+        a.teacherName.localeCompare(b.teacherName, "th")
+      ),
+    });
+    setIsHandoverModalOpen(true);
+  }
+
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
       {/* ส่วนหัวหน้าจอ */}
@@ -332,6 +374,18 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
             <Calendar className="w-4 h-4 text-amber-600 dark:text-amber-400" />
             <span>ปฏิทินการศึกษา (Academic Calendar)</span>
           </Link>
+
+          {isSuperAdmin && (
+            <button
+              type="button"
+              onClick={handleOpenAllTeacherHandover}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 font-medium text-sm shadow-xs transition"
+              title="พิมพ์ใบส่งมอบบัญชีผู้ใช้และรหัสผ่านสำหรับอาจารย์ผู้สอนทั้งหมด"
+            >
+              <Printer className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>พิมพ์ใบส่งมอบบัญชีอาจารย์</span>
+            </button>
+          )}
 
           <button
             type="button"
