@@ -2689,3 +2689,298 @@ export async function updateCourseCalculationRules(
 
   return updatedCourse;
 }
+
+// =========================================================================
+// 10. GRADING & ASSESSMENT (คะแนนเก็บ, สอบระหว่างภาค, จิตพิสัย, สอบปลายภาค)
+// =========================================================================
+
+export interface CourseGradingConfig {
+  assignmentMax: number; // คะแนนเก็บ (Default: 30)
+  midtermMax: number;    // สอบระหว่างภาค (Default: 30)
+  affectiveMax: number;  // จิตวิสัย / จิตพิสัย (Default: 10)
+  finalMax: number;      // สอบปลายภาค (Default: 30)
+}
+
+export function calculateGradeFromScore(totalScore: number): string {
+  if (totalScore >= 80) return "A";
+  if (totalScore >= 75) return "B+";
+  if (totalScore >= 70) return "B";
+  if (totalScore >= 65) return "C+";
+  if (totalScore >= 60) return "C";
+  if (totalScore >= 55) return "D+";
+  if (totalScore >= 50) return "D";
+  return "F";
+}
+
+/**
+ * ดึงข้อมูลการให้คะแนนและเกรดของรายวิชา (Gradebook)
+ */
+export async function getCourseGrades(
+  tenantId: string,
+  courseId: string,
+  userId?: string,
+  isSuperAdmin = false
+) {
+  if (userId) {
+    await assertCourseAccess(tenantId, courseId, userId, isSuperAdmin);
+  }
+
+  const course = await db.course.findUnique({
+    where: { id: courseId },
+    include: {
+      primaryTeacher: true,
+      sessions: {
+        orderBy: { sessionNumber: "asc" },
+      },
+      enrollments: {
+        where: { status: EnrollmentStatus.ENROLLED },
+        include: {
+          student: true,
+          records: {
+            include: { session: true },
+          },
+        },
+        orderBy: [
+          { student: { yearLevel: "asc" } },
+          { student: { studentCode: "asc" } },
+        ],
+      },
+    },
+  });
+
+  if (!course) throw new Error("NOT_FOUND: ไม่พบรายวิชา");
+
+  const defaultConfig: CourseGradingConfig = {
+    assignmentMax: 30,
+    midtermMax: 30,
+    affectiveMax: 10,
+    finalMax: 30,
+  };
+
+  const rawConfig = (course.gradingConfig as any) || {};
+  const gradingConfig: CourseGradingConfig = {
+    assignmentMax: Number(rawConfig.assignmentMax) >= 0 ? Number(rawConfig.assignmentMax) : defaultConfig.assignmentMax,
+    midtermMax: Number(rawConfig.midtermMax) >= 0 ? Number(rawConfig.midtermMax) : defaultConfig.midtermMax,
+    affectiveMax: Number(rawConfig.affectiveMax) >= 0 ? Number(rawConfig.affectiveMax) : defaultConfig.affectiveMax,
+    finalMax: Number(rawConfig.finalMax) >= 0 ? Number(rawConfig.finalMax) : defaultConfig.finalMax,
+  };
+
+  const scheduledCountedSessions = course.sessions.filter(
+    (s: any) => s.isCounted && s.status !== SessionStatus.CANCELLED
+  ).length;
+
+  const conductedCountedSessions = course.sessions.filter(
+    (s: any) =>
+      s.isCounted &&
+      (s.status === SessionStatus.COMPLETED || s.status === SessionStatus.IN_PROGRESS)
+  ).length;
+
+  const rules = (course.calculationRules as any) || {};
+
+  const students = course.enrollments.map((enr: any) => {
+    const formattedRecords = enr.records.map((r: any) => ({
+      status: r.status,
+      isCountedSession: r.session.isCounted,
+      sessionStatus: r.session.status,
+    }));
+
+    const eligibility = calculateStudentEligibility({
+      studentId: enr.student.id,
+      enrollmentId: enr.id,
+      studentCode: enr.student.studentCode,
+      studentName: `${enr.student.title || ""} ${enr.student.firstName} ${enr.student.lastName}`.trim(),
+      yearLevel: enr.student.yearLevel,
+      department: enr.student.department,
+      records: formattedRecords,
+      totalScheduledCountedSessions: scheduledCountedSessions,
+      totalConductedCountedSessions: conductedCountedSessions,
+      rules,
+    });
+
+    const hasAnyScore =
+      enr.assignmentScore !== null ||
+      enr.midtermScore !== null ||
+      enr.affectiveScore !== null ||
+      enr.finalScore !== null;
+
+    const computedTotal = hasAnyScore
+      ? Math.round(
+          ((enr.assignmentScore || 0) +
+            (enr.midtermScore || 0) +
+            (enr.affectiveScore || 0) +
+            (enr.finalScore || 0)) * 100
+        ) / 100
+      : enr.totalScore;
+
+    const currentGrade =
+      enr.grade ||
+      (computedTotal !== null && computedTotal !== undefined
+        ? calculateGradeFromScore(computedTotal)
+        : null);
+
+    return {
+      enrollmentId: enr.id,
+      studentId: enr.student.id,
+      studentCode: enr.student.studentCode,
+      title: enr.student.title || "",
+      firstName: enr.student.firstName,
+      lastName: enr.student.lastName,
+      fullName: `${enr.student.title || ""} ${enr.student.firstName} ${enr.student.lastName}`.trim(),
+      yearLevel: enr.student.yearLevel,
+      department: enr.student.department || "-",
+      major: enr.student.major || enr.student.department || "-",
+      gender: enr.student.gender || "-",
+      studyStatus: enr.student.studyStatus || "ปกติ",
+      attendancePercentage: eligibility.percentage,
+      isEligible: eligibility.isEligible,
+      eligibilityStatusTh: eligibility.statusTh,
+      assignmentScore: enr.assignmentScore,
+      midtermScore: enr.midtermScore,
+      affectiveScore: enr.affectiveScore,
+      finalScore: enr.finalScore,
+      totalScore: computedTotal !== undefined ? computedTotal : null,
+      grade: currentGrade,
+      gradeRemarks: enr.gradeRemarks || "",
+    };
+  });
+
+  return {
+    course: {
+      id: course.id,
+      courseCode: course.courseCode,
+      courseName: course.courseName,
+      credits: course.credits,
+      term: course.term,
+      academicYear: course.academicYear,
+      semester: course.semester,
+      room: course.room || "-",
+      primaryTeacher: course.primaryTeacher?.name || "-",
+    },
+    gradingConfig,
+    students,
+  };
+}
+
+/**
+ * บันทึกคะแนนและเกรดแบบกลุ่ม (Batch Grade Update)
+ */
+export async function batchUpdateCourseGrades(
+  tenantId: string,
+  actorId: string,
+  courseId: string,
+  items: Array<{
+    enrollmentId: string;
+    assignmentScore?: number | null;
+    midtermScore?: number | null;
+    affectiveScore?: number | null;
+    finalScore?: number | null;
+    totalScore?: number | null;
+    grade?: string | null;
+    gradeRemarks?: string | null;
+  }>
+) {
+  const course = await db.course.findUnique({ where: { id: courseId } });
+  if (!course || course.tenantId !== tenantId) {
+    throw new Error("NOT_FOUND: ไม่พบรายวิชา");
+  }
+
+  const results = await db.$transaction(async (tx) => {
+    const updated = [];
+    for (const item of items) {
+      const hasAnyScore =
+        item.assignmentScore !== null && item.assignmentScore !== undefined ||
+        item.midtermScore !== null && item.midtermScore !== undefined ||
+        item.affectiveScore !== null && item.affectiveScore !== undefined ||
+        item.finalScore !== null && item.finalScore !== undefined;
+
+      const computedTotal =
+        item.totalScore !== undefined && item.totalScore !== null
+          ? item.totalScore
+          : hasAnyScore
+          ? Math.round(
+              ((item.assignmentScore || 0) +
+                (item.midtermScore || 0) +
+                (item.affectiveScore || 0) +
+                (item.finalScore || 0)) * 100
+            ) / 100
+          : null;
+
+      const resolvedGrade =
+        item.grade && item.grade.trim() !== ""
+          ? item.grade.trim().toUpperCase()
+          : computedTotal !== null && computedTotal !== undefined
+          ? calculateGradeFromScore(computedTotal)
+          : null;
+
+      const res = await tx.courseEnrollment.update({
+        where: { id: item.enrollmentId },
+        data: {
+          assignmentScore: item.assignmentScore !== undefined ? item.assignmentScore : undefined,
+          midtermScore: item.midtermScore !== undefined ? item.midtermScore : undefined,
+          affectiveScore: item.affectiveScore !== undefined ? item.affectiveScore : undefined,
+          finalScore: item.finalScore !== undefined ? item.finalScore : undefined,
+          totalScore: computedTotal,
+          grade: resolvedGrade,
+          gradeRemarks: item.gradeRemarks !== undefined ? item.gradeRemarks : undefined,
+        },
+      });
+      updated.push(res);
+    }
+    return updated;
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "attendance.grades.batch_update",
+    entity: "Course",
+    entityId: courseId,
+    after: {
+      updatedCount: results.length,
+      updatedAt: new Date().toISOString(),
+    },
+  });
+
+  return { success: true, updatedCount: results.length };
+}
+
+/**
+ * อัปเดตสัดส่วนคะแนนเต็มของรายวิชา (Course Grading Config)
+ */
+export async function updateCourseGradingConfig(
+  tenantId: string,
+  actorId: string,
+  courseId: string,
+  config: CourseGradingConfig
+) {
+  const course = await db.course.findUnique({ where: { id: courseId } });
+  if (!course || course.tenantId !== tenantId) {
+    throw new Error("NOT_FOUND: ไม่พบรายวิชา");
+  }
+
+  const sanitizedConfig: CourseGradingConfig = {
+    assignmentMax: Math.max(0, Number(config.assignmentMax) || 0),
+    midtermMax: Math.max(0, Number(config.midtermMax) || 0),
+    affectiveMax: Math.max(0, Number(config.affectiveMax) || 0),
+    finalMax: Math.max(0, Number(config.finalMax) || 0),
+  };
+
+  const updated = await db.course.update({
+    where: { id: courseId },
+    data: {
+      gradingConfig: sanitizedConfig,
+    },
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "attendance.course.grading_config_updated",
+    entity: "Course",
+    entityId: courseId,
+    after: sanitizedConfig,
+  });
+
+  return updated;
+}
+

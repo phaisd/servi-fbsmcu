@@ -36,6 +36,9 @@ import {
   getStudentPersonalAttendance,
   getCourseAttendanceMatrix,
   updateCourseCalculationRules,
+  getCourseGrades,
+  batchUpdateCourseGrades,
+  updateCourseGradingConfig,
 } from "./_internal/services";
 
 import {
@@ -398,6 +401,59 @@ export async function updateCourseCalculationRulesAction(
   revalidatePath(`/attendance/classes/${courseId}/eligibility`);
   revalidatePath(`/attendance/classes/${courseId}`);
   revalidatePath("/attendance/classes");
+  return { success: true, course: result };
+}
+
+export async function batchUpdateCourseGradesAction(
+  courseId: string,
+  items: Array<{
+    enrollmentId: string;
+    assignmentScore?: number | null;
+    midtermScore?: number | null;
+    affectiveScore?: number | null;
+    finalScore?: number | null;
+    totalScore?: number | null;
+    grade?: string | null;
+    gradeRemarks?: string | null;
+  }>
+) {
+  const session = await requireSession();
+  await requirePermission(ATTENDANCE_P.manage);
+  await assertCourseAccess(session.tenantId, courseId, session.userId, session.isSuperAdmin);
+
+  const result = await batchUpdateCourseGrades(
+    session.tenantId,
+    session.userId,
+    courseId,
+    items
+  );
+
+  revalidatePath(`/attendance/classes/${courseId}/grades`);
+  revalidatePath(`/attendance/classes/${courseId}`);
+  return { success: true, ...result };
+}
+
+export async function updateCourseGradingConfigAction(
+  courseId: string,
+  config: {
+    assignmentMax: number;
+    midtermMax: number;
+    affectiveMax: number;
+    finalMax: number;
+  }
+) {
+  const session = await requireSession();
+  await requirePermission(ATTENDANCE_P.manage);
+  await assertCourseAccess(session.tenantId, courseId, session.userId, session.isSuperAdmin);
+
+  const result = await updateCourseGradingConfig(
+    session.tenantId,
+    session.userId,
+    courseId,
+    config
+  );
+
+  revalidatePath(`/attendance/classes/${courseId}/grades`);
   return { success: true, course: result };
 }
 

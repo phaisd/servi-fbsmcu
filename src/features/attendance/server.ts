@@ -40,6 +40,9 @@ export {
   getStudentPersonalAttendance,
   getCourseAttendanceMatrix,
   updateCourseCalculationRules,
+  getCourseGrades,
+  batchUpdateCourseGrades,
+  updateCourseGradingConfig,
 } from "./_internal/services";
 
 export {

@@ -23,6 +23,7 @@ import {
   KeyRound,
   ShieldCheck,
   Check,
+  Award,
 } from "lucide-react";
 import {
   LiyonCard,
@@ -494,7 +495,7 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-4 gap-1.5 pt-1">
+                  <div className="grid grid-cols-5 gap-1.5 pt-1">
                     <Link
                       href={`/attendance/classes/${item.id}/sessions`}
                       className="inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-2xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-primary hover:text-white hover:border-primary transition shadow-2xs"
@@ -529,6 +530,15 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
                     >
                       <FileSpreadsheet className="w-3 h-3" />
                       สิทธิ์สอบ
+                    </Link>
+
+                    <Link
+                      href={`/attendance/classes/${item.id}/grades`}
+                      className="inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-2xs font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-600 hover:text-white transition shadow-2xs"
+                      title="สมุดบันทึกคะแนนและเกรด (คะแนนเก็บ, กลางภาค, จิตวิสัย, ปลายภาค)"
+                    >
+                      <Award className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                      คะแนน
                     </Link>
                   </div>
                 </div>

@@ -692,6 +692,9 @@ model Course {
   /// กฎการคำนวณ: lateCountsAsFull (default true), excuseDeductsDenominator (default false), minPercent (default 80.0)
   calculationRules Json       @default("{\"lateCountsAsFull\": true, \"excuseDeductsDenominator\": false, \"minPercent\": 80.0}") @map("calculation_rules") @db.JsonB
 
+  /// สัดส่วนคะแนนเต็ม: assignmentMax (default 30), midtermMax (default 30), affectiveMax (default 10), finalMax (default 30)
+  gradingConfig    Json?      @default("{\"assignmentMax\": 30, \"midtermMax\": 30, \"affectiveMax\": 10, \"finalMax\": 30}") @map("grading_config") @db.JsonB
+
   primaryTeacherId String     @map("primary_teacher_id") @db.Uuid
   isActive         Boolean    @default(true) @map("is_active")
   createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz()
@@ -728,15 +731,22 @@ model CourseTeacher {
 }
 
 model CourseEnrollment {
-  id         String           @id @default(uuid()) @db.Uuid
-  tenantId   String           @map("tenant_id") @db.Uuid
-  courseId   String           @map("course_id") @db.Uuid
-  studentId  String           @map("student_id") @db.Uuid
-  status     EnrollmentStatus @default(ENROLLED)
-  enrolledAt DateTime         @default(now()) @map("enrolled_at") @db.Timestamptz()
-  notes      String?          @db.Text
-  createdAt  DateTime         @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt  DateTime         @updatedAt @map("updated_at") @db.Timestamptz()
+  id              String           @id @default(uuid()) @db.Uuid
+  tenantId        String           @map("tenant_id") @db.Uuid
+  courseId        String           @map("course_id") @db.Uuid
+  studentId       String           @map("student_id") @db.Uuid
+  status          EnrollmentStatus @default(ENROLLED)
+  enrolledAt      DateTime         @default(now()) @map("enrolled_at") @db.Timestamptz()
+  notes           String?          @db.Text
+  assignmentScore Float?           @map("assignment_score")
+  midtermScore    Float?           @map("midterm_score")
+  affectiveScore  Float?           @map("affective_score")
+  finalScore      Float?           @map("final_score")
+  totalScore      Float?           @map("total_score")
+  grade           String?          @db.VarChar(10)
+  gradeRemarks    String?          @map("grade_remarks") @db.VarChar(255)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz()
 
   tenant     Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   course     Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)

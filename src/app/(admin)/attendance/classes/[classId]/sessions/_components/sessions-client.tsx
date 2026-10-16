@@ -17,6 +17,7 @@ import {
   Ban,
   ExternalLink,
   GraduationCap,
+  Award,
 } from "lucide-react";
 import {
   LiyonCard,
@@ -342,6 +343,14 @@ export function SessionsClient({ initialItems, classObj, isSuperAdmin: _isSuperA
           >
             <FileSpreadsheet className="w-3.5 h-3.5" />
             สรุปสิทธิ์สอบ
+          </Link>
+
+          <Link
+            href={`/attendance/classes/${classObj.id}/grades`}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 hover:bg-amber-100 text-xs font-semibold shadow-2xs transition"
+          >
+            <Award className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            บันทึกคะแนน/เกรด
           </Link>
 
           <button
