@@ -509,6 +509,7 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredItems.map((item) => {
             const enrollCount = item._count?.enrollments ?? 0;
+            const sessionCount = item._count?.sessions ?? item.targetSessions;
             const primaryTeacherName =
               item.primaryTeacher?.name ||
               item.instructor?.name ||
