@@ -738,12 +738,15 @@ export function TimetableGridView({
             <p>
               ๓. เครื่องหมายดอกจัน (*) อยู่หลังชื่อ หมายถึง อาจารย์ผู้รับผิดชอบรายวิชา
             </p>
+            <p>
+              ๔. วันพระกับวันอาทิตย์เป็นวันหยุดประจำสัปดาห์
+            </p>
           </div>
 
           {/* คอลัมน์ขวา: ภาษาอังกฤษ */}
           <div className="pl-4 sm:pl-8 print:pl-6 space-y-1.5 text-foreground/90 print:text-black leading-relaxed font-normal">
             <div className="font-bold text-foreground print:text-black text-xs sm:text-sm tracking-wide mb-1.5">
-              Remarks :
+              Note :
             </div>
             <p>
               1. Buddhist Holy Days (Wan Phra) and public holidays are general holidays (any class falling on a Buddhist Holy Day will be moved to Friday).
@@ -753,6 +756,9 @@ export function TimetableGridView({
             </p>
             <p>
               3. An asterisk (*) after an instructor&apos;s name indicates the Course Coordinator / Primary Instructor.
+            </p>
+            <p>
+              4. Buddhist Holy Days (Wan Phra) and Sundays are weekly holidays.
             </p>
           </div>
         </div>
