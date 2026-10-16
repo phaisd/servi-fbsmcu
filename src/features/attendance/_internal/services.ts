@@ -1958,10 +1958,55 @@ export async function syncCoursesFromTimetable(
     });
 
     if (existingCourse) {
+      // กรณีห้องเรียนรวม (สอนรวมหลายสาขาวิชา): ดึงนิสิตของสาขา/ตารางนี้เข้าเรียนเพิ่มเติมอัตโนมัติ
+      const matchingDept = (timetable.department?.nameTh || timetable.curriculum?.nameTh || "")
+        .replace("พุทธศาสตรบัณฑิต", "")
+        .replace("ภาควิชา", "")
+        .replace("สาขาวิชา", "")
+        .trim();
+
+      const candidateStudents = await db.student.findMany({
+        where: {
+          tenantId,
+          yearLevel: timetable.yearLevel,
+          isActive: true,
+          ...(matchingDept
+            ? {
+                OR: [
+                  { department: { contains: matchingDept, mode: "insensitive" } },
+                  { major: { contains: matchingDept, mode: "insensitive" } },
+                  { curriculumName: { contains: matchingDept, mode: "insensitive" } },
+                ],
+              }
+            : {}),
+        },
+      });
+
+      let newlyEnrolled = 0;
+      for (const st of candidateStudents) {
+        const exist = await db.courseEnrollment.findUnique({
+          where: { courseId_studentId: { courseId: existingCourse.id, studentId: st.id } },
+        });
+        if (!exist) {
+          await db.courseEnrollment.create({
+            data: {
+              tenantId,
+              courseId: existingCourse.id,
+              studentId: st.id,
+              status: EnrollmentStatus.ENROLLED,
+            },
+          });
+          newlyEnrolled++;
+        }
+      }
+
       skippedCourses.push({
         courseCode,
         courseName,
-        reason: "มีรายวิชานี้ในภาคการศึกษานี้อยู่แล้ว",
+        reason:
+          newlyEnrolled > 0
+            ? `ห้องเรียนรวม: ดึงนิสิตสาขา ${timetable.titleTh} เข้าห้องเรียนเพิ่ม ${newlyEnrolled} คนเรียบร้อยแล้ว`
+            : "มีรายวิชานี้ในระบบแล้ว (ห้องเรียนรวม)",
       });
       continue;
     }

@@ -50,6 +50,7 @@ interface StudentItem {
     title?: string | null;
     yearLevel: number;
     department?: string | null;
+    major?: string | null;
     faculty?: string | null;
   };
 }
@@ -469,7 +470,9 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                         ปี {st.yearLevel}
                       </td>
                       <td className="py-3 px-4 text-xs text-slate-600 dark:text-slate-300">
-                        {st.department || "-"}
+                        <span className="inline-flex px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-200 text-2xs">
+                          {st.major || st.department || "-"}
+                        </span>
                       </td>
                       <td className="py-3 px-4">
                         <StatusPill tone="ok" className="text-2xs">
