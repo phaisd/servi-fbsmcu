@@ -16,6 +16,7 @@ import {
   ArrowRight,
   ExternalLink,
   Info,
+  Globe,
 } from "lucide-react";
 import {
   LiyonCard,
@@ -80,6 +81,7 @@ export function CalendarAdminClient({
 }: CalendarAdminClientProps) {
   const router = useRouter();
   const [selectedSemester, setSelectedSemester] = useState<number | "ALL">("ALL");
+  const [displayLanguage, setDisplayLanguage] = useState<"BOTH" | "TH" | "EN">("BOTH");
 
   // Modal สร้างปีการศึกษาใหม่
   const [isNewYearOpen, setIsNewYearOpen] = useState(false);
@@ -229,15 +231,63 @@ export function CalendarAdminClient({
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-            ปฏิทินการศึกษา (Academic Calendar)
+            {displayLanguage === "TH"
+              ? "ปฏิทินการศึกษา ระดับปริญญาตรี"
+              : displayLanguage === "EN"
+              ? "Academic Calendar (Bachelor's Degree)"
+              : "ปฏิทินการศึกษา (Academic Calendar)"}
           </h1>
           <p className="text-slate-500 text-xs sm:text-sm mt-1 max-w-2xl">
-            {currentCalendar?.title || "Academic Calendar for Bachelor's Degree Programs"}
+            {displayLanguage === "TH"
+              ? currentCalendar?.titleTh || currentCalendar?.title
+              : displayLanguage === "EN"
+              ? currentCalendar?.title || currentCalendar?.titleTh
+              : `${currentCalendar?.titleTh || "ปฏิทินการศึกษา ระดับปริญญาตรี"} • ${currentCalendar?.title || "Academic Calendar for Bachelor's Degree Programs"}`}
           </p>
         </div>
 
-        {/* Year Switcher and Action Buttons */}
+        {/* Year Switcher, Language Switcher and Action Buttons */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Language Toggle Pills */}
+          <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setDisplayLanguage("BOTH")}
+              className={`px-2.5 py-1.5 rounded-lg transition ${
+                displayLanguage === "BOTH"
+                  ? "bg-white dark:bg-slate-900 text-primary shadow-2xs font-bold"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+              }`}
+              title="แสดงสองภาษาคู่กัน"
+            >
+              🌐 สองภาษา
+            </button>
+            <button
+              type="button"
+              onClick={() => setDisplayLanguage("TH")}
+              className={`px-2.5 py-1.5 rounded-lg transition ${
+                displayLanguage === "TH"
+                  ? "bg-white dark:bg-slate-900 text-primary shadow-2xs font-bold"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+              }`}
+              title="แสดงภาษาไทย"
+            >
+              🇹🇭 ไทย
+            </button>
+            <button
+              type="button"
+              onClick={() => setDisplayLanguage("EN")}
+              className={`px-2.5 py-1.5 rounded-lg transition ${
+                displayLanguage === "EN"
+                  ? "bg-white dark:bg-slate-900 text-primary shadow-2xs font-bold"
+                  : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+              }`}
+              title="View in English"
+            >
+              🇬🇧 English
+            </button>
+          </div>
+
           {/* Year Selector */}
           <select
             value={currentCalendar?.academicYear || "2026"}
@@ -396,10 +446,18 @@ export function CalendarAdminClient({
             <thead className="bg-slate-50/80 dark:bg-slate-800/60 font-semibold text-slate-500 select-none">
               <tr>
                 <th className="py-3 px-4 w-12 text-center">ลำดับ</th>
-                <th className="py-3 px-4 min-w-[130px]">ภาคการศึกษา</th>
-                <th className="py-3 px-4 min-w-[200px]">ช่วงวัน-เดือน-ปี</th>
-                <th className="py-3 px-4 min-w-[280px]">กิจกรรม / รายละเอียดกำหนดการ</th>
-                <th className="py-3 px-3 text-center min-w-[110px]">ประเภท</th>
+                <th className="py-3 px-4 min-w-[130px]">
+                  {displayLanguage === "TH" ? "ภาคการศึกษา" : displayLanguage === "EN" ? "Semester" : "ภาคการศึกษา / Sem"}
+                </th>
+                <th className="py-3 px-4 min-w-[220px]">
+                  {displayLanguage === "TH" ? "ช่วงวัน-เดือน-ปี" : displayLanguage === "EN" ? "Date Duration" : "ช่วงวัน-เดือน-ปี (Date)"}
+                </th>
+                <th className="py-3 px-4 min-w-[300px]">
+                  {displayLanguage === "TH" ? "กิจกรรม / กำหนดการ" : displayLanguage === "EN" ? "Academic Event / Activity" : "กิจกรรม / กำหนดการ (Event Title)"}
+                </th>
+                <th className="py-3 px-3 text-center min-w-[110px]">
+                  {displayLanguage === "TH" ? "ประเภท" : displayLanguage === "EN" ? "Type" : "ประเภท (Type)"}
+                </th>
                 <th className="py-3 px-4 text-center w-24">จัดการ</th>
               </tr>
             </thead>
@@ -434,25 +492,87 @@ export function CalendarAdminClient({
                               : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
                           }`}
                         >
-                          {ev.semesterLabel}
+                          {displayLanguage === "TH"
+                            ? ev.semester === 1 ? "ภาคที่ 1" : ev.semester === 2 ? "ภาคที่ 2" : "ภาคฤดูร้อน"
+                            : ev.semesterLabel}
                         </span>
                       </td>
 
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-900 dark:text-white">
-                          {ev.dateDisplayEn}
-                        </div>
-                        {ev.dateDisplayTh && (
-                          <div className="text-2xs text-slate-400">{ev.dateDisplayTh}</div>
+                        {displayLanguage === "TH" ? (
+                          <>
+                            <div className="font-semibold text-slate-900 dark:text-white">
+                              {ev.dateDisplayTh || ev.dateDisplayEn}
+                            </div>
+                            {ev.dateDisplayEn && ev.dateDisplayTh && (
+                              <div className="text-2xs text-slate-400 mt-0.5">{ev.dateDisplayEn}</div>
+                            )}
+                          </>
+                        ) : displayLanguage === "EN" ? (
+                          <>
+                            <div className="font-semibold text-slate-900 dark:text-white">
+                              {ev.dateDisplayEn || ev.dateDisplayTh}
+                            </div>
+                            {ev.dateDisplayTh && ev.dateDisplayEn && (
+                              <div className="text-2xs text-slate-400 mt-0.5">{ev.dateDisplayTh}</div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-2xs px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-bold shrink-0">
+                                🇹🇭 TH
+                              </span>
+                              <span className="font-semibold text-xs text-slate-900 dark:text-white">
+                                {ev.dateDisplayTh || "-"}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-2xs px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 font-bold shrink-0">
+                                🇬🇧 EN
+                              </span>
+                              <span className="text-xs text-slate-600 dark:text-slate-300">
+                                {ev.dateDisplayEn || "-"}
+                              </span>
+                            </div>
+                          </div>
                         )}
                       </td>
 
                       <td className="py-3 px-4">
-                        <div className="font-semibold text-slate-900 dark:text-white">
-                          {ev.titleEn}
-                        </div>
-                        {ev.titleTh && (
-                          <div className="text-2xs text-slate-500 mt-0.5">{ev.titleTh}</div>
+                        {displayLanguage === "TH" ? (
+                          <>
+                            <div className="font-semibold text-slate-900 dark:text-white">
+                              {ev.titleTh || ev.titleEn}
+                            </div>
+                            {ev.titleEn && ev.titleTh && (
+                              <div className="text-2xs text-slate-400 mt-0.5">{ev.titleEn}</div>
+                            )}
+                          </>
+                        ) : displayLanguage === "EN" ? (
+                          <>
+                            <div className="font-semibold text-slate-900 dark:text-white">
+                              {ev.titleEn || ev.titleTh}
+                            </div>
+                            {ev.titleTh && ev.titleEn && (
+                              <div className="text-2xs text-slate-400 mt-0.5">{ev.titleTh}</div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="space-y-1">
+                            <div className="font-semibold text-xs text-slate-900 dark:text-white flex items-start gap-1.5">
+                              <span className="text-2xs px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 font-bold shrink-0 mt-0.5">
+                                🇹🇭 TH
+                              </span>
+                              <span>{ev.titleTh || "-"}</span>
+                            </div>
+                            <div className="text-xs text-slate-600 dark:text-slate-300 flex items-start gap-1.5">
+                              <span className="text-2xs px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 font-bold shrink-0 mt-0.5">
+                                🇬🇧 EN
+                              </span>
+                              <span>{ev.titleEn || "-"}</span>
+                            </div>
+                          </div>
                         )}
                       </td>
 
