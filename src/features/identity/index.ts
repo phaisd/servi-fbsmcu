@@ -13,6 +13,7 @@ export type {
   TenantSettings,
   FontSizePreference,
   HeroSettings,
+  HeroTypographySize,
   HeroTextTone,
   HeroNavLink,
   HeroSocialLink,
@@ -25,6 +26,7 @@ export type {
 } from "./_internal/validations/settings";
 export {
   FONT_SIZES,
+  HERO_TYPOGRAPHY_SIZES,
   DEFAULT_HERO_SETTINGS,
   DEFAULT_SERVICES_SECTION_SETTINGS,
   DEFAULT_NEWS_SECTION_SETTINGS,

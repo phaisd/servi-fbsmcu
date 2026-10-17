@@ -16,6 +16,9 @@ export const heroSocialLinkSchema = z.object({
   enabled: z.boolean().default(true),
 });
 
+export const HERO_TYPOGRAPHY_SIZES = ["giant", "large", "medium", "small"] as const;
+export type HeroTypographySize = (typeof HERO_TYPOGRAPHY_SIZES)[number];
+
 export const heroSettingsSchema = z.object({
   enabled: z.boolean().default(true),
   layout: z.enum(["center-motion", "split", "minimal"]).default("center-motion"),
@@ -32,11 +35,13 @@ export const heroSettingsSchema = z.object({
     enabled: z.boolean().default(true),
     text: z.string().default("EMBER"),
     linkHref: z.string().default("/portal/news"),
-  }).default({ enabled: true, text: "EMBER", linkHref: "/portal/news" }),
+    fontSize: z.enum(HERO_TYPOGRAPHY_SIZES).optional().default("giant"),
+  }).default({ enabled: true, text: "EMBER", linkHref: "/portal/news", fontSize: "giant" }),
   bottomWatermark: z.object({
     enabled: z.boolean().default(true),
     text: z.string().default("STUDIO"),
-  }).default({ enabled: true, text: "STUDIO" }),
+    fontSize: z.enum(HERO_TYPOGRAPHY_SIZES).optional().default("giant"),
+  }).default({ enabled: true, text: "STUDIO", fontSize: "giant" }),
   manifesto: z.object({
     enabled: z.boolean().default(true),
     badgeTextTh: z.string().default("เกี่ยวกับเรา"),
@@ -364,10 +369,12 @@ export const DEFAULT_HERO_SETTINGS: HeroSettings = {
     enabled: true,
     text: "EMBER",
     linkHref: "/portal/news",
+    fontSize: "giant",
   },
   bottomWatermark: {
     enabled: true,
     text: "STUDIO",
+    fontSize: "giant",
   },
   manifesto: {
     enabled: true,

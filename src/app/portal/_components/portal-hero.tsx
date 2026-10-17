@@ -66,6 +66,24 @@ export function PortalHero({ tenantSettings, locale = "th" }: PortalHeroProps) {
   const watermark = hero.bottomWatermark ?? DEFAULT_HERO_SETTINGS.bottomWatermark;
   const footerSettings = hero.footerRail ?? DEFAULT_HERO_SETTINGS.footerRail;
 
+  const topTypoSizeClass =
+    topTypo.fontSize === "small"
+      ? "text-4xl sm:text-6xl lg:text-[5.5rem]"
+      : topTypo.fontSize === "medium"
+      ? "text-5xl sm:text-7xl lg:text-[7.5rem]"
+      : topTypo.fontSize === "large"
+      ? "text-6xl sm:text-8xl lg:text-[10rem]"
+      : "text-7xl sm:text-9xl lg:text-[13.5rem]";
+
+  const watermarkSizeClass =
+    watermark.fontSize === "small"
+      ? "text-4xl sm:text-6xl lg:text-[5rem]"
+      : watermark.fontSize === "medium"
+      ? "text-5xl sm:text-7xl lg:text-[7rem]"
+      : watermark.fontSize === "large"
+      ? "text-6xl sm:text-8xl lg:text-[9.5rem]"
+      : "text-7xl sm:text-9xl lg:text-[13rem]";
+
   const toneConfig = React.useMemo(() => {
     return getHeroToneConfig(hero.textTone, hero.customTextColor);
   }, [hero.textTone, hero.customTextColor]);
@@ -137,7 +155,7 @@ export function PortalHero({ tenantSettings, locale = "th" }: PortalHeroProps) {
               className="inline-block group cursor-pointer"
             >
               <span
-                className="text-7xl sm:text-9xl lg:text-[13.5rem] font-black tracking-tighter leading-[0.8] select-none uppercase transition-all duration-300 drop-shadow-sm opacity-60 group-hover:opacity-100"
+                className={`${topTypoSizeClass} font-black tracking-tighter leading-[0.8] select-none uppercase transition-all duration-300 drop-shadow-sm opacity-60 group-hover:opacity-100`}
                 style={{
                   WebkitTextStroke: `2px ${toneConfig.strokeColor}`,
                   color: toneConfig.maskTextColor,
@@ -211,7 +229,7 @@ export function PortalHero({ tenantSettings, locale = "th" }: PortalHeroProps) {
         {watermark.enabled && (
           <div className="absolute right-6 sm:right-12 bottom-10 select-none pointer-events-none hidden sm:block">
             <span
-              className="text-7xl sm:text-9xl lg:text-[13rem] font-black tracking-tighter leading-none block select-none drop-shadow-sm transition-colors"
+              className={`${watermarkSizeClass} font-black tracking-tighter leading-none block select-none drop-shadow-sm transition-colors`}
               style={{
                 WebkitTextStroke: `1.5px ${toneConfig.watermarkStroke}`,
                 color: toneConfig.watermarkColor,

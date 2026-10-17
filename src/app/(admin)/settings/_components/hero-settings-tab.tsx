@@ -29,7 +29,47 @@ import {
   type HeroNavLink,
   type HeroSocialLink,
   type HeroTextTone,
+  type HeroTypographySize,
 } from "@/features/identity";
+
+const TYPOGRAPHY_SIZE_OPTIONS: {
+  id: HeroTypographySize;
+  labelTh: string;
+  labelEn: string;
+  descTh: string;
+  scaleLabel: string;
+  badge?: string;
+}[] = [
+  {
+    id: "giant",
+    labelTh: "ข้อความตัวโต",
+    labelEn: "Giant (13.5rem)",
+    descTh: "ขนาดใหญ่สุดต้นฉบับ เหมาะกับคำสั้น 3-6 ตัวอักษร เช่น EMBER, MCU",
+    scaleLabel: "100% (ใหญ่สุด)",
+  },
+  {
+    id: "large",
+    labelTh: "ขนาดกลางใหญ่",
+    labelEn: "Medium Large (10rem)",
+    descTh: "ขนาดลดลง 25% สวยงามลงตัวสำหรับคำยาว 6-8 ตัวอักษร เช่น BUDDHIST",
+    scaleLabel: "75% (กลางใหญ่)",
+    badge: "แนะนำ",
+  },
+  {
+    id: "medium",
+    labelTh: "ขนาดกลาง",
+    labelEn: "Medium (7.5rem)",
+    descTh: "ขนาดกะทัดรัด ไม่บดบังภาพเคลื่อนไหวหรือพื้นหลัง",
+    scaleLabel: "55% (ขนาดกลาง)",
+  },
+  {
+    id: "small",
+    labelTh: "ขนาดกลางเล็ก",
+    labelEn: "Medium Small (5.5rem)",
+    descTh: "ขนาดกะทัดรัดพิเศษ เหมาะกับข้อความยาวหรือต้องการความเรียบร้อย",
+    scaleLabel: "40% (กลางเล็ก)",
+  },
+];
 
 interface HeroSettingsTabProps {
   value: HeroSettings;
@@ -420,11 +460,20 @@ export function HeroSettingsTab({ value, onChange }: HeroSettingsTabProps) {
           </div>
 
           {/* Top Giant Mask Typography */}
-          <div className="p-3.5 rounded-xl border bg-muted/20 space-y-3">
+          <div className="p-4 rounded-xl border bg-muted/20 space-y-4">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold">ข้อความตัวโตด้านบน (Top Giant Mask Typography)</p>
-                <p className="text-xs text-muted-foreground">ตัวอักษร Mask โปร่งแสงขนาดใหญ่ เช่น &ldquo;EMBER&rdquo; (คลิกได้)</p>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                  <Type className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    ข้อความตัวโตด้านบน (Top Giant Mask Typography)
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    ตัวอักษร Mask โปร่งแสงขนาดใหญ่ เช่น &ldquo;EMBER&rdquo;, &ldquo;BUDDHIST&rdquo;, &ldquo;MCU&rdquo; (คลิกเพื่อเปิดลิงก์ได้)
+                  </p>
+                </div>
               </div>
               <LiyonSwitch
                 checked={value.topTypography.enabled}
@@ -433,38 +482,139 @@ export function HeroSettingsTab({ value, onChange }: HeroSettingsTabProps) {
                 }
               />
             </div>
+
             {value.topTypography.enabled && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <LiyonField label="ข้อความตัวโต">
-                  <input
-                    type="text"
-                    value={value.topTypography.text}
-                    onChange={(e) =>
-                      update("topTypography", { ...value.topTypography, text: e.target.value })
-                    }
-                    placeholder="EMBER"
-                  />
-                </LiyonField>
-                <LiyonField label="ลิงก์ปลายทางเมื่อคลิก">
-                  <input
-                    type="text"
-                    value={value.topTypography.linkHref ?? ""}
-                    onChange={(e) =>
-                      update("topTypography", { ...value.topTypography, linkHref: e.target.value })
-                    }
-                    placeholder="/portal/news"
-                  />
-                </LiyonField>
+              <div className="space-y-4 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <LiyonField label="ข้อความตัวโต">
+                    <input
+                      type="text"
+                      value={value.topTypography.text}
+                      onChange={(e) =>
+                        update("topTypography", { ...value.topTypography, text: e.target.value })
+                      }
+                      placeholder="EMBER หรือ MCU"
+                    />
+                  </LiyonField>
+                  <LiyonField label="ลิงก์ปลายทางเมื่อคลิก">
+                    <input
+                      type="text"
+                      value={value.topTypography.linkHref ?? ""}
+                      onChange={(e) =>
+                        update("topTypography", { ...value.topTypography, linkHref: e.target.value })
+                      }
+                      placeholder="/portal/news"
+                    />
+                  </LiyonField>
+                </div>
+
+                {/* Size Selection Buttons */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <span>ขนาดข้อความตัวโตด้านบน:</span>
+                      <span className="text-primary font-bold">
+                        {
+                          TYPOGRAPHY_SIZE_OPTIONS.find(
+                            (o) => o.id === (value.topTypography.fontSize || "giant")
+                          )?.labelTh
+                        }
+                      </span>
+                    </label>
+                    <span className="text-[11px] text-muted-foreground">
+                      เลือกขนาดให้เหมาะสมกับความยาวของข้อความ
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {TYPOGRAPHY_SIZE_OPTIONS.map((opt) => {
+                      const isSelected = (value.topTypography.fontSize || "giant") === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() =>
+                            update("topTypography", {
+                              ...value.topTypography,
+                              fontSize: opt.id,
+                            })
+                          }
+                          className={cn(
+                            "relative flex flex-col p-2.5 rounded-lg border text-left transition-all cursor-pointer",
+                            isSelected
+                              ? "border-primary bg-primary/10 ring-1 ring-primary shadow-xs"
+                              : "border-border/80 bg-background hover:bg-muted/40"
+                          )}
+                        >
+                          {opt.badge && (
+                            <span className="absolute top-1.5 right-1.5 px-1 py-0.2 rounded text-[9px] font-bold bg-primary text-primary-foreground">
+                              {opt.badge}
+                            </span>
+                          )}
+                          <div className="font-semibold text-xs text-foreground flex items-center justify-between">
+                            <span>{opt.labelTh}</span>
+                            {isSelected && <Check className="h-3.5 w-3.5 text-primary ml-1" />}
+                          </div>
+                          <span className="text-[10px] font-mono text-primary font-medium mt-0.5">
+                            {opt.scaleLabel}
+                          </span>
+                          <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2 leading-tight">
+                            {opt.descTh}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Live Preview Box */}
+                <div className="p-3 bg-muted/40 rounded-lg border border-border/70 overflow-hidden">
+                  <div className="flex items-center justify-between mb-1.5 pb-1 border-b border-border/50 text-[11px] text-muted-foreground">
+                    <span className="font-semibold">ตัวอย่างการแสดงผลข้อความด้านบน (Live Preview):</span>
+                    <span className="font-mono text-primary font-medium">
+                      ขนาด: {value.topTypography.fontSize || "giant"}
+                    </span>
+                  </div>
+                  <div className="py-4 px-4 bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 rounded-md flex items-center justify-center overflow-hidden min-h-[90px]">
+                    <span
+                      className={cn(
+                        "font-black tracking-tighter uppercase select-none transition-all duration-200 drop-shadow-xs leading-none",
+                        value.topTypography.fontSize === "small"
+                          ? "text-2xl sm:text-3xl"
+                          : value.topTypography.fontSize === "medium"
+                          ? "text-3xl sm:text-4xl"
+                          : value.topTypography.fontSize === "large"
+                          ? "text-4xl sm:text-5xl"
+                          : "text-5xl sm:text-6xl"
+                      )}
+                      style={{
+                        WebkitTextStroke: "1.5px rgba(100, 116, 139, 0.9)",
+                        color: "transparent",
+                      }}
+                    >
+                      {value.topTypography.text || "EMBER"}
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
           </div>
 
           {/* Bottom Watermark Typography */}
-          <div className="p-3.5 rounded-xl border bg-muted/20 space-y-3">
+          <div className="p-4 rounded-xl border bg-muted/20 space-y-4">
             <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold">ลายน้ำตัวโตมุมล่าง (Bottom Watermark Typography)</p>
-                <p className="text-xs text-muted-foreground">ลายน้ำศิลปะสไตล์สตูดิโอ เช่น &ldquo;STUDIO&rdquo; ที่มุมขวาล่าง</p>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                  <Type className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">
+                    ลายน้ำตัวโตมุมล่าง (Bottom Watermark Typography)
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    ลายน้ำศิลปะสไตล์สตูดิโอ เช่น &ldquo;STUDIO&rdquo;, &ldquo;FACULTY&rdquo; ที่มุมขวาล่างของส่วนหัว
+                  </p>
+                </div>
               </div>
               <LiyonSwitch
                 checked={value.bottomWatermark.enabled}
@@ -473,17 +623,109 @@ export function HeroSettingsTab({ value, onChange }: HeroSettingsTabProps) {
                 }
               />
             </div>
+
             {value.bottomWatermark.enabled && (
-              <LiyonField label="ข้อความลายน้ำ">
-                <input
-                  type="text"
-                  value={value.bottomWatermark.text}
-                  onChange={(e) =>
-                    update("bottomWatermark", { ...value.bottomWatermark, text: e.target.value })
-                  }
-                  placeholder="STUDIO"
-                />
-              </LiyonField>
+              <div className="space-y-4 pt-1">
+                <LiyonField label="ข้อความลายน้ำ">
+                  <input
+                    type="text"
+                    value={value.bottomWatermark.text}
+                    onChange={(e) =>
+                      update("bottomWatermark", { ...value.bottomWatermark, text: e.target.value })
+                    }
+                    placeholder="STUDIO หรือ BUDDHIST"
+                  />
+                </LiyonField>
+
+                {/* Size Selection Buttons */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <span>ขนาดลายน้ำมุมล่าง:</span>
+                      <span className="text-primary font-bold">
+                        {
+                          TYPOGRAPHY_SIZE_OPTIONS.find(
+                            (o) => o.id === (value.bottomWatermark.fontSize || "giant")
+                          )?.labelTh
+                        }
+                      </span>
+                    </label>
+                    <span className="text-[11px] text-muted-foreground">
+                      เลือกขนาดที่กลมกลืนและไม่ทับข้อมูลแถบด้านล่าง
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {TYPOGRAPHY_SIZE_OPTIONS.map((opt) => {
+                      const isSelected = (value.bottomWatermark.fontSize || "giant") === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() =>
+                            update("bottomWatermark", {
+                              ...value.bottomWatermark,
+                              fontSize: opt.id,
+                            })
+                          }
+                          className={cn(
+                            "relative flex flex-col p-2.5 rounded-lg border text-left transition-all cursor-pointer",
+                            isSelected
+                              ? "border-primary bg-primary/10 ring-1 ring-primary shadow-xs"
+                              : "border-border/80 bg-background hover:bg-muted/40"
+                          )}
+                        >
+                          {opt.badge && (
+                            <span className="absolute top-1.5 right-1.5 px-1 py-0.2 rounded text-[9px] font-bold bg-primary text-primary-foreground">
+                              {opt.badge}
+                            </span>
+                          )}
+                          <div className="font-semibold text-xs text-foreground flex items-center justify-between">
+                            <span>{opt.labelTh}</span>
+                            {isSelected && <Check className="h-3.5 w-3.5 text-primary ml-1" />}
+                          </div>
+                          <span className="text-[10px] font-mono text-primary font-medium mt-0.5">
+                            {opt.scaleLabel}
+                          </span>
+                          <p className="text-[10px] text-muted-foreground mt-1 line-clamp-2 leading-tight">
+                            {opt.descTh}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Live Preview Box */}
+                <div className="p-3 bg-muted/40 rounded-lg border border-border/70 overflow-hidden">
+                  <div className="flex items-center justify-between mb-1.5 pb-1 border-b border-border/50 text-[11px] text-muted-foreground">
+                    <span className="font-semibold">ตัวอย่างการแสดงผลลายน้ำมุมล่าง (Live Preview):</span>
+                    <span className="font-mono text-primary font-medium">
+                      ขนาด: {value.bottomWatermark.fontSize || "giant"}
+                    </span>
+                  </div>
+                  <div className="py-4 px-4 bg-gradient-to-r from-slate-200 via-slate-100 to-slate-200 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 rounded-md flex items-center justify-end overflow-hidden min-h-[90px]">
+                    <span
+                      className={cn(
+                        "font-black tracking-tighter uppercase select-none transition-all duration-200 drop-shadow-xs leading-none",
+                        value.bottomWatermark.fontSize === "small"
+                          ? "text-2xl sm:text-3xl"
+                          : value.bottomWatermark.fontSize === "medium"
+                          ? "text-3xl sm:text-4xl"
+                          : value.bottomWatermark.fontSize === "large"
+                          ? "text-4xl sm:text-5xl"
+                          : "text-5xl sm:text-6xl"
+                      )}
+                      style={{
+                        WebkitTextStroke: "1px rgba(100, 116, 139, 0.6)",
+                        color: "rgba(100, 116, 139, 0.15)",
+                      }}
+                    >
+                      {value.bottomWatermark.text || "STUDIO"}
+                    </span>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
 
