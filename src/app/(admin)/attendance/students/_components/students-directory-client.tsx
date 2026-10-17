@@ -44,9 +44,11 @@ export function getStudentProgramType(s: {
   curriculumName?: string | null;
   degree?: string | null;
   department?: string | null;
+  major?: string | null;
 }): "THAI" | "ENGLISH" | "GRADUATE" {
   const c = (s.curriculumName || "").toLowerCase();
   const d = (s.department || "").toLowerCase();
+  const m = (s.major || "").toLowerCase();
   const deg = (s.degree || "").toLowerCase();
 
   if (deg.includes("โท") || deg.includes("เอก") || deg.includes("ประกาศนียบัตร")) {
@@ -57,11 +59,57 @@ export function getStudentProgramType(s: {
     c.includes("english") ||
     c.includes("inter") ||
     d.includes("english") ||
-    d.includes("อังกฤษ")
+    d.includes("อังกฤษ") ||
+    d.includes("buddhist studies") ||
+    d.includes("religion and philosophy") ||
+    m.includes("english") ||
+    m.includes("buddhist") ||
+    m.includes("religion") ||
+    m.includes("philosophy")
   ) {
     return "ENGLISH";
   }
   return "THAI";
+}
+
+export function getStudentMajorDisplay(s: {
+  curriculumName?: string | null;
+  degree?: string | null;
+  department?: string | null;
+  major?: string | null;
+}): string {
+  const isEng = getStudentProgramType(s) === "ENGLISH";
+  if (isEng) {
+    const m = (s.major || "").trim();
+    if (m.toLowerCase().includes("buddhist") || m.includes("พระพุทธศาสนา")) {
+      return "Buddhist Studies";
+    }
+    if (
+      m.toLowerCase().includes("religion") ||
+      m.toLowerCase().includes("philosoph") ||
+      m.includes("ปรัชญา")
+    ) {
+      return "Religion and Philosophy";
+    }
+    if (m) return m;
+
+    const d = (s.department || "").trim();
+    if (d.includes("พระพุทธศาสนา") || d.toLowerCase().includes("buddhist")) {
+      return "Buddhist Studies";
+    }
+    if (
+      d.includes("ปรัชญา") ||
+      d.toLowerCase().includes("religion") ||
+      d.toLowerCase().includes("philosoph")
+    ) {
+      return "Religion and Philosophy";
+    }
+    return d || "-";
+  }
+
+  // Thai Program / Graduate
+  const raw = (s.major || s.department || "-").trim();
+  return raw.replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim() || "-";
 }
 
 interface StudentItem {
@@ -153,9 +201,20 @@ export function StudentsDirectoryClient({
   const availableDepartments = React.useMemo(() => {
     const set = new Set<string>();
     students.forEach((s) => {
-      if (s.department) set.add(s.department);
+      const display = getStudentMajorDisplay(s);
+      if (display && display !== "-") {
+        set.add(display);
+      }
+      if (s.department) {
+        const cleanDept = s.department.replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim();
+        if (cleanDept) set.add(cleanDept);
+      }
+      if (s.major) {
+        const cleanMajor = s.major.replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim();
+        if (cleanMajor) set.add(cleanMajor);
+      }
     });
-    return Array.from(set).sort();
+    return Array.from(set).filter(Boolean).sort();
   }, [students]);
 
   // Statistics
@@ -178,7 +237,9 @@ export function StudentsDirectoryClient({
         s.firstName.toLowerCase().includes(q) ||
         s.lastName.toLowerCase().includes(q) ||
         (s.curriculumName && s.curriculumName.toLowerCase().includes(q)) ||
-        (s.department && s.department.toLowerCase().includes(q));
+        (s.department && s.department.toLowerCase().includes(q)) ||
+        (s.major && s.major.toLowerCase().includes(q)) ||
+        getStudentMajorDisplay(s).toLowerCase().includes(q);
 
       const matchDegree =
         degreeFilter === "ALL" ||
@@ -194,7 +255,17 @@ export function StudentsDirectoryClient({
         (languageFilter === "GRADUATE" && getStudentProgramType(s) === "GRADUATE");
 
       const matchYear = yearFilter === "ALL" || s.yearLevel === yearFilter;
-      const matchDept = deptFilter === "ALL" || s.department === deptFilter;
+
+      const disp = getStudentMajorDisplay(s);
+      const cleanDept = (s.department || "").replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim();
+      const cleanMajor = (s.major || "").replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim();
+      const matchDept =
+        deptFilter === "ALL" ||
+        s.department === deptFilter ||
+        s.major === deptFilter ||
+        disp === deptFilter ||
+        cleanDept === deptFilter ||
+        cleanMajor === deptFilter;
 
       return matchSearch && matchDegree && matchLanguage && matchYear && matchDept;
     });
@@ -355,7 +426,7 @@ export function StudentsDirectoryClient({
         s.yearLevel,
         progLabel,
         s.curriculumName || "",
-        s.department || "",
+        getStudentMajorDisplay(s),
         s.faculty || "",
         s.studyStatus || "",
         s.enrollments?.length || 0,
@@ -927,7 +998,7 @@ export function StudentsDirectoryClient({
 
                       <td className="py-3 px-4">
                         <div className="font-medium text-foreground text-xs">
-                          {student.department || "-"}
+                          {getStudentMajorDisplay(student)}
                         </div>
                         {student.faculty && (
                           <div className="text-2xs text-muted-foreground mt-0.5">
@@ -1210,14 +1281,53 @@ export function StudentsDirectoryClient({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">
-                      สาขาวิชา / ภาควิชา
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-medium text-foreground">
+                        สาขาวิชา / ภาควิชา
+                      </label>
+                      <div className="flex items-center gap-1.5 text-2xs">
+                        <span className="text-muted-foreground">แนะนำ:</span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              department: "Buddhist Studies",
+                              major: "Buddhist Studies",
+                            }))
+                          }
+                          className="px-2 py-0.5 rounded bg-muted hover:bg-primary/10 hover:text-primary transition font-medium"
+                          title="คลิกเพื่อเลือก Buddhist Studies (ภาคภาษาอังกฤษ)"
+                        >
+                          Buddhist Studies
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              department: "Religion and Philosophy",
+                              major: "Religion and Philosophy",
+                            }))
+                          }
+                          className="px-2 py-0.5 rounded bg-muted hover:bg-primary/10 hover:text-primary transition font-medium"
+                          title="คลิกเพื่อเลือก Religion and Philosophy (ภาคภาษาอังกฤษ)"
+                        >
+                          Religion and Philosophy
+                        </button>
+                      </div>
+                    </div>
                     <input
                       type="text"
                       value={formData.department}
-                      onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                      placeholder="เช่น สาขาวิชาพระพุทธศาสนา, ปรัชญา, ภาษาบาลี"
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          department: e.target.value,
+                          major: e.target.value,
+                        })
+                      }
+                      placeholder="เช่น Buddhist Studies, Religion and Philosophy, สาขาวิชาพระพุทธศาสนา"
                       className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
                     />
                   </div>
