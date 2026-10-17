@@ -490,7 +490,6 @@ export async function updateCourse(
     data,
     include: {
       primaryTeacher: { select: { id: true, name: true, email: true } },
-      instructor: { select: { name: true, email: true } },
       teachers: { select: { user: { select: { name: true, email: true } }, isPrimary: true } },
       _count: { select: { enrollments: true, sessions: true } },
     },
@@ -2978,7 +2977,7 @@ export async function getCourseGrades(
       studyStatus: enr.student.studyStatus || "ปกติ",
       attendancePercentage: eligibility.percentage,
       isEligible: eligibility.isEligible,
-      eligibilityStatusTh: eligibility.statusTh,
+      eligibilityStatusTh: (eligibility as any).statusTh || "",
       assignmentScore: enr.assignmentScore,
       midtermScore: enr.midtermScore,
       affectiveScore: enr.affectiveScore,
@@ -3113,7 +3112,7 @@ export async function updateCourseGradingConfig(
   const updated = await db.course.update({
     where: { id: courseId },
     data: {
-      gradingConfig: sanitizedConfig,
+      gradingConfig: sanitizedConfig as any,
     },
   });
 
@@ -3267,5 +3266,94 @@ export async function deleteStudent(tenantId: string, actorId: string, studentId
   });
 
   return { success: true };
+}
+
+/**
+ * นำเข้าหรืออัปเดตข้อมูลนิสิตเป็นชุด (Batch Import & Update Students)
+ */
+export async function batchImportStudents(
+  tenantId: string,
+  actorId: string,
+  items: Array<{
+    studentCode: string;
+    firstName: string;
+    lastName: string;
+    title?: string | null;
+    yearLevel?: number;
+    degree?: string | null;
+    curriculumName?: string | null;
+    department?: string | null;
+    major?: string | null;
+    studyStatus?: string | null;
+    email?: string | null;
+    phoneNumber?: string | null;
+  }>
+) {
+  let createdCount = 0;
+  let updatedCount = 0;
+
+  for (const item of items) {
+    if (!item.studentCode || !item.firstName || !item.lastName) continue;
+
+    const code = item.studentCode.trim();
+    const existing = await db.student.findUnique({
+      where: {
+        tenantId_studentCode: {
+          tenantId,
+          studentCode: code,
+        },
+      },
+    });
+
+    if (existing) {
+      await db.student.update({
+        where: { id: existing.id },
+        data: {
+          firstName: item.firstName.trim(),
+          lastName: item.lastName.trim(),
+          title: item.title !== undefined && item.title !== null ? item.title : existing.title,
+          yearLevel: item.yearLevel !== undefined && item.yearLevel !== null ? item.yearLevel : existing.yearLevel,
+          degree: item.degree !== undefined && item.degree !== null ? item.degree : existing.degree,
+          curriculumName: item.curriculumName !== undefined ? item.curriculumName : existing.curriculumName,
+          department: item.department !== undefined && item.department !== null ? item.department : existing.department,
+          major: item.major !== undefined && item.major !== null ? item.major : existing.major,
+          studyStatus: item.studyStatus !== undefined && item.studyStatus !== null ? item.studyStatus : existing.studyStatus,
+          email: item.email !== undefined && item.email !== null ? item.email : existing.email,
+          phoneNumber: item.phoneNumber !== undefined && item.phoneNumber !== null ? item.phoneNumber : existing.phoneNumber,
+        },
+      });
+      updatedCount++;
+    } else {
+      await db.student.create({
+        data: {
+          tenantId,
+          studentCode: code,
+          firstName: item.firstName.trim(),
+          lastName: item.lastName.trim(),
+          title: item.title || "พระ",
+          yearLevel: item.yearLevel || 1,
+          degree: item.degree || "ปริญญาตรี",
+          curriculumName: item.curriculumName || null,
+          department: item.department || "สาขาวิชาพระพุทธศาสนา",
+          faculty: "คณะพุทธศาสตร์",
+          studyStatus: item.studyStatus || "ปกติ",
+          email: item.email || null,
+          phoneNumber: item.phoneNumber || null,
+        },
+      });
+      createdCount++;
+    }
+  }
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "attendance.students.batchImport",
+    entity: "Student",
+    entityId: "batch",
+    after: { createdCount, updatedCount, totalProcessed: items.length },
+  });
+
+  return { success: true, createdCount, updatedCount };
 }
 

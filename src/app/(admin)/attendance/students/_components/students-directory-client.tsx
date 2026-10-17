@@ -13,6 +13,8 @@ import {
   Filter,
   CheckCircle2,
   Download,
+  Upload,
+  FileSpreadsheet,
   Phone,
   Mail,
   UserCheck,
@@ -20,18 +22,47 @@ import {
   ChevronRight,
   Layers,
   ArrowUpDown,
+  Check,
+  AlertCircle,
+  X,
 } from "lucide-react";
 import {
   LiyonCard,
   StatusPill,
   LiyonDialog,
-  LiyonDialogHeader,
   LiyonDialogBody,
   LiyonDialogFooter,
-  LiyonDialogCloseButton,
 } from "@/shared/components/liyon";
 import { toast } from "sonner";
-import { createOrUpdateStudentAction, deleteStudentAction } from "@/features/attendance/actions";
+import {
+  createOrUpdateStudentAction,
+  deleteStudentAction,
+  batchImportStudentsAction,
+} from "@/features/attendance/actions";
+
+export function getStudentProgramType(s: {
+  curriculumName?: string | null;
+  degree?: string | null;
+  department?: string | null;
+}): "THAI" | "ENGLISH" | "GRADUATE" {
+  const c = (s.curriculumName || "").toLowerCase();
+  const d = (s.department || "").toLowerCase();
+  const deg = (s.degree || "").toLowerCase();
+
+  if (deg.includes("โท") || deg.includes("เอก") || deg.includes("ประกาศนียบัตร")) {
+    return "GRADUATE";
+  }
+  if (
+    c.includes("อังกฤษ") ||
+    c.includes("english") ||
+    c.includes("inter") ||
+    d.includes("english") ||
+    d.includes("อังกฤษ")
+  ) {
+    return "ENGLISH";
+  }
+  return "THAI";
+}
 
 interface StudentItem {
   id: string;
@@ -76,6 +107,7 @@ export function StudentsDirectoryClient({
   const [students, setStudents] = React.useState<StudentItem[]>(initialStudents);
   const [search, setSearch] = React.useState("");
   const [degreeFilter, setDegreeFilter] = React.useState<string>("ALL");
+  const [languageFilter, setLanguageFilter] = React.useState<string>("ALL");
   const [yearFilter, setYearFilter] = React.useState<number | "ALL">("ALL");
   const [deptFilter, setDeptFilter] = React.useState<string>("ALL");
 
@@ -93,6 +125,7 @@ export function StudentsDirectoryClient({
     lastName: "",
     yearLevel: 1,
     degree: "ปริญญาตรี",
+    curriculumName: "พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา",
     department: "สาขาวิชาพระพุทธศาสนา",
     major: "",
     faculty: "คณะพุทธศาสตร์",
@@ -101,6 +134,13 @@ export function StudentsDirectoryClient({
     phoneNumber: "",
   });
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  // Import Modal State
+  const [isImportOpen, setIsImportOpen] = React.useState(false);
+  const [importRawText, setImportRawText] = React.useState("");
+  const [isImporting, setIsImporting] = React.useState(false);
+  const [importFileName, setImportFileName] = React.useState("");
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Delete State
   const [deleteTarget, setDeleteTarget] = React.useState<StudentItem | null>(null);
@@ -121,12 +161,11 @@ export function StudentsDirectoryClient({
   // Statistics
   const stats = React.useMemo(() => {
     const total = students.length;
-    const bachelors = students.filter((s) => (s.degree || "").includes("ตรี")).length;
-    const mastersAndDocs = students.filter(
-      (s) => (s.degree || "").includes("โท") || (s.degree || "").includes("เอก")
-    ).length;
+    const thaiProgram = students.filter((s) => getStudentProgramType(s) === "THAI").length;
+    const englishProgram = students.filter((s) => getStudentProgramType(s) === "ENGLISH").length;
+    const graduate = students.filter((s) => getStudentProgramType(s) === "GRADUATE").length;
     const totalEnrollments = students.reduce((acc, s) => acc + (s.enrollments?.length || 0), 0);
-    return { total, bachelors, mastersAndDocs, totalEnrollments };
+    return { total, thaiProgram, englishProgram, graduate, totalEnrollments };
   }, [students]);
 
   // Filtered List
@@ -138,6 +177,7 @@ export function StudentsDirectoryClient({
         s.studentCode.toLowerCase().includes(q) ||
         s.firstName.toLowerCase().includes(q) ||
         s.lastName.toLowerCase().includes(q) ||
+        (s.curriculumName && s.curriculumName.toLowerCase().includes(q)) ||
         (s.department && s.department.toLowerCase().includes(q));
 
       const matchDegree =
@@ -147,12 +187,18 @@ export function StudentsDirectoryClient({
         (degreeFilter === "DOCTORATE" && (s.degree || "").includes("เอก")) ||
         (degreeFilter === "CERTIFICATE" && (s.degree || "").includes("ประกาศนียบัตร"));
 
+      const matchLanguage =
+        languageFilter === "ALL" ||
+        (languageFilter === "THAI" && getStudentProgramType(s) === "THAI") ||
+        (languageFilter === "ENGLISH" && getStudentProgramType(s) === "ENGLISH") ||
+        (languageFilter === "GRADUATE" && getStudentProgramType(s) === "GRADUATE");
+
       const matchYear = yearFilter === "ALL" || s.yearLevel === yearFilter;
       const matchDept = deptFilter === "ALL" || s.department === deptFilter;
 
-      return matchSearch && matchDegree && matchYear && matchDept;
+      return matchSearch && matchDegree && matchLanguage && matchYear && matchDept;
     });
-  }, [students, search, degreeFilter, yearFilter, deptFilter]);
+  }, [students, search, degreeFilter, languageFilter, yearFilter, deptFilter]);
 
   // Pagination slice
   const totalPages = Math.ceil(filteredStudents.length / pageSize) || 1;
@@ -164,7 +210,7 @@ export function StudentsDirectoryClient({
   // Reset page when filter changes
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [search, degreeFilter, yearFilter, deptFilter]);
+  }, [search, degreeFilter, languageFilter, yearFilter, deptFilter]);
 
   const handleOpenAdd = () => {
     setEditingStudent(null);
@@ -175,6 +221,7 @@ export function StudentsDirectoryClient({
       lastName: "",
       yearLevel: 1,
       degree: "ปริญญาตรี",
+      curriculumName: "พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา",
       department: "สาขาวิชาพระพุทธศาสนา",
       major: "",
       faculty: "คณะพุทธศาสตร์",
@@ -194,6 +241,7 @@ export function StudentsDirectoryClient({
       lastName: student.lastName,
       yearLevel: student.yearLevel,
       degree: student.degree || "ปริญญาตรี",
+      curriculumName: student.curriculumName || "พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา",
       department: student.department || "",
       major: student.major || "",
       faculty: student.faculty || "คณะพุทธศาสตร์",
@@ -221,6 +269,7 @@ export function StudentsDirectoryClient({
         lastName: formData.lastName.trim(),
         yearLevel: Number(formData.yearLevel),
         degree: formData.degree,
+        curriculumName: formData.curriculumName.trim() || null,
         department: formData.department,
         major: formData.major,
         faculty: formData.faculty,
@@ -276,6 +325,8 @@ export function StudentsDirectoryClient({
       "นามสกุล",
       "ระดับการศึกษา",
       "ชั้นปี",
+      "หลักสูตรภาษา",
+      "ชื่อหลักสูตร",
       "สาขาวิชา",
       "คณะ",
       "สถานะ",
@@ -283,20 +334,32 @@ export function StudentsDirectoryClient({
       "อีเมล",
       "เบอร์โทร",
     ];
-    const rows = filteredStudents.map((s) => [
-      `="${s.studentCode}"`,
-      s.title || "",
-      s.firstName,
-      s.lastName,
-      s.degree || "",
-      s.yearLevel,
-      s.department || "",
-      s.faculty || "",
-      s.studyStatus || "",
-      s.enrollments?.length || 0,
-      s.email || "",
-      s.phoneNumber || "",
-    ]);
+    const rows = filteredStudents.map((s) => {
+      const prog = getStudentProgramType(s);
+      const progLabel =
+        prog === "ENGLISH"
+          ? "ภาคภาษาอังกฤษ (English Program)"
+          : prog === "GRADUATE"
+          ? "บัณฑิตศึกษา"
+          : "ภาคภาษาไทย";
+
+      return [
+        `="${s.studentCode}"`,
+        s.title || "",
+        s.firstName,
+        s.lastName,
+        s.degree || "",
+        s.yearLevel,
+        progLabel,
+        s.curriculumName || "",
+        s.department || "",
+        s.faculty || "",
+        s.studyStatus || "",
+        s.enrollments?.length || 0,
+        s.email || "",
+        s.phoneNumber || "",
+      ];
+    });
 
     const csvContent =
       "\uFEFF" +
@@ -309,6 +372,213 @@ export function StudentsDirectoryClient({
     a.click();
     URL.revokeObjectURL(url);
     toast.success("ดาวน์โหลดไฟล์ CSV เรียบร้อยแล้ว");
+  };
+
+  // Parse Raw Import Text
+  const parsedImportItems = React.useMemo(() => {
+    const raw = importRawText.trim();
+    if (!raw) return [];
+    const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
+    if (lines.length === 0) return [];
+
+    const isHeader =
+      lines[0].includes("รหัส") ||
+      lines[0].includes("studentCode") ||
+      lines[0].includes("ชื่อ") ||
+      lines[0].includes("name");
+    const dataLines = isHeader ? lines.slice(1) : lines;
+
+    const items: Array<{
+      studentCode: string;
+      title?: string;
+      firstName: string;
+      lastName: string;
+      degree?: string;
+      yearLevel?: number;
+      curriculumName?: string;
+      department?: string;
+      faculty?: string;
+      studyStatus?: string;
+      email?: string;
+      phoneNumber?: string;
+    }> = [];
+
+    for (const line of dataLines) {
+      const delimiter = line.includes("\t") ? "\t" : ",";
+      const tokens = line.split(delimiter).map((c) => {
+        let v = c.trim();
+        if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1).trim();
+        if (v.startsWith('="') && v.endsWith('"')) v = v.slice(2, -1).trim();
+        return v;
+      });
+
+      if (tokens.length < 3) continue;
+
+      const code = tokens[0];
+      if (!code || !code.match(/\d/)) continue;
+
+      let title = "พระ";
+      let firstName = "";
+      let lastName = "";
+      let degree = "ปริญญาตรี";
+      let yearLevel = 1;
+      let curriculumName = "";
+      let department = "";
+      let faculty = "คณะพุทธศาสตร์";
+      let studyStatus = "ปกติ";
+      let email = "";
+      let phoneNumber = "";
+
+      const potentialTitles = ["พระ", "พระมหา", "สามเณร", "นาย", "นางสาว", "นาง", "แม่ชี"];
+      let idx = 1;
+      if (potentialTitles.includes(tokens[1])) {
+        title = tokens[1];
+        firstName = tokens[2] || "";
+        lastName = tokens[3] || "";
+        idx = 4;
+      } else {
+        firstName = tokens[1] || "";
+        lastName = tokens[2] || "";
+        idx = 3;
+      }
+
+      if (!firstName || !lastName) continue;
+
+      if (tokens[idx]) {
+        const d = tokens[idx];
+        if (d.includes("ตรี") || d.includes("โท") || d.includes("เอก") || d.includes("ประกาศนียบัตร")) {
+          degree = d;
+        }
+      }
+      if (tokens[idx + 1]) {
+        const y = parseInt(tokens[idx + 1], 10);
+        if (!isNaN(y) && y >= 1 && y <= 8) yearLevel = y;
+      }
+      if (tokens[idx + 2]) curriculumName = tokens[idx + 2];
+      if (tokens[idx + 3]) department = tokens[idx + 3];
+      if (tokens[idx + 4]) faculty = tokens[idx + 4];
+
+      for (let i = idx; i < tokens.length; i++) {
+        const t = tokens[i];
+        if (t.includes("@")) email = t;
+        else if (t.match(/^0\d{8,9}$/) || t.match(/^0\d{1,2}-\d{3,4}-\d{3,4}$/)) phoneNumber = t;
+      }
+
+      items.push({
+        studentCode: code,
+        title,
+        firstName,
+        lastName,
+        degree,
+        yearLevel,
+        curriculumName: curriculumName || (degree === "ปริญญาตรี" ? "พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา" : degree),
+        department: department || "สาขาวิชาพระพุทธศาสนา",
+        faculty,
+        studyStatus,
+        email: email || undefined,
+        phoneNumber: phoneNumber || undefined,
+      });
+    }
+    return items;
+  }, [importRawText]);
+
+  const handleDownloadTemplate = () => {
+    const templateHeaders = [
+      "รหัสนิสิต",
+      "คำนำหน้า",
+      "ชื่อ",
+      "นามสกุล",
+      "ระดับการศึกษา",
+      "ชั้นปี",
+      "ชื่อหลักสูตร",
+      "สาขาวิชา",
+      "คณะ",
+      "อีเมล",
+      "เบอร์โทรศัพท์",
+    ];
+    const sampleRows = [
+      [
+        '="6601201001"',
+        "พระ",
+        "สมชาย",
+        "ปญฺญาธโร",
+        "ปริญญาตรี",
+        "1",
+        "พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา",
+        "สาขาวิชาพระพุทธศาสนา",
+        "คณะพุทธศาสตร์",
+        "somchai@mcu.ac.th",
+        "0812345678",
+      ],
+      [
+        '="6601202002"',
+        "พระ",
+        "John",
+        "Dhammiko",
+        "ปริญญาตรี",
+        "1",
+        "พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา (หลักสูตรภาษาอังกฤษ)",
+        "สาขาวิชาพระพุทธศาสนา",
+        "คณะพุทธศาสตร์",
+        "john@mcu.ac.th",
+        "0898765432",
+      ],
+    ];
+
+    const csvContent =
+      "\uFEFF" +
+      [templateHeaders.join(","), ...sampleRows.map((r) => r.map((c) => `"${c}"`).join(","))].join(
+        "\n"
+      );
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "student_import_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (text) {
+        setImportRawText(text);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleExecuteImport = async () => {
+    if (parsedImportItems.length === 0) {
+      toast.error("ไม่พบข้อมูลนิสิตที่สามารถนำเข้าได้ กรุณาตรวจสอบรูปแบบข้อมูล");
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const res = await batchImportStudentsAction(parsedImportItems);
+      if (res && res.success) {
+        toast.success(
+          `นำเข้า/อัปเดตข้อมูลสำเร็จ! เพิ่มใหม่ ${res.createdCount} คน, ปรับปรุง ${res.updatedCount} คน`
+        );
+        setIsImportOpen(false);
+        setImportRawText("");
+        setImportFileName("");
+        window.location.reload();
+      } else {
+        toast.error("เกิดข้อผิดพลาดในการนำเข้าข้อมูล");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "เกิดข้อผิดพลาดในการนำเข้าข้อมูล");
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   return (
@@ -329,6 +599,23 @@ export function StudentsDirectoryClient({
         </div>
 
         <div className="flex items-center gap-2.5">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            accept=".csv,.txt"
+            className="hidden"
+          />
+
+          <button
+            type="button"
+            onClick={() => setIsImportOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition shadow-2xs cursor-pointer"
+          >
+            <Upload className="w-3.5 h-3.5 text-primary" />
+            นำเข้า / อัปเดตนิสิต
+          </button>
+
           <button
             type="button"
             onClick={handleExportCSV}
@@ -363,14 +650,26 @@ export function StudentsDirectoryClient({
           </div>
         </LiyonCard>
 
-        <LiyonCard className="p-4 border-l-4 border-l-blue-500 bg-card/80">
+        <LiyonCard className="p-4 border-l-4 border-l-sky-500 bg-card/80">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground font-medium">ระดับปริญญาตรี</p>
-              <p className="text-2xl font-bold text-foreground mt-1">{stats.bachelors} คน</p>
+              <p className="text-xs text-muted-foreground font-medium">ปริญญาตรี (ภาคภาษาไทย)</p>
+              <p className="text-2xl font-bold text-foreground mt-1">{stats.thaiProgram} รูป/คน</p>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-600">
+            <div className="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center text-sky-600">
               <GraduationCap className="w-5 h-5" />
+            </div>
+          </div>
+        </LiyonCard>
+
+        <LiyonCard className="p-4 border-l-4 border-l-amber-500 bg-card/80">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-muted-foreground font-medium">ภาคภาษาอังกฤษ (Inter)</p>
+              <p className="text-2xl font-bold text-foreground mt-1">{stats.englishProgram} รูป/คน</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600">
+              <BookOpen className="w-5 h-5" />
             </div>
           </div>
         </LiyonCard>
@@ -378,22 +677,10 @@ export function StudentsDirectoryClient({
         <LiyonCard className="p-4 border-l-4 border-l-purple-500 bg-card/80">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground font-medium">ปริญญาโท-เอก / ป.บัณฑิต</p>
-              <p className="text-2xl font-bold text-foreground mt-1">{stats.mastersAndDocs} คน</p>
+              <p className="text-xs text-muted-foreground font-medium">บัณฑิตศึกษา (ป.โท-ป.เอก)</p>
+              <p className="text-2xl font-bold text-foreground mt-1">{stats.graduate} รูป/คน</p>
             </div>
             <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-600">
-              <BookOpen className="w-5 h-5" />
-            </div>
-          </div>
-        </LiyonCard>
-
-        <LiyonCard className="p-4 border-l-4 border-l-emerald-500 bg-card/80">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">การลงทะเบียนเรียนรวม</p>
-              <p className="text-2xl font-bold text-foreground mt-1">{stats.totalEnrollments} ครั้ง</p>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">
               <Layers className="w-5 h-5" />
             </div>
           </div>
@@ -426,6 +713,18 @@ export function StudentsDirectoryClient({
               <option value="MASTER">ปริญญาโท</option>
               <option value="DOCTORATE">ปริญญาเอก</option>
               <option value="CERTIFICATE">ประกาศนียบัตร</option>
+            </select>
+
+            {/* Language / Program Filter */}
+            <select
+              value={languageFilter}
+              onChange={(e) => setLanguageFilter(e.target.value)}
+              className="px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="ALL">🌐 ทุกหลักสูตรภาษา</option>
+              <option value="THAI">🇹🇭 ปริญญาตรี (ภาคภาษาไทย)</option>
+              <option value="ENGLISH">🇬🇧 ปริญญาตรี (ภาคภาษาอังกฤษ)</option>
+              <option value="GRADUATE">🎓 บัณฑิตศึกษา</option>
             </select>
 
             {/* Year Filter */}
@@ -464,12 +763,17 @@ export function StudentsDirectoryClient({
             พบข้อมูลทั้งหมด <strong>{filteredStudents.length}</strong> คน
             {filteredStudents.length !== students.length && ` (จากทั้งหมด ${students.length} คน)`}
           </span>
-          {(search || degreeFilter !== "ALL" || yearFilter !== "ALL" || deptFilter !== "ALL") && (
+          {(search ||
+            degreeFilter !== "ALL" ||
+            languageFilter !== "ALL" ||
+            yearFilter !== "ALL" ||
+            deptFilter !== "ALL") && (
             <button
               type="button"
               onClick={() => {
                 setSearch("");
                 setDegreeFilter("ALL");
+                setLanguageFilter("ALL");
                 setYearFilter("ALL");
                 setDeptFilter("ALL");
               }}
@@ -490,7 +794,8 @@ export function StudentsDirectoryClient({
                 <th className="py-3 px-4 w-12 text-center">ลำดับ</th>
                 <th className="py-3 px-4">รหัสนิสิต</th>
                 <th className="py-3 px-4">ชื่อ - นามสกุล</th>
-                <th className="py-3 px-4">ระดับการศึกษา / ชั้นปี</th>
+                <th className="py-3 px-4">ระดับ / ชั้นปี</th>
+                <th className="py-3 px-4">หลักสูตร</th>
                 <th className="py-3 px-4">สาขาวิชา / ภาควิชา</th>
                 <th className="py-3 px-4 text-center">วิชาที่ลงเรียน</th>
                 <th className="py-3 px-4 text-center">สถานะ</th>
@@ -500,7 +805,7 @@ export function StudentsDirectoryClient({
             <tbody className="divide-y divide-border">
               {paginatedStudents.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={9} className="py-12 text-center text-muted-foreground">
                     <Users className="w-10 h-10 mx-auto mb-2 text-muted-foreground/30" />
                     <p className="font-semibold">ไม่พบข้อมูลนิสิตที่ตรงกับเงื่อนไข</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
@@ -560,6 +865,61 @@ export function StudentsDirectoryClient({
                             ปี {student.yearLevel}
                           </span>
                         </div>
+                      </td>
+
+                      <td className="py-3 px-4">
+                        {(() => {
+                          const prog = getStudentProgramType(student);
+                          if (prog === "ENGLISH") {
+                            return (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                                  🇬🇧 (ภาษาอังกฤษ)
+                                </span>
+                                {student.curriculumName && (
+                                  <div
+                                    className="text-2xs text-muted-foreground truncate max-w-[180px]"
+                                    title={student.curriculumName}
+                                  >
+                                    {student.curriculumName}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+                          if (prog === "GRADUATE") {
+                            return (
+                              <div className="space-y-0.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-semibold bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20">
+                                  🎓 บัณฑิตศึกษา
+                                </span>
+                                {student.curriculumName && (
+                                  <div
+                                    className="text-2xs text-muted-foreground truncate max-w-[180px]"
+                                    title={student.curriculumName}
+                                  >
+                                    {student.curriculumName}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="space-y-0.5">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-semibold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">
+                                🇹🇭 (ภาษาไทย)
+                              </span>
+                              {student.curriculumName && (
+                                <div
+                                  className="text-2xs text-muted-foreground truncate max-w-[180px]"
+                                  title={student.curriculumName}
+                                >
+                                  {student.curriculumName}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       <td className="py-3 px-4">
@@ -690,7 +1050,7 @@ export function StudentsDirectoryClient({
         <LiyonDialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
             <div className="bg-card w-full max-w-lg rounded-2xl border border-border shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-              <LiyonDialogHeader className="p-5 border-b border-border flex items-center justify-between">
+              <div className="p-5 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
                     <UserCheck className="w-4 h-4" />
@@ -704,8 +1064,14 @@ export function StudentsDirectoryClient({
                     </p>
                   </div>
                 </div>
-                <LiyonDialogCloseButton onClick={() => setIsModalOpen(false)} />
-              </LiyonDialogHeader>
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
               <form onSubmit={handleSaveStudent}>
                 <LiyonDialogBody className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
@@ -814,6 +1180,22 @@ export function StudentsDirectoryClient({
 
                   <div>
                     <label className="block text-xs font-medium text-foreground mb-1">
+                      ชื่อหลักสูตร / หลักสูตรภาษา
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.curriculumName}
+                      onChange={(e) => setFormData({ ...formData, curriculumName: e.target.value })}
+                      placeholder="เช่น พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา หรือระบุ (หลักสูตรภาษาอังกฤษ)"
+                      className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                    <p className="text-2xs text-muted-foreground mt-1">
+                      💡 หากเป็นภาคภาษาอังกฤษ ให้มีคำว่า &ldquo;(หลักสูตรภาษาอังกฤษ)&rdquo; หรือ &ldquo;English Program&rdquo; ในชื่อหลักสูตร
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-foreground mb-1">
                       สาขาวิชา / ภาควิชา
                     </label>
                     <input
@@ -884,7 +1266,7 @@ export function StudentsDirectoryClient({
         >
           <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
             <div className="bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-              <LiyonDialogHeader className="p-4 border-b border-border flex items-center justify-between">
+              <div className="p-4 border-b border-border flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-foreground text-sm">
                     รายวิชาที่ลงทะเบียน: {viewingCoursesStudent.firstName}{" "}
@@ -894,8 +1276,14 @@ export function StudentsDirectoryClient({
                     รหัสนิสิต: {viewingCoursesStudent.studentCode}
                   </p>
                 </div>
-                <LiyonDialogCloseButton onClick={() => setViewingCoursesStudent(null)} />
-              </LiyonDialogHeader>
+                <button
+                  type="button"
+                  onClick={() => setViewingCoursesStudent(null)}
+                  className="w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
               <LiyonDialogBody className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
                 {viewingCoursesStudent.enrollments.map((en, i) => (
@@ -974,6 +1362,180 @@ export function StudentsDirectoryClient({
                   {isDeleting ? "กำลังลบ..." : "ยืนยันการลบ"}
                 </button>
               </div>
+            </div>
+          </div>
+        </LiyonDialog>
+      )}
+
+      {/* ── IMPORT MODAL ── */}
+      {isImportOpen && (
+        <LiyonDialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <div className="bg-card w-full max-w-2xl rounded-2xl border border-border shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh]">
+              <div className="p-5 border-b border-border flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                    <Upload className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-foreground text-base">
+                      นำเข้า / อัปเดตข้อมูลนิสิต (Batch Import & Update)
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      อัปโหลดไฟล์ CSV หรือวางข้อมูลเพื่อสร้างใหม่และอัปเดตนิสิตตามรหัสนิสิต
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsImportOpen(false)}
+                  className="w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <LiyonDialogBody className="p-5 space-y-4 overflow-y-auto flex-1">
+                {/* Actions & Template Download */}
+                <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-muted/40 border border-border">
+                  <div className="text-xs">
+                    <span className="font-semibold text-foreground">มีไฟล์ต้นแบบแล้วหรือยัง?</span>
+                    <p className="text-2xs text-muted-foreground mt-0.5">
+                      ดาวน์โหลดไฟล์แม่แบบ CSV เพื่อนำไปกรอกในโปรแกรม Excel ได้อย่างถูกต้อง
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDownloadTemplate}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition shadow-2xs cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5 text-primary" />
+                    ดาวน์โหลดแม่แบบ CSV
+                  </button>
+                </div>
+
+                {/* Upload Section */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-semibold text-foreground">
+                    1. เลือกไฟล์ CSV หรือลากไฟล์มาวาง
+                  </label>
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-border hover:border-primary/50 bg-muted/20 hover:bg-muted/40 rounded-xl p-5 text-center cursor-pointer transition"
+                  >
+                    <FileSpreadsheet className="w-8 h-8 mx-auto text-primary mb-2" />
+                    <p className="text-xs font-medium text-foreground">
+                      {importFileName ? (
+                        <span className="text-primary font-bold">📄 {importFileName}</span>
+                      ) : (
+                        "คลิกเพื่อเลือกไฟล์ .csv จากคอมพิวเตอร์"
+                      )}
+                    </p>
+                    <p className="text-2xs text-muted-foreground mt-1">
+                      รองรับไฟล์ UTF-8 CSV ที่ส่งออกจาก Excel หรือ Google Sheets
+                    </p>
+                  </div>
+                </div>
+
+                {/* Or Paste Raw Text */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-foreground">
+                    2. หรือ วางข้อมูลจาก Excel โดยตรง (Copy & Paste)
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={importRawText}
+                    onChange={(e) => {
+                      setImportRawText(e.target.value);
+                      if (importFileName) setImportFileName("");
+                    }}
+                    placeholder={`รหัสนิสิต,คำนำหน้า,ชื่อ,นามสกุล,ระดับการศึกษา,ชั้นปี,ชื่อหลักสูตร,สาขาวิชา,คณะ,อีเมล,เบอร์โทร\n6601201001,พระ,สมชาย,ปญฺญาธโร,ปริญญาตรี,1,พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา,ภาควิชาพระพุทธศาสนา,คณะพุทธศาสตร์,somchai@mcu.ac.th,0812345678\n6601202002,พระ,John,Dhammiko,ปริญญาตรี,1,พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา (หลักสูตรภาษาอังกฤษ),ภาควิชาพระพุทธศาสนา,คณะพุทธศาสตร์,john@mcu.ac.th,0898765432`}
+                    className="w-full p-3 rounded-xl bg-muted/30 border border-border text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+
+                {/* Preview parsed data */}
+                {parsedImportItems.length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-semibold text-foreground flex items-center gap-1.5">
+                        <Check className="w-4 h-4 text-emerald-500" />
+                        ตรวจสอบข้อมูลพร้อมนำเข้า:{" "}
+                        <strong className="text-primary">{parsedImportItems.length} คน</strong>
+                      </span>
+                      <span className="text-2xs text-muted-foreground">
+                        (แสดงตัวอย่าง 5 คนแรก)
+                      </span>
+                    </div>
+
+                    <div className="rounded-xl border border-border overflow-hidden bg-card text-xs">
+                      <div className="overflow-x-auto max-h-48">
+                        <table className="w-full text-left">
+                          <thead className="bg-muted text-2xs text-muted-foreground sticky top-0">
+                            <tr>
+                              <th className="py-2 px-3">รหัสนิสิต</th>
+                              <th className="py-2 px-3">ชื่อ - นามสกุล</th>
+                              <th className="py-2 px-3">ระดับ / ชั้นปี</th>
+                              <th className="py-2 px-3">หลักสูตร</th>
+                              <th className="py-2 px-3">สาขาวิชา</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-border text-2xs">
+                            {parsedImportItems.slice(0, 5).map((item, idx) => (
+                              <tr key={idx} className="hover:bg-muted/30">
+                                <td className="py-2 px-3 font-mono font-semibold">
+                                  {item.studentCode}
+                                </td>
+                                <td className="py-2 px-3 font-medium">
+                                  {item.title} {item.firstName} {item.lastName}
+                                </td>
+                                <td className="py-2 px-3">
+                                  {item.degree} ปี {item.yearLevel}
+                                </td>
+                                <td className="py-2 px-3 text-muted-foreground truncate max-w-[150px]">
+                                  {item.curriculumName}
+                                </td>
+                                <td className="py-2 px-3 text-muted-foreground truncate max-w-[150px]">
+                                  {item.department}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </LiyonDialogBody>
+
+              <LiyonDialogFooter className="p-4 border-t border-border flex items-center justify-between bg-muted/20 shrink-0">
+                <p className="text-2xs text-muted-foreground">
+                  * หากรหัสนิสิตมีอยู่แล้ว ระบบจะอัปเดตข้อมูลเดิมให้อัตโนมัติ
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsImportOpen(false);
+                      setImportRawText("");
+                      setImportFileName("");
+                    }}
+                    className="px-4 py-2 rounded-xl border border-border bg-card hover:bg-muted text-xs font-medium cursor-pointer"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isImporting || parsedImportItems.length === 0}
+                    onClick={handleExecuteImport}
+                    className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 transition cursor-pointer"
+                  >
+                    {isImporting
+                      ? "กำลังนำเข้าข้อมูล..."
+                      : `ยืนยันนำเข้า (${parsedImportItems.length} คน)`}
+                  </button>
+                </div>
+              </LiyonDialogFooter>
             </div>
           </div>
         </LiyonDialog>

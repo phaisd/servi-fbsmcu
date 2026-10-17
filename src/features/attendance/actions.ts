@@ -42,6 +42,7 @@ import {
   updateCourseGradingConfig,
   createOrUpdateStudent,
   deleteStudent,
+  batchImportStudents,
 } from "./_internal/services";
 
 import {
@@ -501,6 +502,16 @@ export async function deleteStudentAction(studentId: string) {
   await requirePermission(ATTENDANCE_P.manage);
 
   const result = await deleteStudent(session.tenantId, session.userId, studentId);
+  revalidatePath("/attendance/students");
+  revalidatePath("/attendance/classes");
+  return result;
+}
+
+export async function batchImportStudentsAction(items: any[]) {
+  const session = await requireSession();
+  await requirePermission(ATTENDANCE_P.manage);
+
+  const result = await batchImportStudents(session.tenantId, session.userId, items);
   revalidatePath("/attendance/students");
   revalidatePath("/attendance/classes");
   return result;
