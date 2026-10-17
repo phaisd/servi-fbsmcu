@@ -63,13 +63,20 @@ interface StudentsClientProps {
 }
 
 function formatMajor(major?: string | null, department?: string | null) {
-  const raw = major || department || "-";
-  return (
-    raw
-      .replace(/^สาขาวิชา\s*/, "")
-      .replace(/^ภาควิชา\s*/, "")
-      .trim() || "-"
-  );
+  let raw = (major || department || "-").trim();
+  raw = raw
+    .replace(/^สาขาวิชา\s*/, "")
+    .replace(/^ภาควิชา\s*/, "")
+    .trim();
+
+  // แปลงชื่อสาขาภาษาอังกฤษให้มีภาษาไทยกำกับชัดเจน เพื่อให้อาจารย์และผู้ใช้งานเข้าใจตรงกัน
+  if (raw.toLowerCase() === "buddhist studies" || raw.toLowerCase().includes("buddhist")) {
+    return "พระพุทธศาสนา (Buddhist Studies)";
+  }
+  if (raw.toLowerCase() === "religion and philosophy" || raw.toLowerCase().includes("religion")) {
+    return "ศาสนาและปรัชญา (Religion and Philosophy)";
+  }
+  return raw || "-";
 }
 
 export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _isSuperAdmin }: StudentsClientProps) {
@@ -1174,13 +1181,17 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                                 {s.studentCode}
                               </span>
                               <span className="font-medium text-xs text-slate-800 dark:text-slate-200">
-                                {s.fullName}
+                                {s.fullName || `${s.title || ""} ${s.firstName} ${s.lastName}`.trim()}
                               </span>
-                              {s.degree && (
+                              {(s.curriculumName?.includes("ภาษาอังกฤษ") || (s.major && s.major.toLowerCase().includes("buddhist"))) ? (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                                  English Program
+                                </span>
+                              ) : s.degree ? (
                                 <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400">
                                   {s.degree}
                                 </span>
-                              )}
+                              ) : null}
                             </div>
                             <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                               ชั้นปีที่ {s.yearLevel} • {formatMajor(s.major, s.department)}

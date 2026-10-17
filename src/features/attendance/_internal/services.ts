@@ -2417,6 +2417,7 @@ export async function getAvailableStudentsForCohort(
       title: s.title,
       firstName: s.firstName,
       lastName: s.lastName,
+      fullName: `${s.title || ""} ${s.firstName} ${s.lastName}`.trim(),
       yearLevel: s.yearLevel,
       degree: s.degree || "ปริญญาตรี",
       curriculumName: s.curriculumName,
