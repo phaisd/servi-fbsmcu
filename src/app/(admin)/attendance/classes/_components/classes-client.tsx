@@ -110,8 +110,8 @@ export function ClassesClient({
     academicYear: "2569",
     semester: 2,
     targetSessions: 16,
-    department: "พระพุทธศาสนา",
-    curriculumLanguage: "ปริญญาตรี (ปกติ)",
+    department: "สาขาวิชาพระพุทธศาสนา",
+    curriculumLanguage: "ปริญญาตรี (ภาคภาษาไทย)",
     primaryTeacherId: "",
     room: "",
     dayOfWeek: 1,
@@ -861,7 +861,7 @@ export function ClassesClient({
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                ชื่อรายวิชา (ภาษาอังกฤษ)
+                ชื่อรายวิชา (ภาษาอังกฤษ) <span className="text-slate-400 font-normal text-[11px]">(ช่วยจำแนกภาคภาษาไทย หรือ ภาคภาษาอังกฤษ / English Program)</span>
               </label>
               <input
                 type="text"
@@ -896,10 +896,10 @@ export function ClassesClient({
                   onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
-                  <option value="พระพุทธศาสนา">พระพุทธศาสนา</option>
-                  <option value="วิปัสสนาภาวนา">วิปัสสนาภาวนา</option>
-                  <option value="ศาสนาและปรัชญา">ศาสนาและปรัชญา</option>
-                  <option value="บาลีสันสกฤต">บาลีสันสกฤต</option>
+                  <option value="สาขาวิชาพระพุทธศาสนา">สาขาวิชาพระพุทธศาสนา</option>
+                  <option value="สาขาวิชาศาสนาและปรัชญา">สาขาวิชาศาสนาและปรัชญา</option>
+                  <option value="สาขาวิชาบาลีสันสกฤต">สาขาวิชาบาลีสันสกฤต</option>
+                  <option value="สาขาวิชาวิปัสสนาภาวนา">สาขาวิชาวิปัสสนาภาวนา</option>
                   <option value="หมวดวิชาศึกษาทั่วไป">หมวดวิชาศึกษาทั่วไป (วิชากลาง)</option>
                 </select>
               </div>
@@ -913,8 +913,8 @@ export function ClassesClient({
                   onChange={(e) => setFormData({ ...formData, curriculumLanguage: e.target.value })}
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
-                  <option value="ปริญญาตรี (ปกติ)">ปริญญาตรี (ปกติ - ภาษาไทย)</option>
-                  <option value="ปริญญาตรี (English Program)">ปริญญาตรี (English Program)</option>
+                  <option value="ปริญญาตรี (ภาคภาษาไทย)">ปริญญาตรี (ภาคภาษาไทย)</option>
+                  <option value="ปริญญาตรี (ภาคภาษาอังกฤษ / English Program)">ปริญญาตรี (ภาคภาษาอังกฤษ / English Program)</option>
                   <option value="ปริญญาโท">ปริญญาโท</option>
                   <option value="ปริญญาเอก">ปริญญาเอก</option>
                   <option value="ประกาศนียบัตร">ประกาศนียบัตร</option>
