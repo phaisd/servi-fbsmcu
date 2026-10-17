@@ -217,9 +217,6 @@ export function StudentsDirectoryClient({
       if (languageFilter === "GRADUATE" && getStudentProgramType(s) !== "GRADUATE") return;
 
       const display = getStudentMajorDisplay(s);
-      // ตัดชื่อเก่าหรือชื่อที่ผู้ใช้ไม่ต้องการออก
-      if (display === "บาลีพุทธศาสตร์" || display === "ปรัชญา") return;
-
       if (display && display !== "-") {
         set.add(display);
       }
