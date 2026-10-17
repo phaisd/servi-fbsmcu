@@ -87,10 +87,11 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
   const [deleteTarget, setDeleteTarget] = useState<StudentItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // Modal State สำหรับดึงนิสิตตามชั้นปี / สาขาวิชา (Cohort Enrollment)
+  // Modal State สำหรับดึงนิสิตตามชั้นปี / สาขาวิชา / หลักสูตร (Cohort Enrollment)
   const [isCohortOpen, setIsCohortOpen] = useState(false);
   const [isLoadingCohort, setIsLoadingCohort] = useState(false);
   const [cohortStudents, setCohortStudents] = useState<any[]>([]);
+  const [cohortDegreeFilter, setCohortDegreeFilter] = useState<string>("ALL");
   const [cohortYearFilter, setCohortYearFilter] = useState<number>(0);
   const [cohortDeptFilter, setCohortDeptFilter] = useState<string>("ALL");
   const [cohortSearch, setCohortSearch] = useState<string>("");
@@ -116,6 +117,14 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
   }
 
   const filteredCohortStudents = cohortStudents.filter((s) => {
+    const matchDegree =
+      cohortDegreeFilter === "ALL" ||
+      (cohortDegreeFilter === "BACHELOR" && (s.degree || "").includes("ตรี")) ||
+      (cohortDegreeFilter === "INTER" && ((s.curriculumName || "").toLowerCase().includes("inter") || (s.curriculumName || "").toLowerCase().includes("english") || (s.department || "").toLowerCase().includes("inter") || (s.department || "").toLowerCase().includes("english"))) ||
+      (cohortDegreeFilter === "MASTER" && (s.degree || "").includes("โท")) ||
+      (cohortDegreeFilter === "DOCTORATE" && (s.degree || "").includes("เอก")) ||
+      (cohortDegreeFilter === "CERTIFICATE" && (s.degree || "").includes("ประกาศนียบัตร"));
+
     const matchYear = cohortYearFilter === 0 || s.yearLevel === cohortYearFilter;
     const matchDept = cohortDeptFilter === "ALL" || s.department === cohortDeptFilter;
     const q = cohortSearch.toLowerCase().trim();
@@ -123,8 +132,10 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
       !q ||
       s.studentCode.toLowerCase().includes(q) ||
       s.firstName.toLowerCase().includes(q) ||
-      s.lastName.toLowerCase().includes(q);
-    return matchYear && matchDept && matchSearch;
+      s.lastName.toLowerCase().includes(q) ||
+      (s.department && s.department.toLowerCase().includes(q));
+
+    return matchDegree && matchYear && matchDept && matchSearch;
   });
 
   function handleToggleCohortStudent(id: string) {
@@ -712,8 +723,26 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
             </div>
           ) : (
             <div className="space-y-3">
-              {/* ตัวกรองชั้นปีและสาขาวิชา */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+              {/* ตัวกรองระดับการศึกษา/หลักสูตร ชั้นปี และสาขาวิชา */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                    ระดับ / หลักสูตร
+                  </label>
+                  <select
+                    value={cohortDegreeFilter}
+                    onChange={(e) => setCohortDegreeFilter(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs truncate"
+                  >
+                    <option value="ALL">🎓 ทุกระดับการศึกษา</option>
+                    <option value="BACHELOR">ปริญญาตรี (ทั่วไป)</option>
+                    <option value="INTER">นานาชาติ (Inter / English)</option>
+                    <option value="MASTER">ปริญญาโท</option>
+                    <option value="DOCTORATE">ปริญญาเอก</option>
+                    <option value="CERTIFICATE">ประกาศนียบัตร</option>
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
                     ชั้นปี
@@ -723,7 +752,7 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                     onChange={(e) => setCohortYearFilter(Number(e.target.value))}
                     className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
                   >
-                    <option value={0}>ทั้งหมดทุกชั้นปี</option>
+                    <option value={0}>📚 ทั้งหมดทุกชั้นปี</option>
                     <option value={1}>ชั้นปีที่ 1</option>
                     <option value={2}>ชั้นปีที่ 2</option>
                     <option value={3}>ชั้นปีที่ 3</option>
@@ -740,7 +769,7 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                     onChange={(e) => setCohortDeptFilter(e.target.value)}
                     className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs truncate"
                   >
-                    <option value="ALL">ทั้งหมดทุกสาขาวิชา</option>
+                    <option value="ALL">🏛️ ทั้งหมดทุกสาขาวิชา</option>
                     {departmentOptions.map((dept) => (
                       <option key={dept} value={dept}>
                         {dept}
@@ -815,6 +844,11 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                               <span className="font-medium text-xs text-slate-800 dark:text-slate-200">
                                 {s.fullName}
                               </span>
+                              {s.degree && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                                  {s.degree}
+                                </span>
+                              )}
                             </div>
                             <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                               ชั้นปีที่ {s.yearLevel} • {s.department || "คณะพุทธศาสตร์"}
