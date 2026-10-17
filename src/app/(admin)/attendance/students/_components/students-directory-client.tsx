@@ -108,8 +108,19 @@ export function getStudentMajorDisplay(s: {
   }
 
   // Thai Program / Graduate
-  const raw = (s.major || s.department || "-").trim();
-  return raw.replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim() || "-";
+  const rawMajor = (s.major || "").replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim();
+  const rawDept = (s.department || "").replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim();
+
+  // Normalize legacy names if any
+  if (rawMajor === "บาลีพุทธศาสตร์" || rawDept === "บาลีพุทธศาสตร์") {
+    return "บาลีสันสกฤต";
+  }
+  if (rawMajor === "ปรัชญา" || rawDept === "ปรัชญา") {
+    return "ศาสนาและปรัชญา";
+  }
+
+  const raw = rawMajor || rawDept || "-";
+  return raw || "-";
 }
 
 interface StudentItem {
@@ -197,25 +208,41 @@ export function StudentsDirectoryClient({
   // Expanded courses list popover/modal
   const [viewingCoursesStudent, setViewingCoursesStudent] = React.useState<StudentItem | null>(null);
 
-  // Dynamic Departments
+  // Dynamic Departments based on students and active languageFilter
   const availableDepartments = React.useMemo(() => {
     const set = new Set<string>();
     students.forEach((s) => {
+      if (languageFilter === "THAI" && getStudentProgramType(s) !== "THAI") return;
+      if (languageFilter === "ENGLISH" && getStudentProgramType(s) !== "ENGLISH") return;
+      if (languageFilter === "GRADUATE" && getStudentProgramType(s) !== "GRADUATE") return;
+
       const display = getStudentMajorDisplay(s);
+      // ตัดชื่อเก่าหรือชื่อที่ผู้ใช้ไม่ต้องการออก
+      if (display === "บาลีพุทธศาสตร์" || display === "ปรัชญา") return;
+
       if (display && display !== "-") {
         set.add(display);
       }
-      if (s.department) {
-        const cleanDept = s.department.replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim();
-        if (cleanDept) set.add(cleanDept);
-      }
-      if (s.major) {
-        const cleanMajor = s.major.replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim();
-        if (cleanMajor) set.add(cleanMajor);
-      }
     });
-    return Array.from(set).filter(Boolean).sort();
-  }, [students]);
+
+    const customOrder = [
+      "พระพุทธศาสนา",
+      "ศาสนาและปรัชญา",
+      "วิปัสสนาภาวนา",
+      "บาลีสันสกฤต",
+      "Buddhist Studies",
+      "Religion and Philosophy",
+    ];
+
+    return Array.from(set).sort((a, b) => {
+      const idxA = customOrder.indexOf(a);
+      const idxB = customOrder.indexOf(b);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return a.localeCompare(b, "th");
+    });
+  }, [students, languageFilter]);
 
   // Statistics
   const stats = React.useMemo(() => {
@@ -257,15 +284,7 @@ export function StudentsDirectoryClient({
       const matchYear = yearFilter === "ALL" || s.yearLevel === yearFilter;
 
       const disp = getStudentMajorDisplay(s);
-      const cleanDept = (s.department || "").replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim();
-      const cleanMajor = (s.major || "").replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim();
-      const matchDept =
-        deptFilter === "ALL" ||
-        s.department === deptFilter ||
-        s.major === deptFilter ||
-        disp === deptFilter ||
-        cleanDept === deptFilter ||
-        cleanMajor === deptFilter;
+      const matchDept = deptFilter === "ALL" || disp === deptFilter;
 
       return matchSearch && matchDegree && matchLanguage && matchYear && matchDept;
     });
@@ -282,6 +301,13 @@ export function StudentsDirectoryClient({
   React.useEffect(() => {
     setCurrentPage(1);
   }, [search, degreeFilter, languageFilter, yearFilter, deptFilter]);
+
+  // Reset deptFilter if no longer available in the current language filter
+  React.useEffect(() => {
+    if (deptFilter !== "ALL" && !availableDepartments.includes(deptFilter)) {
+      setDeptFilter("ALL");
+    }
+  }, [availableDepartments, deptFilter]);
 
   const handleOpenAdd = () => {
     setEditingStudent(null);
