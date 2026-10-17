@@ -244,6 +244,9 @@ export const DEFAULT_SMTP_SETTINGS: SmtpSettings = {
   fromEmail: "",
 };
 
+export const FONT_SIZES = ["small", "normal", "medium", "large", "xlarge"] as const;
+export type FontSizePreference = (typeof FONT_SIZES)[number];
+
 export const updateSettingsSchema = z.object({
   nameTh: z.string().trim().min(1).max(255),
   nameEn: z.string().trim().min(1).max(255),
@@ -257,6 +260,7 @@ export const updateSettingsSchema = z.object({
     .or(z.literal(""))
     .default(""),
   palette: z.enum(PALETTE_IDS),
+  fontSize: z.enum(FONT_SIZES).optional().default("normal"),
   hero: heroSettingsSchema.optional(),
   servicesSection: servicesSectionSchema.optional(),
   newsSection: newsSectionSchema.optional(),
@@ -486,6 +490,7 @@ export interface TenantSettings {
   nameEn: string;
   logoUrl: string | null;
   palette: import("@/shared/lib/palette").PaletteId;
+  fontSize?: FontSizePreference;
   hero: HeroSettings;
   servicesSection: ServicesSectionSettings;
   newsSection: NewsSectionSettings;

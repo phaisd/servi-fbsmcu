@@ -11,6 +11,7 @@ export type { RoleItem } from "./_internal/services/role.service";
 export type { RoleAssignment, ListUsersQuery } from "./_internal/validations/users";
 export type {
   TenantSettings,
+  FontSizePreference,
   HeroSettings,
   HeroTextTone,
   HeroNavLink,
@@ -23,6 +24,7 @@ export type {
   SmtpSettings,
 } from "./_internal/validations/settings";
 export {
+  FONT_SIZES,
   DEFAULT_HERO_SETTINGS,
   DEFAULT_SERVICES_SECTION_SETTINGS,
   DEFAULT_NEWS_SECTION_SETTINGS,

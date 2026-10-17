@@ -49,6 +49,7 @@ async function readTenantSettings(tenantId: string, db: Db): Promise<TenantSetti
   if (!t) throw errors.not_found();
   const settingsObj = (t.settings as {
     palette?: unknown;
+    fontSize?: unknown;
     hero?: unknown;
     servicesSection?: unknown;
     newsSection?: unknown;
@@ -57,6 +58,10 @@ async function readTenantSettings(tenantId: string, db: Db): Promise<TenantSetti
     smtp?: unknown;
   }) ?? {};
   const p = settingsObj.palette;
+  const rawFontSize = settingsObj.fontSize as string;
+  const fontSize = (["small", "normal", "medium", "large", "xlarge"] as const).includes(rawFontSize as any)
+    ? (rawFontSize as "small" | "normal" | "medium" | "large" | "xlarge")
+    : "normal";
   const rawHero = (settingsObj.hero as Partial<HeroSettings>) ?? {};
   const hero: HeroSettings = {
     ...DEFAULT_HERO_SETTINGS,
@@ -116,6 +121,7 @@ async function readTenantSettings(tenantId: string, db: Db): Promise<TenantSetti
     nameEn: t.nameEn,
     logoUrl: t.logoUrl,
     palette: isPalette(p) ? p : DEFAULT_PALETTE,
+    fontSize,
     hero,
     servicesSection,
     newsSection,
@@ -129,7 +135,7 @@ export async function getTenantSettings(tenantId: string): Promise<TenantSetting
   return readTenantSettings(tenantId, prisma);
 }
 
-/** เก็บคีย์อื่น ๆ ใน settings JSON ไว้ทั้งหมด — merge palette, hero, servicesSection, newsSection, facultyBanner, footer, smtp ไม่ทับทั้งก้อน */
+/** เก็บคีย์อื่น ๆ ใน settings JSON ไว้ทั้งหมด — merge palette, fontSize, hero, servicesSection, newsSection, facultyBanner, footer, smtp ไม่ทับทั้งก้อน */
 export async function updateTenantSettings(input: { tenantId: string; actorId: string } & UpdateSettingsInput): Promise<void> {
   await prisma.$transaction(async (tx) => {
     // อ่านผ่าน tx เดียวกัน ไม่ใช่ client กลาง
@@ -139,6 +145,7 @@ export async function updateTenantSettings(input: { tenantId: string; actorId: s
     const updatedSettings = {
       ...existing,
       palette: input.palette,
+      ...(input.fontSize ? { fontSize: input.fontSize } : {}),
       ...(input.hero ? { hero: input.hero } : {}),
       ...(input.servicesSection ? { servicesSection: input.servicesSection } : {}),
       ...(input.newsSection ? { newsSection: input.newsSection } : {}),

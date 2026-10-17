@@ -16,6 +16,7 @@ import {
   DEFAULT_FOOTER_SETTINGS,
   DEFAULT_SMTP_SETTINGS,
   type TenantSettings,
+  type FontSizePreference,
 } from "@/features/identity";
 import { updateSettingsAction } from "@/features/identity/actions";
 import { Mail } from "lucide-react";
@@ -35,6 +36,7 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
     nameEn: initial.nameEn,
     logoUrl: initial.logoUrl ?? "",
     palette: initial.palette as PaletteId,
+    fontSize: (initial.fontSize ?? "normal") as FontSizePreference,
     hero: initial.hero ?? DEFAULT_HERO_SETTINGS,
     servicesSection: initial.servicesSection ?? DEFAULT_SERVICES_SECTION_SETTINGS,
     newsSection: initial.newsSection ?? DEFAULT_NEWS_SECTION_SETTINGS,
@@ -183,6 +185,7 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
             nameEn={form.nameEn}
             logoUrl={form.logoUrl}
             palette={form.palette}
+            fontSize={form.fontSize}
             errors={errors}
             onChange={(patch) => setForm((prev) => ({ ...prev, ...patch }))}
           />

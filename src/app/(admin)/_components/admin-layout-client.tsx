@@ -6,6 +6,7 @@ import { Loader2, User, Settings } from "lucide-react";
 import { AdminShell, useBreadcrumbTailItems, type Crumb } from "@/shared/components/liyon";
 import { AdminSidebarNav } from "@/components/layout/admin-sidebar-nav";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
+import { FontSizeAdjuster } from "@/components/layout/font-size-adjuster";
 import { useSidebarStore } from "@/components/layout/sidebar-store";
 import { getActiveNavChain } from "@/components/layout/sidebar-nav";
 import { useAppSession } from "@/hooks/use-session";
@@ -73,7 +74,12 @@ export function AdminLayoutClient({
       breadcrumb={breadcrumb}
       breadcrumbLabel={t("common.breadcrumb")}
       roleLabel={roles[0] ? localizedName(roles[0], locale) : null}
-      languageSwitcher={<LanguageSwitcher className="lang" />}
+      languageSwitcher={
+        <div className="flex items-center gap-1">
+          <FontSizeAdjuster />
+          <LanguageSwitcher className="lang" />
+        </div>
+      }
       notifications={null}
       account={
         user

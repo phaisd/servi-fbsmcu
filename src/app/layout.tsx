@@ -21,10 +21,23 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [cookieLocale, palette, session] = await Promise.all([getLocaleCookie(), resolvePalette(), auth().catch(() => null)]);
+  const [cookieLocale, palette, tenantSettings, session] = await Promise.all([
+    getLocaleCookie(),
+    resolvePalette(),
+    resolveTenantSettings().catch(() => null),
+    auth().catch(() => null),
+  ]);
   const locale = cookieLocale ?? session?.locale ?? DEFAULT_LOCALE; // spec B7: login จากเครื่องใหม่ได้ภาษาที่ผู้ใช้เคยเลือก
+  const fontSize = tenantSettings?.fontSize || "normal";
   return (
-    <html lang={locale} data-palette={palette} suppressHydrationWarning>
+    <html lang={locale} data-palette={palette} data-font-size={fontSize} suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=localStorage.getItem('vibe_font_size');if(s){document.documentElement.setAttribute('data-font-size',s);}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className={`${inter.variable} ${sarabun.variable} font-sans antialiased`} suppressHydrationWarning>
         <div className="bg" aria-hidden="true" />
         <I18nProvider locale={locale} messages={UI_MESSAGES}>
