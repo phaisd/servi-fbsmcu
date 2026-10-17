@@ -63,6 +63,7 @@ interface ClassItem {
   endTime?: string | null;
   section?: string | null;
   targetSessions?: number;
+  description?: string | null;
   status: string;
   primaryTeacher?: { id: string; name: string; email: string } | null;
   instructor?: { name: string; email: string } | null;
@@ -75,13 +76,19 @@ interface ClassItem {
 
 interface ClassesClientProps {
   initialItems: ClassItem[];
+  availableTeachers?: Array<{ id: string; name: string; email: string }>;
   isSuperAdmin?: boolean;
   currentUserId?: string;
 }
 
 const DAY_NAMES = ["", "วันจันทร์", "วันอังคาร", "วันพุธ", "วันพฤหัสบดี", "วันศุกร์", "วันเสาร์", "วันอาทิตย์"];
 
-export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _currentUserId }: ClassesClientProps) {
+export function ClassesClient({
+  initialItems,
+  availableTeachers = [],
+  isSuperAdmin,
+  currentUserId: _currentUserId,
+}: ClassesClientProps) {
   const router = useRouter();
   const [items, setItems] = useState<ClassItem[]>(initialItems);
   const [searchTerm, setSearchTerm] = useState("");
@@ -99,16 +106,34 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
     courseName: "",
     courseNameEn: "",
     credits: 3,
-    term: "1/2569",
+    term: "2/2569",
     academicYear: "2569",
-    semester: 1,
+    semester: 2,
     targetSessions: 16,
+    department: "พระพุทธศาสนา",
+    curriculumLanguage: "ปริญญาตรี (ปกติ)",
+    primaryTeacherId: "",
     room: "",
     dayOfWeek: 1,
     startTime: "09.00",
     endTime: "11.30",
     description: "",
   });
+
+  // รายชื่ออาจารย์สำหรับเลือกเป็นผู้รับผิดชอบรายวิชา
+  const teacherOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; email: string }>();
+    if (availableTeachers && availableTeachers.length > 0) {
+      availableTeachers.forEach((t) => map.set(t.id, t));
+    }
+    items.forEach((item) => {
+      const teacher = item.primaryTeacher;
+      if (teacher?.id && !map.has(teacher.id)) {
+        map.set(teacher.id, { id: teacher.id, name: teacher.name, email: teacher.email });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, "th"));
+  }, [availableTeachers, items]);
 
   const uniqueTerms = Array.from(new Set(items.map((i) => i.term).filter(Boolean)));
 
@@ -145,11 +170,36 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
 
     try {
       setIsSubmitting(true);
-      const res = await createClassAction(formData);
+      const termParts = (formData.term || "").split("/");
+      const sem = parseInt(termParts[0], 10) || 2;
+      const yr = termParts[1]?.trim() || "2569";
+      const deptLangMeta = `สาขาวิชา: ${formData.department} | หลักสูตร: ${formData.curriculumLanguage}`;
+
+      const payload = {
+        courseCode: formData.courseCode.trim(),
+        courseName: formData.courseName.trim(),
+        courseNameEn: formData.courseNameEn?.trim() || null,
+        credits: formData.credits,
+        term: formData.term.trim(),
+        academicYear: yr,
+        semester: sem,
+        targetSessions: 16,
+        room: formData.room?.trim() || null,
+        dayOfWeek: formData.dayOfWeek,
+        startTime: formData.startTime?.trim() || "09.00",
+        endTime: formData.endTime?.trim() || "11.30",
+        primaryTeacherId: formData.primaryTeacherId ? formData.primaryTeacherId : _currentUserId,
+        description: formData.description?.trim()
+          ? `${deptLangMeta} • ${formData.description.trim()}`
+          : deptLangMeta,
+      };
+
+      const res = await createClassAction(payload);
       if (res.success && res.class) {
         toast.success("สร้างรายวิชาและกำหนด 16 คาบเรียนเรียบร้อยแล้ว");
         setItems([res.class as any, ...items]);
         setIsCreateOpen(false);
+        router.refresh();
       }
     } catch (err: any) {
       toast.error(err.message || "เกิดข้อผิดพลาดในการสร้างรายวิชา");
@@ -659,6 +709,13 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
                   {item.courseNameEn && (
                     <p className="text-xs text-slate-400 italic line-clamp-1 mt-0.5">{item.courseNameEn}</p>
                   )}
+                  {item.description && item.description.includes("สาขาวิชา:") && (
+                    <div className="mt-1.5 flex flex-wrap gap-1 text-[10.5px]">
+                      <span className="px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border border-amber-200/80 dark:border-amber-800/60 font-semibold">
+                        {item.description.split("•")[0]?.trim()}
+                      </span>
+                    </div>
+                  )}
 
                   <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/80 space-y-2 text-xs text-slate-600 dark:text-slate-300">
                     <div className="flex items-center gap-2">
@@ -818,15 +875,82 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  ภาคการศึกษา *
+                  ภาคการศึกษา (เทอม) *
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="เช่น 1/2569"
+                  placeholder="เช่น 2/2569"
                   value={formData.term}
                   onChange={(e) => setFormData({ ...formData, term: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  สาขาวิชา *
+                </label>
+                <select
+                  value={formData.department}
+                  onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                >
+                  <option value="พระพุทธศาสนา">พระพุทธศาสนา</option>
+                  <option value="วิปัสสนาภาวนา">วิปัสสนาภาวนา</option>
+                  <option value="ศาสนาและปรัชญา">ศาสนาและปรัชญา</option>
+                  <option value="บาลีสันสกฤต">บาลีสันสกฤต</option>
+                  <option value="หมวดวิชาศึกษาทั่วไป">หมวดวิชาศึกษาทั่วไป (วิชากลาง)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  หลักสูตรภาษา *
+                </label>
+                <select
+                  value={formData.curriculumLanguage}
+                  onChange={(e) => setFormData({ ...formData, curriculumLanguage: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                >
+                  <option value="ปริญญาตรี (ปกติ)">ปริญญาตรี (ปกติ - ภาษาไทย)</option>
+                  <option value="ปริญญาตรี (English Program)">ปริญญาตรี (English Program)</option>
+                  <option value="ปริญญาโท">ปริญญาโท</option>
+                  <option value="ปริญญาเอก">ปริญญาเอก</option>
+                  <option value="ประกาศนียบัตร">ประกาศนียบัตร</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                อาจารย์ผู้สอน (ผู้รับผิดชอบรายวิชา)
+              </label>
+              <select
+                value={formData.primaryTeacherId}
+                onChange={(e) => setFormData({ ...formData, primaryTeacherId: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              >
+                <option value="">-- กำหนดตัวเองเป็นผู้สอน หรือเลือกอาจารย์ --</option>
+                {teacherOptions.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  ห้องเรียน
+                </label>
+                <input
+                  type="text"
+                  placeholder="เช่น B302, ห้องเรียน 1"
+                  value={formData.room}
+                  onChange={(e) => setFormData({ ...formData, room: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
 
@@ -837,7 +961,7 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
                 <select
                   value={formData.dayOfWeek}
                   onChange={(e) => setFormData({ ...formData, dayOfWeek: Number(e.target.value) })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 >
                   <option value={1}>วันจันทร์</option>
                   <option value={2}>วันอังคาร</option>
@@ -847,19 +971,6 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
                   <option value={6}>วันเสาร์</option>
                   <option value={7}>วันอาทิตย์</option>
                 </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  ห้องเรียน
-                </label>
-                <input
-                  type="text"
-                  placeholder="เช่น B302, ห้องเรียน 1"
-                  value={formData.room}
-                  onChange={(e) => setFormData({ ...formData, room: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
-                />
               </div>
             </div>
 
@@ -873,7 +984,7 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
                   placeholder="09.00"
                   value={formData.startTime}
                   onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
 
@@ -886,7 +997,7 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
                   placeholder="11.30"
                   value={formData.endTime}
                   onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
               </div>
             </div>
