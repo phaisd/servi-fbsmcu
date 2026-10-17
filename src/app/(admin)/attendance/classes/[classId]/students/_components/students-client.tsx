@@ -170,10 +170,44 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
   const [cohortDegreeFilter, setCohortDegreeFilter] = useState<string>("ALL");
   const [cohortYearFilter, setCohortYearFilter] = useState<number>(0);
   const [cohortDeptFilter, setCohortDeptFilter] = useState<string>("ALL");
+  const [selectedCohortDepts, setSelectedCohortDepts] = useState<string[]>([]);
   const [cohortSearch, setCohortSearch] = useState<string>("");
   const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
   const [selectedCohortIds, setSelectedCohortIds] = useState<string[]>([]);
   const [isEnrollingCohort, setIsEnrollingCohort] = useState(false);
+
+  function handleToggleDeptChip(deptName: string) {
+    setSelectedCohortDepts((prev) => {
+      let next: string[];
+      if (prev.includes(deptName)) {
+        next = prev.filter((d) => d !== deptName);
+      } else {
+        next = [...prev, deptName];
+      }
+      if (next.length === 0) setCohortDeptFilter("ALL");
+      else if (next.length === 1) setCohortDeptFilter(next[0]);
+      else setCohortDeptFilter("CUSTOM_COMBINED");
+      return next;
+    });
+  }
+
+  function handleSelectCohortDept(val: string) {
+    setCohortDeptFilter(val);
+    if (val === "ALL") {
+      setSelectedCohortDepts([]);
+    } else if (val === "ENG_COMBINED") {
+      setSelectedCohortDepts(["Buddhist Studies", "Religion and Philosophy"]);
+    } else if (val === "THAI_COMBINED") {
+      setSelectedCohortDepts([
+        "สาขาวิชาพระพุทธศาสนา",
+        "สาขาวิชาศาสนาและปรัชญา",
+        "สาขาวิชาบาลีสันสกฤต",
+        "สาขาวิชาวิปัสสนาภาวนา",
+      ]);
+    } else {
+      setSelectedCohortDepts([val]);
+    }
+  }
 
   async function handleOpenCohortModal() {
     setIsCohortOpen(true);
@@ -183,12 +217,17 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
       const meta = classObj.description || "";
       const fullText = `${meta} ${classObj.courseName || ""} ${classObj.courseNameEn || ""}`;
 
-      if (meta.includes("ภาคภาษาอังกฤษ") || meta.includes("English Program") || meta.includes("Inter")) {
+      const isEnglishCourse =
+        meta.includes("ภาคภาษาอังกฤษ") ||
+        meta.includes("English Program") ||
+        meta.includes("Inter") ||
+        fullText.includes("English Program") ||
+        fullText.includes("ภาคภาษาอังกฤษ");
+
+      if (isEnglishCourse) {
         setCohortDegreeFilter("BACHELOR_ENGLISH");
       } else if (meta.includes("ภาคภาษาไทย") || meta.includes("ปริญญาตรี (ปกติ)")) {
         setCohortDegreeFilter("BACHELOR_NORMAL");
-      } else if (fullText.includes("English Program") || fullText.includes("ภาคภาษาอังกฤษ")) {
-        setCohortDegreeFilter("BACHELOR_ENGLISH");
       } else if (fullText.includes("โท") || fullText.includes("มหาบัณฑิต")) {
         setCohortDegreeFilter("MASTER");
       } else if (fullText.includes("เอก") || fullText.includes("ดุษฎีบัณฑิต")) {
@@ -203,14 +242,21 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
 
       if (fullText.includes("วิปัสสนา")) {
         setCohortDeptFilter("สาขาวิชาวิปัสสนาภาวนา");
-      } else if (fullText.includes("ปรัชญา") || fullText.includes("ศาสนา")) {
-        setCohortDeptFilter("สาขาวิชาศาสนาและปรัชญา");
+        setSelectedCohortDepts(["สาขาวิชาวิปัสสนาภาวนา"]);
+      } else if (fullText.includes("ปรัชญา") || fullText.includes("religion") || fullText.includes("philosophy")) {
+        const d = isEnglishCourse ? "Religion and Philosophy" : "สาขาวิชาศาสนาและปรัชญา";
+        setCohortDeptFilter(d);
+        setSelectedCohortDepts([d]);
       } else if (fullText.includes("บาลี") || fullText.includes("สันสกฤต")) {
         setCohortDeptFilter("สาขาวิชาบาลีสันสกฤต");
-      } else if (fullText.includes("พระพุทธศาสนา")) {
-        setCohortDeptFilter("สาขาวิชาพระพุทธศาสนา");
+        setSelectedCohortDepts(["สาขาวิชาบาลีสันสกฤต"]);
+      } else if (fullText.includes("พระพุทธศาสนา") || fullText.includes("buddhist")) {
+        const d = isEnglishCourse ? "Buddhist Studies" : "สาขาวิชาพระพุทธศาสนา";
+        setCohortDeptFilter(d);
+        setSelectedCohortDepts([d]);
       } else {
         setCohortDeptFilter("ALL");
+        setSelectedCohortDepts([]);
       }
 
       const res = await getAvailableStudentsForCohortAction(classObj.id);
@@ -235,7 +281,8 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
         (s.department || "").toLowerCase().includes("english") ||
         (s.major || "").toLowerCase().includes("english") ||
         (s.major || "").toLowerCase().includes("buddhist") ||
-        (s.major || "").toLowerCase().includes("religion");
+        (s.major || "").toLowerCase().includes("religion") ||
+        (s.major || "").toLowerCase().includes("philosophy");
 
       const isBachelor = (s.degree || "").includes("ตรี") || !s.degree;
 
@@ -255,40 +302,41 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
       // 2. ชั้นปี: ปี 1 / ปี 2 / ปี 3 / ปี 4
       const matchYear = cohortYearFilter === 0 || s.yearLevel === cohortYearFilter;
 
-      // 3. สาขาวิชา: คัดกรองตรงสาขาอย่างแม่นยำ ไม่ดึงสาขาอื่นที่อยู่ร่วมคณะ/ภาควิชามาปน
+      // 3. สาขาวิชา: คัดกรองตรงสาขาอย่างแม่นยำ (รองรับเรียนรวมหลายสาขาพร้อมกัน)
       let matchDept = true;
-      if (cohortDeptFilter !== "ALL") {
+      if (selectedCohortDepts.length > 0) {
         const studentCategory = getStudentNormalizedMajor(s);
-        const targetClean = cohortDeptFilter
-          .replace(/^สาขาวิชา\s*/, "")
-          .replace(/^ภาควิชา\s*/, "")
-          .trim()
-          .toLowerCase();
+        matchDept = selectedCohortDepts.some((deptName) => {
+          const targetClean = deptName
+            .replace(/^สาขาวิชา\s*/, "")
+            .replace(/^ภาควิชา\s*/, "")
+            .trim()
+            .toLowerCase();
 
-        let targetCategory = "OTHER";
-        if (targetClean.includes("buddhist") || targetClean.includes("พระพุทธศาสนา")) {
-          targetCategory = "BUDDHIST_STUDIES";
-        } else if (
-          targetClean.includes("religion") ||
-          targetClean.includes("philosophy") ||
-          targetClean.includes("ปรัชญา") ||
-          (targetClean.includes("ศาสนา") && !targetClean.includes("พระพุทธศาสนา"))
-        ) {
-          targetCategory = "RELIGION_AND_PHILOSOPHY";
-        } else if (targetClean.includes("วิปัสสนา")) {
-          targetCategory = "VIPASSANA";
-        } else if (targetClean.includes("บาลี") || targetClean.includes("สันสกฤต")) {
-          targetCategory = "BALI";
-        }
+          let targetCategory = "OTHER";
+          if (targetClean.includes("buddhist") || targetClean.includes("พระพุทธศาสนา")) {
+            targetCategory = "BUDDHIST_STUDIES";
+          } else if (
+            targetClean.includes("religion") ||
+            targetClean.includes("philosophy") ||
+            targetClean.includes("ปรัชญา") ||
+            (targetClean.includes("ศาสนา") && !targetClean.includes("พระพุทธศาสนา"))
+          ) {
+            targetCategory = "RELIGION_AND_PHILOSOPHY";
+          } else if (targetClean.includes("วิปัสสนา")) {
+            targetCategory = "VIPASSANA";
+          } else if (targetClean.includes("บาลี") || targetClean.includes("สันสกฤต")) {
+            targetCategory = "BALI";
+          }
 
-        if (targetCategory !== "OTHER") {
-          matchDept = studentCategory === targetCategory;
-        } else {
+          if (targetCategory !== "OTHER") {
+            return studentCategory === targetCategory;
+          }
           const m = (s.major || "").toLowerCase();
           const d = (s.department || "").toLowerCase();
           const c = (s.curriculumName || "").toLowerCase();
-          matchDept = m.includes(targetClean) || d.includes(targetClean) || c.includes(targetClean);
-        }
+          return m.includes(targetClean) || d.includes(targetClean) || c.includes(targetClean);
+        });
       }
 
       // 4. คำค้นหา
@@ -303,20 +351,44 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
 
       return matchDegree && matchYear && matchDept && matchSearch;
     });
-  }, [cohortStudents, cohortDegreeFilter, cohortYearFilter, cohortDeptFilter, cohortSearch]);
+  }, [cohortStudents, cohortDegreeFilter, cohortYearFilter, selectedCohortDepts, cohortSearch]);
+
+  // จัดกลุ่มนิสิตตามสาขาวิชา และเรียงตามรหัสนิสิตในแต่ละกลุ่ม
+  const groupedCohortStudents = useMemo(() => {
+    const groups: { [key: string]: typeof filteredCohortStudents } = {};
+    filteredCohortStudents.forEach((s) => {
+      const groupName = formatMajor(s.major, s.department);
+      if (!groups[groupName]) groups[groupName] = [];
+      groups[groupName].push(s);
+    });
+    Object.keys(groups).forEach((key) => {
+      groups[key].sort((a, b) => a.studentCode.localeCompare(b.studentCode));
+    });
+    return groups;
+  }, [filteredCohortStudents]);
 
   // ซิงค์เลือกนิสิตตามตัวกรองที่เลือกโดยอัตโนมัติ (เช่น เปลี่ยนเป็น ปี 4 สาขาพระพุทธศาสนา)
   useEffect(() => {
     if (cohortStudents.length === 0) return;
     const matchingIds = filteredCohortStudents.map((s) => s.id);
     setSelectedCohortIds(matchingIds);
-  }, [cohortStudents, cohortDegreeFilter, cohortYearFilter, cohortDeptFilter, cohortSearch]);
+  }, [cohortStudents, cohortDegreeFilter, cohortYearFilter, selectedCohortDepts, cohortSearch]);
 
   // รายการนิสิตที่ถูกเลือกและตรงกับตัวกรองที่แสดงผลอยู่ในปัจจุบัน
   const activeSelectedCohortIds = useMemo(() => {
     const visibleIdSet = new Set(filteredCohortStudents.map((s) => s.id));
     return selectedCohortIds.filter((id) => visibleIdSet.has(id));
   }, [filteredCohortStudents, selectedCohortIds]);
+
+  function handleToggleCohortGroup(groupStudents: typeof cohortStudents) {
+    const groupIds = groupStudents.map((s) => s.id);
+    const allSelected = groupIds.length > 0 && groupIds.every((id) => selectedCohortIds.includes(id));
+    if (allSelected) {
+      setSelectedCohortIds((prev) => prev.filter((id) => !groupIds.includes(id)));
+    } else {
+      setSelectedCohortIds((prev) => Array.from(new Set([...prev, ...groupIds])));
+    }
+  }
 
   function handleToggleCohortStudent(id: string) {
     setSelectedCohortIds((prev) =>
@@ -363,9 +435,22 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
       st.studentCode.toLowerCase().includes(q) ||
       st.firstName.toLowerCase().includes(q) ||
       st.lastName.toLowerCase().includes(q) ||
-      (st.department && st.department.toLowerCase().includes(q))
+      (st.department && st.department.toLowerCase().includes(q)) ||
+      (st.major && st.major.toLowerCase().includes(q))
     );
   });
+
+  // จัดเรียงรายชื่อนิสิต: จัดเป็นกลุ่มตามสาขาวิชา แล้วในแต่ละสาขาเรียงตามรหัสนิสิต
+  const sortedEnrollments = useMemo(() => {
+    return [...filteredEnrollments].sort((a, b) => {
+      const majorA = formatMajor(a.student.major, a.student.department);
+      const majorB = formatMajor(b.student.major, b.student.department);
+      if (majorA !== majorB) {
+        return majorA.localeCompare(majorB, "th");
+      }
+      return a.student.studentCode.localeCompare(b.student.studentCode);
+    });
+  }, [filteredEnrollments]);
 
   // ฟังก์ชันเพิ่มนิสิตเดี่ยว
   async function handleAddStudent(e: React.FormEvent) {
@@ -723,7 +808,7 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredEnrollments.length === 0 ? (
+              {sortedEnrollments.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-12 text-center text-slate-400">
                     <Users className="w-10 h-10 mx-auto text-slate-300 mb-2" />
@@ -734,55 +819,73 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                   </td>
                 </tr>
               ) : (
-                filteredEnrollments.map((item, idx) => {
+                sortedEnrollments.map((item, idx) => {
                   const st = item.student;
                   const fullName = `${st.title || ""} ${st.firstName} ${st.lastName}`.trim();
                   const isChecked = selectedEnrollmentIds.includes(item.id);
+                  const currentMajor = formatMajor(st.major, st.department);
+                  const prevMajor = idx > 0 ? formatMajor(sortedEnrollments[idx - 1].student.major, sortedEnrollments[idx - 1].student.department) : null;
+                  const isNewGroup = idx === 0 || currentMajor !== prevMajor;
 
                   return (
-                    <tr
-                      key={item.id}
-                      className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition ${isChecked ? "bg-primary/5 dark:bg-primary/10" : ""}`}
-                    >
-                      <td className="py-3 px-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => handleToggleEnrollment(item.id)}
-                          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
-                        />
-                      </td>
-                      <td className="py-3 px-3 text-center text-xs text-slate-400 font-medium">{idx + 1}</td>
-                      <td className="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200">
-                        {st.studentCode}
-                      </td>
-                      <td className="py-3 px-4 font-medium text-slate-900 dark:text-white">
-                        {fullName}
-                      </td>
-                      <td className="py-3 px-4 text-xs text-slate-600 dark:text-slate-300">
-                        ปี {st.yearLevel}
-                      </td>
-                      <td className="py-3 px-4 text-xs text-slate-600 dark:text-slate-300">
-                        <span className="inline-flex px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-200 text-2xs">
-                          {formatMajor(st.major, st.department)}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <StatusPill tone="ok" className="text-2xs">
-                          {item.status}
-                        </StatusPill>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => setDeleteTarget(item)}
-                          title="ลบนิสิตออกจากรายวิชา"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
+                    <React.Fragment key={item.id}>
+                      {isNewGroup && (
+                        <tr className="bg-slate-100/80 dark:bg-slate-800/60 font-semibold text-xs text-slate-700 dark:text-slate-300">
+                          <td colSpan={8} className="py-2.5 px-4 border-y border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center justify-between">
+                              <span className="inline-flex items-center gap-1.5 font-bold text-primary">
+                                <span>🏛️ สาขาวิชา: {currentMajor}</span>
+                              </span>
+                              <span className="text-[11px] text-slate-500 font-normal">
+                                {sortedEnrollments.filter((e) => formatMajor(e.student.major, e.student.department) === currentMajor).length} รูป/คน
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      <tr
+                        className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition ${isChecked ? "bg-primary/5 dark:bg-primary/10" : ""}`}
+                      >
+                        <td className="py-3 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleToggleEnrollment(item.id)}
+                            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                          />
+                        </td>
+                        <td className="py-3 px-3 text-center text-xs text-slate-400 font-medium">{idx + 1}</td>
+                        <td className="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200">
+                          {st.studentCode}
+                        </td>
+                        <td className="py-3 px-4 font-medium text-slate-900 dark:text-white">
+                          {fullName}
+                        </td>
+                        <td className="py-3 px-4 text-xs text-slate-600 dark:text-slate-300">
+                          ปี {st.yearLevel}
+                        </td>
+                        <td className="py-3 px-4 text-xs text-slate-600 dark:text-slate-300">
+                          <span className="inline-flex px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-200 text-2xs">
+                            {formatMajor(st.major, st.department)}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <StatusPill tone="ok" className="text-2xs">
+                            {item.status}
+                          </StatusPill>
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTarget(item)}
+                            title="ลบนิสิตออกจากรายวิชา"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    </React.Fragment>
                   );
                 })
               )}
@@ -1130,15 +1233,37 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                 </div>
 
                 <div>
-                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                    สาขาวิชา
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                      สาขาวิชา (เรียนรวม)
+                    </label>
+                    {selectedCohortDepts.length > 1 && (
+                      <span className="text-[10px] text-primary font-bold">
+                        {selectedCohortDepts.length} สาขาวิชา
+                      </span>
+                    )}
+                  </div>
                   <select
-                    value={cohortDeptFilter}
-                    onChange={(e) => setCohortDeptFilter(e.target.value)}
+                    value={
+                      selectedCohortDepts.length === 0
+                        ? "ALL"
+                        : selectedCohortDepts.length === 1
+                        ? selectedCohortDepts[0]
+                        : cohortDeptFilter
+                    }
+                    onChange={(e) => handleSelectCohortDept(e.target.value)}
                     className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs truncate font-medium"
                   >
                     <option value="ALL">🏛️ ทั้งหมดทุกสาขาวิชา</option>
+
+                    <optgroup label="🌐 วิชาเรียนรวม (Combined Courses)">
+                      <option value="ENG_COMBINED">
+                        🌐 เรียนรวมภาคอังกฤษ (Buddhist Studies + Religion & Philosophy)
+                      </option>
+                      <option value="THAI_COMBINED">
+                        🌐 เรียนรวมภาคไทย (พระพุทธฯ + ปรัชญา + บาลี + วิปัสสนา)
+                      </option>
+                    </optgroup>
 
                     <optgroup label="🇬🇧 หลักสูตรภาษาอังกฤษ (English Program)">
                       <option value="Buddhist Studies">Buddhist Studies</option>
@@ -1187,6 +1312,48 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                 </div>
               </div>
 
+              {/* แถบเลือกสาขาวิชาเรียนรวมแบบคลิกเลือกหลายสาขาได้ (Multi-Select Chips) */}
+              <div className="flex flex-wrap items-center gap-1.5 p-2 bg-slate-100/70 dark:bg-slate-800/40 rounded-xl border border-slate-200/60 dark:border-slate-700/60 text-xs">
+                <span className="text-[11px] font-semibold text-slate-500 mr-1">
+                  เลือกสาขาวิชาเรียนรวม:
+                </span>
+                {(cohortDegreeFilter === "BACHELOR_ENGLISH"
+                  ? ["Buddhist Studies", "Religion and Philosophy"]
+                  : cohortDegreeFilter === "BACHELOR_NORMAL"
+                  ? ["สาขาวิชาพระพุทธศาสนา", "สาขาวิชาศาสนาและปรัชญา", "สาขาวิชาบาลีสันสกฤต", "สาขาวิชาวิปัสสนาภาวนา"]
+                  : ["Buddhist Studies", "Religion and Philosophy", "สาขาวิชาพระพุทธศาสนา", "สาขาวิชาศาสนาและปรัชญา", "สาขาวิชาบาลีสันสกฤต", "สาขาวิชาวิปัสสนาภาวนา"]
+                ).map((dept) => {
+                  const isChecked = selectedCohortDepts.includes(dept);
+                  return (
+                    <button
+                      key={dept}
+                      type="button"
+                      onClick={() => handleToggleDeptChip(dept)}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition cursor-pointer ${
+                        isChecked
+                          ? "bg-primary text-white shadow-2xs font-semibold"
+                          : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                      }`}
+                    >
+                      <span>{isChecked ? "✓" : "+"}</span>
+                      <span>{dept.replace(/^สาขาวิชา\s*/, "")}</span>
+                    </button>
+                  );
+                })}
+                {selectedCohortDepts.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCohortDepts([]);
+                      setCohortDeptFilter("ALL");
+                    }}
+                    className="text-2xs text-muted-foreground hover:text-foreground underline ml-auto px-1 cursor-pointer"
+                  >
+                    ล้างการเลือกสาขา
+                  </button>
+                )}
+              </div>
+
               {/* สรุปและปุ่มเลือกทั้งหมด */}
               <div className="flex items-center justify-between text-xs px-1">
                 <span className="text-slate-600 dark:text-slate-400 font-medium">
@@ -1205,75 +1372,104 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                 )}
               </div>
 
-              {/* รายการนิสิต */}
+              {/* รายการนิสิตจัดกลุ่มตามสาขาวิชา */}
               <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/60 max-h-72 overflow-y-auto">
                 {filteredCohortStudents.length === 0 ? (
                   <div className="py-10 text-center text-slate-400 text-xs">
                     ไม่พบนิสิตที่ตรงตามเงื่อนไข หรือนิสิตทั้งหมดในกลุ่มนี้ได้ลงทะเบียนในรายวิชานี้แล้ว
                   </div>
                 ) : (
-                  filteredCohortStudents.map((s) => {
-                    const isSelected = selectedCohortIds.includes(s.id);
+                  Object.entries(groupedCohortStudents).map(([groupName, groupList]) => {
+                    const allGroupSelected = groupList.every((s) => selectedCohortIds.includes(s.id));
                     return (
-                      <div
-                        key={s.id}
-                        onClick={() => handleToggleCohortStudent(s.id)}
-                        className={`p-2.5 flex items-center justify-between gap-3 cursor-pointer transition ${
-                          isSelected
-                            ? "bg-primary/5 dark:bg-primary/10"
-                            : "hover:bg-slate-50 dark:hover:bg-slate-800/40"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() => {}} // handled by parent onClick
-                            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
-                          />
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-xs text-slate-900 dark:text-white">
-                                {s.studentCode}
-                              </span>
-                              <span className="font-medium text-xs text-slate-800 dark:text-slate-200">
-                                {s.fullName || `${s.title || ""} ${s.firstName} ${s.lastName}`.trim()}
-                              </span>
-                              {(() => {
-                                const isEng =
-                                  (s.curriculumName || "").includes("ภาษาอังกฤษ") ||
-                                  (s.curriculumName || "").toLowerCase().includes("english") ||
-                                  (s.curriculumName || "").toLowerCase().includes("inter") ||
-                                  (s.department || "").toLowerCase().includes("english") ||
-                                  (s.major || "").toLowerCase().includes("english") ||
-                                  (s.major || "").toLowerCase().includes("buddhist") ||
-                                  (s.major || "").toLowerCase().includes("religion");
-
-                                if (isEng) {
-                                  return (
-                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                                      English Program
-                                    </span>
-                                  );
-                                }
-                                if (s.degree) {
-                                  return (
-                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                                      {s.degree}
-                                    </span>
-                                  );
-                                }
-                                return null;
-                              })()}
-                            </div>
-                            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                              ชั้นปีที่ {s.yearLevel} • {formatMajor(s.major, s.department)}
-                            </div>
+                      <div key={groupName} className="space-y-0.5">
+                        {/* Group Header */}
+                        <div className="bg-slate-100 dark:bg-slate-800/90 px-3 py-1.5 flex items-center justify-between text-xs sticky top-0 z-10 border-y border-slate-200/80 dark:border-slate-700/80">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-800 dark:text-slate-200">
+                              🏛️ {groupName}
+                            </span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold">
+                              {groupList.length} คน
+                            </span>
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCohortGroup(groupList)}
+                            className="text-primary hover:underline text-[11px] font-semibold cursor-pointer"
+                          >
+                            {allGroupSelected ? "ยกเลิกเลือกกลุ่มนี้" : "เลือกทั้งกลุ่มนี้"}
+                          </button>
                         </div>
-                        <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-600 dark:text-slate-300 shrink-0">
-                          ปี {s.yearLevel}
-                        </span>
+
+                        {/* นิสิตในกลุ่ม เรียงตามรหัสนิสิต */}
+                        <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                          {groupList.map((s) => {
+                            const isSelected = selectedCohortIds.includes(s.id);
+                            return (
+                              <div
+                                key={s.id}
+                                onClick={() => handleToggleCohortStudent(s.id)}
+                                className={`p-2.5 flex items-center justify-between gap-3 cursor-pointer transition ${
+                                  isSelected
+                                    ? "bg-primary/5 dark:bg-primary/10"
+                                    : "hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                                }`}
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => {}} // handled by parent onClick
+                                    className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                                  />
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono font-bold text-xs text-slate-900 dark:text-white">
+                                        {s.studentCode}
+                                      </span>
+                                      <span className="font-medium text-xs text-slate-800 dark:text-slate-200">
+                                        {s.fullName || `${s.title || ""} ${s.firstName} ${s.lastName}`.trim()}
+                                      </span>
+                                      {(() => {
+                                        const isEng =
+                                          (s.curriculumName || "").includes("ภาษาอังกฤษ") ||
+                                          (s.curriculumName || "").toLowerCase().includes("english") ||
+                                          (s.curriculumName || "").toLowerCase().includes("inter") ||
+                                          (s.department || "").toLowerCase().includes("english") ||
+                                          (s.major || "").toLowerCase().includes("english") ||
+                                          (s.major || "").toLowerCase().includes("buddhist") ||
+                                          (s.major || "").toLowerCase().includes("religion");
+
+                                        if (isEng) {
+                                          return (
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                                              English Program
+                                            </span>
+                                          );
+                                        }
+                                        if (s.degree) {
+                                          return (
+                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                                              {s.degree}
+                                            </span>
+                                          );
+                                        }
+                                        return null;
+                                      })()}
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                      ชั้นปีที่ {s.yearLevel} • {formatMajor(s.major, s.department)}
+                                    </div>
+                                  </div>
+                                </div>
+                                <span className="px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-600 dark:text-slate-300 shrink-0">
+                                  ปี {s.yearLevel}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     );
                   })
