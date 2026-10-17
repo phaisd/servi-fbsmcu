@@ -455,13 +455,47 @@ export function StudentsDirectoryClient({
     const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter((l) => l.length > 0);
     if (lines.length === 0) return [];
 
-    const isHeader =
-      lines[0].includes("รหัส") ||
-      lines[0].includes("studentCode") ||
-      lines[0].includes("ชื่อ") ||
-      lines[0].includes("name");
-    const dataLines = isHeader ? lines.slice(1) : lines;
+    const splitLine = (line: string) => {
+      const delimiter = line.includes("\t") ? "\t" : ",";
+      return line.split(delimiter).map((c) => {
+        let v = c.trim();
+        if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1).trim();
+        if (v.startsWith('="') && v.endsWith('"')) v = v.slice(2, -1).trim();
+        return v;
+      });
+    };
 
+    const firstRowTokens = splitLine(lines[0]);
+    const isHeader = firstRowTokens.some(
+      (t) =>
+        t.includes("รหัส") ||
+        t.toLowerCase().includes("code") ||
+        t.includes("ชื่อ") ||
+        t.toLowerCase().includes("name")
+    );
+
+    // If headers exist, map column indexes by name
+    const headerMap: Record<string, number> = {};
+    if (isHeader) {
+      firstRowTokens.forEach((header, idx) => {
+        const clean = header.toLowerCase().replace(/[^a-z0-9ก-๙]/g, "");
+        if (clean.includes("รหัส") || clean.includes("code")) headerMap["code"] = idx;
+        else if (clean.includes("คำนำหน้า") || clean === "title") headerMap["title"] = idx;
+        else if (clean === "ชื่อ" || clean.includes("firstname") || clean === "name") headerMap["firstName"] = idx;
+        else if (clean.includes("นามสกุล") || clean.includes("ฉายา") || clean.includes("lastname")) headerMap["lastName"] = idx;
+        else if (clean.includes("ระดับ") || clean.includes("degree")) headerMap["degree"] = idx;
+        else if (clean.includes("ชั้นปี") || clean === "ปี" || clean === "year" || clean === "yearlevel") headerMap["yearLevel"] = idx;
+        else if (clean.includes("ชื่อหลักสูตร") || clean === "curriculum" || clean === "curriculumname") headerMap["curriculumName"] = idx;
+        else if (clean.includes("หลักสูตรภาษา") || clean.includes("program")) headerMap["programType"] = idx;
+        else if (clean.includes("สาขา") || clean.includes("ภาควิชา") || clean === "department" || clean === "major") headerMap["department"] = idx;
+        else if (clean.includes("คณะ") || clean === "faculty") headerMap["faculty"] = idx;
+        else if (clean.includes("สถานะ") || clean === "status") headerMap["studyStatus"] = idx;
+        else if (clean.includes("เมล") || clean.includes("email")) headerMap["email"] = idx;
+        else if (clean.includes("โทร") || clean.includes("phone") || clean.includes("tel")) headerMap["phone"] = idx;
+      });
+    }
+
+    const dataLines = isHeader ? lines.slice(1) : lines;
     const items: Array<{
       studentCode: string;
       title?: string;
@@ -471,87 +505,167 @@ export function StudentsDirectoryClient({
       yearLevel?: number;
       curriculumName?: string;
       department?: string;
+      major?: string;
       faculty?: string;
       studyStatus?: string;
       email?: string;
       phoneNumber?: string;
     }> = [];
 
+    const hasMappedHeader =
+      isHeader &&
+      headerMap["code"] !== undefined &&
+      (headerMap["firstName"] !== undefined || headerMap["lastName"] !== undefined);
+
     for (const line of dataLines) {
-      const delimiter = line.includes("\t") ? "\t" : ",";
-      const tokens = line.split(delimiter).map((c) => {
-        let v = c.trim();
-        if (v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1).trim();
-        if (v.startsWith('="') && v.endsWith('"')) v = v.slice(2, -1).trim();
-        return v;
-      });
+      const tokens = splitLine(line);
+      if (tokens.length < 2) continue;
 
-      if (tokens.length < 3) continue;
+      if (hasMappedHeader) {
+        const code = tokens[headerMap["code"]]?.trim();
+        if (!code || !code.match(/\d/)) continue;
 
-      const code = tokens[0];
-      if (!code || !code.match(/\d/)) continue;
+        let firstName = tokens[headerMap["firstName"]] || "";
+        let lastName = tokens[headerMap["lastName"]] || "";
+        let title = headerMap["title"] !== undefined ? tokens[headerMap["title"]] : "";
 
-      let title = "พระ";
-      let firstName = "";
-      let lastName = "";
-      let degree = "ปริญญาตรี";
-      let yearLevel = 1;
-      let curriculumName = "";
-      let department = "";
-      let faculty = "คณะพุทธศาสตร์";
-      let studyStatus = "ปกติ";
-      let email = "";
-      let phoneNumber = "";
-
-      const potentialTitles = ["พระ", "พระมหา", "สามเณร", "นาย", "นางสาว", "นาง", "แม่ชี"];
-      let idx = 1;
-      if (potentialTitles.includes(tokens[1])) {
-        title = tokens[1];
-        firstName = tokens[2] || "";
-        lastName = tokens[3] || "";
-        idx = 4;
-      } else {
-        firstName = tokens[1] || "";
-        lastName = tokens[2] || "";
-        idx = 3;
-      }
-
-      if (!firstName || !lastName) continue;
-
-      if (tokens[idx]) {
-        const d = tokens[idx];
-        if (d.includes("ตรี") || d.includes("โท") || d.includes("เอก") || d.includes("ประกาศนียบัตร")) {
-          degree = d;
+        // If no separate title column, see if firstName has title
+        if (!title) {
+          const potentialTitles = ["พระมหา", "พระครู", "พระ", "สามเณร", "นาย", "นางสาว", "นาง", "แม่ชี"];
+          for (const pt of potentialTitles) {
+            if (firstName.startsWith(pt)) {
+              title = pt;
+              firstName = firstName.slice(pt.length).trim();
+              break;
+            }
+          }
         }
-      }
-      if (tokens[idx + 1]) {
-        const y = parseInt(tokens[idx + 1], 10);
-        if (!isNaN(y) && y >= 1 && y <= 8) yearLevel = y;
-      }
-      if (tokens[idx + 2]) curriculumName = tokens[idx + 2];
-      if (tokens[idx + 3]) department = tokens[idx + 3];
-      if (tokens[idx + 4]) faculty = tokens[idx + 4];
+        if (!title) title = "พระ";
 
-      for (let i = idx; i < tokens.length; i++) {
-        const t = tokens[i];
-        if (t.includes("@")) email = t;
-        else if (t.match(/^0\d{8,9}$/) || t.match(/^0\d{1,2}-\d{3,4}-\d{3,4}$/)) phoneNumber = t;
-      }
+        if (!firstName && !lastName) continue;
 
-      items.push({
-        studentCode: code,
-        title,
-        firstName,
-        lastName,
-        degree,
-        yearLevel,
-        curriculumName: curriculumName || (degree === "ปริญญาตรี" ? "พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา" : degree),
-        department: department || "สาขาวิชาพระพุทธศาสนา",
-        faculty,
-        studyStatus,
-        email: email || undefined,
-        phoneNumber: phoneNumber || undefined,
-      });
+        const degree = headerMap["degree"] !== undefined ? tokens[headerMap["degree"]] || "ปริญญาตรี" : "ปริญญาตรี";
+        const yearParsed = headerMap["yearLevel"] !== undefined ? parseInt(tokens[headerMap["yearLevel"]], 10) : 1;
+        const yearLevel = !isNaN(yearParsed) && yearParsed >= 1 && yearParsed <= 8 ? yearParsed : 1;
+        const curriculumName = headerMap["curriculumName"] !== undefined ? tokens[headerMap["curriculumName"]] : "";
+        const deptOrMajor = headerMap["department"] !== undefined ? tokens[headerMap["department"]] : "";
+        const faculty = headerMap["faculty"] !== undefined ? tokens[headerMap["faculty"]] : "คณะพุทธศาสตร์";
+        const studyStatus = headerMap["studyStatus"] !== undefined ? tokens[headerMap["studyStatus"]] || "ปกติ" : "ปกติ";
+
+        let email = headerMap["email"] !== undefined ? tokens[headerMap["email"]] : "";
+        let phoneNumber = headerMap["phone"] !== undefined ? tokens[headerMap["phone"]] : "";
+
+        if (!email) {
+          const foundEmail = tokens.find((t) => t.includes("@"));
+          if (foundEmail) email = foundEmail;
+        }
+        if (!phoneNumber) {
+          const foundPhone = tokens.find((t) => t.match(/^0\d{8,9}$/) || t.match(/^0\d{1,2}-\d{3,4}-\d{3,4}$/));
+          if (foundPhone) phoneNumber = foundPhone;
+        }
+
+        let major = deptOrMajor;
+        if (deptOrMajor.toLowerCase().includes("buddhist") || deptOrMajor.includes("พระพุทธศาสนา")) {
+          major = "Buddhist Studies";
+        } else if (
+          deptOrMajor.toLowerCase().includes("religion") ||
+          deptOrMajor.toLowerCase().includes("philosoph") ||
+          deptOrMajor.includes("ปรัชญา")
+        ) {
+          major = "Religion and Philosophy";
+        }
+
+        items.push({
+          studentCode: code,
+          title,
+          firstName,
+          lastName,
+          degree,
+          yearLevel,
+          curriculumName:
+            curriculumName ||
+            (degree === "ปริญญาตรี" ? "พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา" : degree),
+          department: deptOrMajor || "สาขาวิชาพระพุทธศาสนา",
+          major,
+          faculty,
+          studyStatus,
+          email: email || undefined,
+          phoneNumber: phoneNumber || undefined,
+        });
+      } else {
+        // Fallback: positional parsing
+        const code = tokens[0];
+        if (!code || !code.match(/\d/)) continue;
+
+        let title = "พระ";
+        let firstName = "";
+        let lastName = "";
+        let degree = "ปริญญาตรี";
+        let yearLevel = 1;
+        let curriculumName = "";
+        let department = "";
+        let faculty = "คณะพุทธศาสตร์";
+        let studyStatus = "ปกติ";
+        let email = "";
+        let phoneNumber = "";
+
+        const potentialTitles = ["พระมหา", "พระครู", "พระ", "สามเณร", "นาย", "นางสาว", "นาง", "แม่ชี"];
+        let idx = 1;
+        if (potentialTitles.includes(tokens[1])) {
+          title = tokens[1];
+          firstName = tokens[2] || "";
+          lastName = tokens[3] || "";
+          idx = 4;
+        } else {
+          firstName = tokens[1] || "";
+          lastName = tokens[2] || "";
+          idx = 3;
+        }
+
+        if (!firstName || !lastName) continue;
+
+        if (tokens[idx]) {
+          const d = tokens[idx];
+          if (d.includes("ตรี") || d.includes("โท") || d.includes("เอก") || d.includes("ประกาศนียบัตร")) {
+            degree = d;
+          }
+        }
+        if (tokens[idx + 1]) {
+          const y = parseInt(tokens[idx + 1], 10);
+          if (!isNaN(y) && y >= 1 && y <= 8) yearLevel = y;
+        }
+        if (tokens[idx + 2]) curriculumName = tokens[idx + 2];
+        if (tokens[idx + 3]) department = tokens[idx + 3];
+        if (tokens[idx + 4]) faculty = tokens[idx + 4];
+
+        for (let i = idx; i < tokens.length; i++) {
+          const t = tokens[i];
+          if (t.includes("@")) email = t;
+          else if (t.match(/^0\d{8,9}$/) || t.match(/^0\d{1,2}-\d{3,4}-\d{3,4}$/)) phoneNumber = t;
+        }
+
+        let major = department;
+        if (department.toLowerCase().includes("buddhist")) major = "Buddhist Studies";
+        else if (department.toLowerCase().includes("religion")) major = "Religion and Philosophy";
+
+        items.push({
+          studentCode: code,
+          title,
+          firstName,
+          lastName,
+          degree,
+          yearLevel,
+          curriculumName:
+            curriculumName ||
+            (degree === "ปริญญาตรี" ? "พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา" : degree),
+          department: department || "สาขาวิชาพระพุทธศาสนา",
+          major,
+          faculty,
+          studyStatus,
+          email: email || undefined,
+          phoneNumber: phoneNumber || undefined,
+        });
+      }
     }
     return items;
   }, [importRawText]);
