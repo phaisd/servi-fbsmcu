@@ -762,16 +762,6 @@ export function TimetableGridView({
             </p>
           </div>
         </div>
-
-        {/* Additional Timetable Notes if present in database */}
-        {timetable.notes && (
-          <div className="pt-3 mt-3 border-t border-border/40 text-muted-foreground print:text-neutral-700 whitespace-pre-line text-[11px]">
-            <span className="font-semibold text-foreground print:text-black mr-1.5">
-              หมายเหตุเพิ่มเติม / Additional Notes:
-            </span>
-            {timetable.notes}
-          </div>
-        )}
       </div>
     </div>
   );
