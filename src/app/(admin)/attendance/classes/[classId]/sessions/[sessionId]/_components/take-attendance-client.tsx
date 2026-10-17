@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import QRCode from "qrcode";
 import {
   CheckCircle2,
@@ -55,8 +55,26 @@ interface StudentRecordState {
   studentName: string;
   yearLevel: number;
   department?: string | null;
+  major?: string | null;
   status: AttendanceStatusType;
   note: string;
+}
+
+function formatMajor(major?: string | null, department?: string | null) {
+  let raw = (major || department || "-").trim();
+  raw = raw
+    .replace(/^สาขาวิชา\s*/, "")
+    .replace(/^ภาควิชา\s*/, "")
+    .trim();
+
+  // แปลงชื่อสาขาภาษาอังกฤษให้มีภาษาไทยกำกับชัดเจน เพื่อให้อาจารย์และผู้ใช้งานเข้าใจตรงกัน
+  if (raw.toLowerCase() === "buddhist studies" || raw.toLowerCase().includes("buddhist")) {
+    return "พระพุทธศาสนา (Buddhist Studies)";
+  }
+  if (raw.toLowerCase() === "religion and philosophy" || raw.toLowerCase().includes("religion")) {
+    return "ศาสนาและปรัชญา (Religion and Philosophy)";
+  }
+  return raw || "-";
 }
 
 interface TakeAttendanceClientProps {
@@ -88,6 +106,7 @@ export function TakeAttendanceClient({
       studentName: `${st.title || ""} ${st.firstName} ${st.lastName}`.trim(),
       yearLevel: st.yearLevel,
       department: st.department,
+      major: st.major,
       status: existing ? existing.status : "PENDING", // Default เป็น "รอ" (PENDING) ค่าคงที่เริ่มต้นตามความต้องการของผู้ใช้
       note: existing ? existing.note : "",
     };
@@ -95,6 +114,7 @@ export function TakeAttendanceClient({
 
   const [rows, setRows] = useState<StudentRecordState[]>(initialRows);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedDeptFilter, setSelectedDeptFilter] = useState<string>("ALL");
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -233,6 +253,35 @@ export function TakeAttendanceClient({
     toast.success(`เปลี่ยนสถานะนิสิตทุกคนเป็น "${labelMap[status]}"`);
   }
 
+  // สาขาวิชาทั้งหมดที่มีในรายวิชานี้ (สำหรับ Filter Tabs)
+  const availableDepartments = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) {
+      set.add(formatMajor(r.major, r.department));
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "th"));
+  }, [rows]);
+
+  // ตัวช่วย: ทำเครื่องหมายเฉพาะกลุ่มสาขาวิชา
+  function handleMarkGroup(majorName: string, status: AttendanceStatusType) {
+    setRows((prev) =>
+      prev.map((r) => {
+        if (formatMajor(r.major, r.department) === majorName) {
+          return { ...r, status };
+        }
+        return r;
+      })
+    );
+    const labelMap: Record<AttendanceStatusType, string> = {
+      PENDING: "รอการเช็กชื่อ",
+      PRESENT: "มาเรียน",
+      LATE: "มาสาย",
+      ABSENT: "ขาดเรียน",
+      EXCUSED: "ลาที่อนุมัติ",
+    };
+    toast.success(`เปลี่ยนสถานะกลุ่ม "${majorName}" เป็น "${labelMap[status]}"`);
+  }
+
   // คำนวณยอดสรุป
   const pendingCount = rows.filter((r) => r.status === "PENDING").length;
   const presentCount = rows.filter((r) => r.status === "PRESENT").length;
@@ -240,14 +289,33 @@ export function TakeAttendanceClient({
   const absentCount = rows.filter((r) => r.status === "ABSENT").length;
   const excusedCount = rows.filter((r) => r.status === "EXCUSED").length;
 
-  const filteredRows = rows.filter((r) => {
-    const q = searchTerm.toLowerCase();
-    return (
-      r.studentCode.toLowerCase().includes(q) ||
-      r.studentName.toLowerCase().includes(q) ||
-      (r.department && r.department.toLowerCase().includes(q))
-    );
-  });
+  const filteredRows = useMemo(() => {
+    const q = searchTerm.toLowerCase().trim();
+    const matched = rows.filter((r) => {
+      const currentM = formatMajor(r.major, r.department);
+      if (selectedDeptFilter !== "ALL" && currentM !== selectedDeptFilter) {
+        return false;
+      }
+      if (!q) return true;
+      return (
+        r.studentCode.toLowerCase().includes(q) ||
+        r.studentName.toLowerCase().includes(q) ||
+        (r.department && r.department.toLowerCase().includes(q)) ||
+        (r.major && r.major.toLowerCase().includes(q)) ||
+        currentM.toLowerCase().includes(q)
+      );
+    });
+
+    // จัดกลุ่มตามสาขาวิชา แล้วเรียงตามรหัสนิสิตภายในกลุ่ม
+    return matched.sort((a, b) => {
+      const majorA = formatMajor(a.major, a.department);
+      const majorB = formatMajor(b.major, b.department);
+      if (majorA !== majorB) {
+        return majorA.localeCompare(majorB, "th");
+      }
+      return a.studentCode.localeCompare(b.studentCode);
+    });
+  }, [rows, searchTerm, selectedDeptFilter]);
 
   // บันทึกผลการเช็กชื่อทั้งชุด (Batch Save พร้อม Audit Log หากล็อคอยู่)
   async function handleSaveAttendance() {
@@ -554,21 +622,59 @@ export function TakeAttendanceClient({
       </div>
 
       {/* Filter Toolbar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="relative w-full sm:w-96">
-          <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="ค้นหาด้วยรหัสนิสิต หรือชื่อ-นามสกุล..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-          />
+      <div className="space-y-3">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="relative w-full sm:w-96">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="ค้นหาด้วยรหัสนิสิต ชื่อ-นามสกุล หรือสาขาวิชา..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+
+          <div className="text-xs text-slate-500 font-medium self-end sm:self-center">
+            ผู้บันทึก: <span className="font-bold text-slate-800 dark:text-slate-200">{currentUserName}</span>
+          </div>
         </div>
 
-        <div className="text-xs text-slate-500 font-medium self-end sm:self-center">
-          ผู้บันทึก: <span className="font-bold text-slate-800 dark:text-slate-200">{currentUserName}</span>
-        </div>
+        {/* Tab แยกสาขาวิชา (กรณีวิชานี้มีมากกว่า 1 สาขาวิชา) */}
+        {availableDepartments.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-xs font-semibold text-slate-500">แสดงผล:</span>
+            <button
+              type="button"
+              onClick={() => setSelectedDeptFilter("ALL")}
+              className={`px-3 py-1 rounded-xl text-xs font-semibold transition ${
+                selectedDeptFilter === "ALL"
+                  ? "bg-primary text-white shadow-xs"
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
+              }`}
+            >
+              ทั้งหมด ({rows.length})
+            </button>
+            {availableDepartments.map((dept) => {
+              const count = rows.filter((r) => formatMajor(r.major, r.department) === dept).length;
+              const isSelected = selectedDeptFilter === dept;
+              return (
+                <button
+                  key={dept}
+                  type="button"
+                  onClick={() => setSelectedDeptFilter(dept)}
+                  className={`px-3 py-1 rounded-xl text-xs font-semibold transition ${
+                    isSelected
+                      ? "bg-primary text-white shadow-xs"
+                      : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"
+                  }`}
+                >
+                  {dept} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Roster Attendance Table */}
@@ -599,103 +705,146 @@ export function TakeAttendanceClient({
                 </tr>
               ) : (
                 filteredRows.map((row, idx) => {
+                  const currentMajor = formatMajor(row.major, row.department);
+                  const prevMajor =
+                    idx > 0 ? formatMajor(filteredRows[idx - 1].major, filteredRows[idx - 1].department) : null;
+                  const isNewGroup = idx === 0 || currentMajor !== prevMajor;
+                  const groupCount = rows.filter(
+                    (r) => formatMajor(r.major, r.department) === currentMajor
+                  ).length;
+
                   return (
-                    <tr
-                      key={row.studentCode}
-                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition"
-                    >
-                      <td className="py-3 px-4 text-center text-xs text-slate-400 font-medium">
-                        {idx + 1}
-                      </td>
+                    <React.Fragment key={row.studentCode}>
+                      {isNewGroup && (
+                        <tr className="bg-slate-100/90 dark:bg-slate-800/80 font-semibold text-xs text-slate-700 dark:text-slate-300">
+                          <td colSpan={5} className="py-2.5 px-4 border-y border-slate-200 dark:border-slate-700">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="inline-flex items-center gap-1.5 font-bold text-primary">
+                                  <span>🏛️ สาขาวิชา: {currentMajor}</span>
+                                </span>
+                                <span className="text-[11px] text-slate-500 font-normal">
+                                  ({groupCount} รูป/คน)
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMarkGroup(currentMajor, "PRESENT")}
+                                  className="px-2.5 py-1 rounded-lg text-2xs font-bold bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-300 transition shadow-2xs"
+                                  title="ตั้งเฉพาะนิสิตกลุ่มนี้เป็นมาเรียน"
+                                >
+                                  ✓ ตั้งกลุ่มนี้เป็นมาเรียน
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMarkGroup(currentMajor, "PENDING")}
+                                  className="px-2.5 py-1 rounded-lg text-2xs font-bold bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition shadow-2xs"
+                                  title="ตั้งเฉพาะนิสิตกลุ่มนี้เป็นรอ"
+                                >
+                                  ⏱️ ตั้งกลุ่มนี้เป็นรอ
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      <tr
+                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition"
+                      >
+                        <td className="py-3 px-4 text-center text-xs text-slate-400 font-medium">
+                          {idx + 1}
+                        </td>
 
-                      <td className="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200">
-                        {row.studentCode}
-                      </td>
+                        <td className="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200">
+                          {row.studentCode}
+                        </td>
 
-                      <td className="py-3 px-4">
-                        <div className="font-medium text-slate-900 dark:text-white">
-                          {row.studentName}
-                        </div>
-                        <div className="text-2xs text-slate-400">
-                          ชั้นปีที่ {row.yearLevel} {row.department ? `• ${row.department}` : ""}
-                        </div>
-                      </td>
+                        <td className="py-3 px-4">
+                          <div className="font-medium text-slate-900 dark:text-white">
+                            {row.studentName}
+                          </div>
+                          <div className="text-2xs text-slate-400">
+                            ชั้นปีที่ {row.yearLevel} • {currentMajor}
+                          </div>
+                        </td>
 
-                      {/* Status Segmented Buttons */}
-                      <td className="py-3 px-4 text-center">
-                        <div className="inline-flex rounded-xl p-1 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow-2xs gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleStatusChange(row.studentCode, "PENDING")}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                              row.status === "PENDING"
-                                ? "bg-slate-700 text-white shadow-xs"
-                                : "text-slate-600 dark:text-slate-400 hover:text-slate-800"
-                            }`}
-                          >
-                            <Hourglass className="w-3 h-3" /> รอ
-                          </button>
+                        {/* Status Segmented Buttons */}
+                        <td className="py-3 px-4 text-center">
+                          <div className="inline-flex rounded-xl p-1 bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 shadow-2xs gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleStatusChange(row.studentCode, "PENDING")}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                                row.status === "PENDING"
+                                  ? "bg-slate-700 text-white shadow-xs"
+                                  : "text-slate-600 dark:text-slate-400 hover:text-slate-800"
+                              }`}
+                            >
+                              <Hourglass className="w-3 h-3" /> รอ
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleStatusChange(row.studentCode, "PRESENT")}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                              row.status === "PRESENT"
-                                ? "bg-emerald-600 text-white shadow-xs"
-                                : "text-slate-600 dark:text-slate-400 hover:text-emerald-700"
-                            }`}
-                          >
-                            <Check className="w-3 h-3" /> มา
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => handleStatusChange(row.studentCode, "PRESENT")}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                                row.status === "PRESENT"
+                                  ? "bg-emerald-600 text-white shadow-xs"
+                                  : "text-slate-600 dark:text-slate-400 hover:text-emerald-700"
+                              }`}
+                            >
+                              <Check className="w-3 h-3" /> มา
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleStatusChange(row.studentCode, "LATE")}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                              row.status === "LATE"
-                                ? "bg-amber-500 text-white shadow-xs"
-                                : "text-slate-600 dark:text-slate-400 hover:text-amber-700"
-                            }`}
-                          >
-                            <Clock className="w-3 h-3" /> สาย
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => handleStatusChange(row.studentCode, "LATE")}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                                row.status === "LATE"
+                                  ? "bg-amber-500 text-white shadow-xs"
+                                  : "text-slate-600 dark:text-slate-400 hover:text-amber-700"
+                              }`}
+                            >
+                              <Clock className="w-3 h-3" /> สาย
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleStatusChange(row.studentCode, "ABSENT")}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                              row.status === "ABSENT"
-                                ? "bg-red-600 text-white shadow-xs"
-                                : "text-slate-600 dark:text-slate-400 hover:text-red-700"
-                            }`}
-                          >
-                            <XCircle className="w-3 h-3" /> ขาด
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => handleStatusChange(row.studentCode, "ABSENT")}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                                row.status === "ABSENT"
+                                  ? "bg-red-600 text-white shadow-xs"
+                                  : "text-slate-600 dark:text-slate-400 hover:text-red-700"
+                              }`}
+                            >
+                              <XCircle className="w-3 h-3" /> ขาด
+                            </button>
 
-                          <button
-                            type="button"
-                            onClick={() => handleStatusChange(row.studentCode, "EXCUSED")}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
-                              row.status === "EXCUSED"
-                                ? "bg-blue-600 text-white shadow-xs"
-                                : "text-slate-600 dark:text-slate-400 hover:text-blue-700"
-                            }`}
-                          >
-                            <AlertCircle className="w-3 h-3" /> ลา
-                          </button>
-                        </div>
-                      </td>
+                            <button
+                              type="button"
+                              onClick={() => handleStatusChange(row.studentCode, "EXCUSED")}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                                row.status === "EXCUSED"
+                                  ? "bg-blue-600 text-white shadow-xs"
+                                  : "text-slate-600 dark:text-slate-400 hover:text-blue-700"
+                              }`}
+                            >
+                              <AlertCircle className="w-3 h-3" /> ลา
+                            </button>
+                          </div>
+                        </td>
 
-                      <td className="py-3 px-4">
-                        <input
-                          type="text"
-                          placeholder="หมายเหตุ เช่น ลาป่วย, มาสาย 20 นาที"
-                          value={row.note}
-                          onChange={(e) => handleNoteChange(row.studentCode, e.target.value)}
-                          className="w-full px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                        />
-                      </td>
-                    </tr>
+                        <td className="py-3 px-4">
+                          <input
+                            type="text"
+                            placeholder="หมายเหตุ เช่น ลาป่วย, มาสาย 20 นาที"
+                            value={row.note}
+                            onChange={(e) => handleNoteChange(row.studentCode, e.target.value)}
+                            className="w-full px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </td>
+                      </tr>
+                    </React.Fragment>
                   );
                 })
               )}
