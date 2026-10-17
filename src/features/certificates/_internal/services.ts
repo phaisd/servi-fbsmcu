@@ -60,10 +60,24 @@ export async function ensureCertificateDefaults(tenantId: string) {
   const defaultTypeId = allTypes[0]?.id;
   if (!defaultTypeId) return;
 
-  const requestCount = await db.certificateRequest.count({ where: { tenantId } });
-  if (requestCount === 0) {
+  const existingRequests = await db.certificateRequest.findMany({
+    where: { tenantId },
+    select: { id: true, note: true },
+  });
+
+  if (existingRequests.length < INITIAL_EXCEL_CERTIFICATE_RECORDS.length) {
+    const existingKeys = new Set(
+      existingRequests.map((r) => {
+        const m = parseCertificateNote(r.note);
+        return `${m.studentCode || ""}|${m.fullName || ""}|${m.requestPurpose || ""}`;
+      })
+    );
+
     const fallbackUserId = await resolveFallbackUserId(tenantId);
     for (const rec of INITIAL_EXCEL_CERTIFICATE_RECORDS) {
+      const key = `${rec.studentCode || ""}|${rec.fullName || ""}|${rec.requestPurpose || ""}`;
+      if (existingKeys.has(key)) continue;
+
       const matchedType =
         allTypes.find(
           (t) =>
