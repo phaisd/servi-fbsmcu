@@ -3195,7 +3195,7 @@ export async function createOrUpdateStudent(
         major: data.major,
         faculty: data.faculty || "คณะพุทธศาสตร์",
         studyStatus: data.studyStatus || "ปกติ",
-        email: data.email,
+        email: data.email || `${data.studentCode}@mcu.ac.th`,
         phoneNumber: data.phoneNumber,
       },
     });
@@ -3226,7 +3226,7 @@ export async function createOrUpdateStudent(
       major: data.major,
       faculty: data.faculty || "คณะพุทธศาสตร์",
       studyStatus: data.studyStatus || "ปกติ",
-      email: data.email,
+      email: data.email || `${data.studentCode}@mcu.ac.th`,
       phoneNumber: data.phoneNumber,
     },
   });
@@ -3318,7 +3318,7 @@ export async function batchImportStudents(
           department: item.department !== undefined && item.department !== null ? item.department : existing.department,
           major: item.major !== undefined && item.major !== null ? item.major : existing.major,
           studyStatus: item.studyStatus !== undefined && item.studyStatus !== null ? item.studyStatus : existing.studyStatus,
-          email: item.email !== undefined && item.email !== null ? item.email : existing.email,
+          email: item.email !== undefined && item.email !== null && item.email.trim() !== "" ? item.email : (existing.email || `${code}@mcu.ac.th`),
           phoneNumber: item.phoneNumber !== undefined && item.phoneNumber !== null ? item.phoneNumber : existing.phoneNumber,
         },
       });
@@ -3337,7 +3337,7 @@ export async function batchImportStudents(
           department: item.department || "สาขาวิชาพระพุทธศาสนา",
           faculty: "คณะพุทธศาสตร์",
           studyStatus: item.studyStatus || "ปกติ",
-          email: item.email || null,
+          email: item.email || `${code}@mcu.ac.th`,
           phoneNumber: item.phoneNumber || null,
         },
       });

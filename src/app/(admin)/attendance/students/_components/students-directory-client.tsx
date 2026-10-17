@@ -246,7 +246,7 @@ export function StudentsDirectoryClient({
       major: student.major || "",
       faculty: student.faculty || "คณะพุทธศาสตร์",
       studyStatus: student.studyStatus || "ปกติ",
-      email: student.email || "",
+      email: student.email || (student.studentCode ? `${student.studentCode}@mcu.ac.th` : ""),
       phoneNumber: student.phoneNumber || "",
     });
     setIsModalOpen(true);
@@ -259,11 +259,14 @@ export function StudentsDirectoryClient({
       return;
     }
 
+    const code = formData.studentCode.trim();
+    const studentEmail = formData.email.trim() || (code ? `${code}@mcu.ac.th` : null);
+
     setIsSubmitting(true);
     try {
       const res = await createOrUpdateStudentAction({
         id: editingStudent ? editingStudent.id : undefined,
-        studentCode: formData.studentCode.trim(),
+        studentCode: code,
         title: formData.title,
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
@@ -274,7 +277,7 @@ export function StudentsDirectoryClient({
         major: formData.major,
         faculty: formData.faculty,
         studyStatus: formData.studyStatus,
-        email: formData.email.trim() || null,
+        email: studentEmail,
         phoneNumber: formData.phoneNumber.trim() || null,
       });
 
@@ -1103,9 +1106,21 @@ export function StudentsDirectoryClient({
                         type="text"
                         required
                         value={formData.studentCode}
-                        onChange={(e) =>
-                          setFormData({ ...formData, studentCode: e.target.value.trim() })
-                        }
+                        onChange={(e) => {
+                          const newCode = e.target.value.trim();
+                          setFormData((prev) => {
+                            const oldDefaultEmail = prev.studentCode ? `${prev.studentCode}@mcu.ac.th` : "";
+                            const shouldAutoUpdate =
+                              !prev.email ||
+                              prev.email === oldDefaultEmail ||
+                              prev.email === "student@mcu.ac.th";
+                            return {
+                              ...prev,
+                              studentCode: newCode,
+                              email: shouldAutoUpdate && newCode ? `${newCode}@mcu.ac.th` : prev.email,
+                            };
+                          });
+                        }}
                         placeholder="เช่น 6601201001"
                         className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
                       />
@@ -1209,15 +1224,36 @@ export function StudentsDirectoryClient({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-foreground mb-1">
-                        อีเมล (ถ้ามี)
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-medium text-foreground">
+                          อีเมล (MCU Email)
+                        </label>
+                        {formData.studentCode && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                email: `${prev.studentCode}@mcu.ac.th`,
+                              }))
+                            }
+                            className="text-2xs text-primary hover:underline cursor-pointer"
+                            title="คลิกเพื่อใส่อีเมลรหัสนิสิต@mcu.ac.th"
+                          >
+                            ใช้ {formData.studentCode}@mcu.ac.th
+                          </button>
+                        )}
+                      </div>
                       <input
                         type="email"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        placeholder="student@mcu.ac.th"
-                        className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        placeholder={
+                          formData.studentCode
+                            ? `${formData.studentCode}@mcu.ac.th`
+                            : "รหัสนิสิต@mcu.ac.th"
+                        }
+                        className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
                       />
                     </div>
 
