@@ -112,15 +112,45 @@ html[data-font-size="xlarge"] {
     margin: 6mm 8mm;
   }
 
-  /* ซ่อน Navbar, Header, Footer และปุ่มอื่นๆ ในหน้า Portal ทั้งหมดเมื่อพิมพ์ */
+  /* ซ่อน Navbar, Header, Footer และปุ่มอื่นๆ ในหน้า Portal/Admin ทั้งหมดเมื่อพิมพ์ */
   header,
   nav,
   footer,
   aside,
+  .adm-head,
+  .side,
+  .bg,
   .portal-navbar,
   .portal-footer,
   .print-hide {
     display: none !important;
+  }
+
+  html:has(.certificate-print-sheet),
+  body:has(.certificate-print-sheet),
+  body:has(.certificate-print-sheet) .adm,
+  body:has(.certificate-print-sheet) .adm-body,
+  body:has(.certificate-print-sheet) .adm-main,
+  body:has(.certificate-print-sheet) .adm-main > .in {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .certificate-print-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 auto !important;
+    width: 210mm !important;
+    min-height: 285mm !important;
+    background: #ffffff !important;
+    color: #000000 !important;
   }
 
   body {

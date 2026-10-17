@@ -1,20 +1,37 @@
 import { resolvePublicTenantId } from "@/features/news/server";
 import { getActiveCertificateTypes } from "@/features/certificates/server";
 import { getLocale } from "@/shared/lib/i18n/server";
-import { auth } from "@/features/identity/server";
-import { redirect } from "next/navigation";
 import { RequestFormClient } from "./_components/request-form-client";
 
-export default async function CertificateRequestPage() {
-  const session = await auth();
-  if (!session) {
-    redirect("/auth/login?callbackUrl=/portal/certificates/request");
-  }
+export const dynamic = "force-dynamic";
 
-  const locale = await getLocale();
+export const metadata = {
+  title: "ยื่นคำร้องขอหนังสือรับรองนิสิต (Submit Certificate Request)",
+};
+
+export default async function CertificateRequestPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ template?: string }>;
+}) {
   const tenantId = await resolvePublicTenantId();
-  
-  const types = await getActiveCertificateTypes(tenantId);
+  const [locale, types, resolvedParams] = await Promise.all([
+    getLocale(),
+    getActiveCertificateTypes(tenantId),
+    searchParams,
+  ]);
 
-  return <RequestFormClient types={types} locale={locale} />;
+  const serializedTypes = types.map((t) => ({
+    id: t.id,
+    name: t.name,
+    description: t.description,
+  }));
+
+  return (
+    <RequestFormClient
+      types={serializedTypes}
+      locale={locale}
+      initialTemplate={resolvedParams.template}
+    />
+  );
 }
