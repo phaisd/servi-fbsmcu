@@ -88,7 +88,7 @@
    ═══════════════════════════════════════════ */
 @media print {
   @page {
-    size: A4 landscape;
+    size: auto;
     margin: 6mm 8mm;
   }
 
@@ -110,6 +110,51 @@
     padding: 0 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  /* จัดรูปแบบเมื่อพิมพ์ใบส่งมอบอาจารย์ (Teacher Handover Slips / Table) */
+  body:has(.handover-printable-area) [data-radix-portal] {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  body:has(.handover-printable-area) .dlg {
+    position: static !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  body:has(.handover-printable-area) .dlg > .box {
+    box-shadow: none !important;
+    border: none !important;
+    background: #ffffff !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  body:has(.handover-printable-area) .dlg .bd {
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  body:has(.handover-printable-area) .fixed.inset-0.z-50 {
+    display: none !important;
+  }
+
+  .handover-slip-card {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 
   /* บังคับให้การ์ดตารางเรียนแผ่เต็มหน้ากระดาษ A4 ไม่มีขอบหลุด */

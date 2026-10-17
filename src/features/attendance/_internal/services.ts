@@ -2052,16 +2052,17 @@ export async function syncCoursesFromTimetable(
 
       // บันทึกข้อมูลบัญชีสำหรับใบส่งมอบ (Handover)
       const existingCred = credentialsMap.get(account.email);
+      const courseLabel = `${courseCode} ${courseName}`.trim();
       if (existingCred) {
-        if (!existingCred.courses.includes(courseCode)) {
-          existingCred.courses.push(courseCode);
+        if (!existingCred.courses.includes(courseLabel)) {
+          existingCred.courses.push(courseLabel);
         }
       } else {
         credentialsMap.set(account.email, {
           teacherName: inst.name,
           email: account.email,
           initialPassword: account.plainPassword,
-          courses: [courseCode],
+          courses: [courseLabel],
           isNew: account.isNew,
         });
       }

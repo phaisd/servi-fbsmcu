@@ -432,7 +432,7 @@ export async function batchUpdateCourseGradesAction(
 
   revalidatePath(`/attendance/classes/${courseId}/grades`);
   revalidatePath(`/attendance/classes/${courseId}`);
-  return { success: true, ...result };
+  return result;
 }
 
 export async function updateCourseGradingConfigAction(

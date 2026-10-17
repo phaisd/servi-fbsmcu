@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   BookOpen,
   Calendar,
@@ -24,6 +24,8 @@ import {
   ShieldCheck,
   Check,
   Award,
+  Scissors,
+  FileDown,
 } from "lucide-react";
 import {
   LiyonCard,
@@ -59,6 +61,8 @@ interface ClassItem {
   dayOfWeek?: number | null;
   startTime?: string | null;
   endTime?: string | null;
+  section?: string | null;
+  targetSessions?: number;
   status: string;
   primaryTeacher?: { id: string; name: string; email: string } | null;
   instructor?: { name: string; email: string } | null;
@@ -206,6 +210,26 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
   const [isHandoverModalOpen, setIsHandoverModalOpen] = useState(false);
   const [syncResult, setSyncResult] = useState<any | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
+  const [handoverViewMode, setHandoverViewMode] = useState<"slips" | "table">("slips");
+  const [handoverSearch, setHandoverSearch] = useState("");
+  const [singlePrintEmail, setSinglePrintEmail] = useState<string | null>(null);
+
+  const filteredTeacherCredentials = useMemo(() => {
+    let list = syncResult?.teacherCredentials || [];
+    if (singlePrintEmail) {
+      return list.filter((t: any) => t.email === singlePrintEmail);
+    }
+    if (handoverSearch.trim()) {
+      const q = handoverSearch.toLowerCase();
+      list = list.filter(
+        (t: any) =>
+          t.teacherName?.toLowerCase().includes(q) ||
+          t.email?.toLowerCase().includes(q) ||
+          t.courses?.some((c: string) => c.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [syncResult, handoverSearch, singlePrintEmail]);
 
   async function handleOpenSyncModal() {
     setIsSyncModalOpen(true);
@@ -289,16 +313,18 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
     const textLines = [
       "==================================================",
       "ใบส่งมอบบัญชีอาจารย์ผู้สอน (Faculty of Buddhism)",
-      `วันที่สร้าง: ${new Date().toLocaleDateString("th-TH")}`,
+      `มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย คณะพุทธศาสตร์ (ภาคการศึกษาที่ 2/2569)`,
+      `วันที่ส่งออก: ${new Date().toLocaleDateString("th-TH")}`,
       "==================================================",
       "",
     ];
 
     syncResult.teacherCredentials.forEach((t: any, idx: number) => {
       textLines.push(`${idx + 1}. อาจารย์: ${t.teacherName}`);
-      textLines.push(`   อีเมลเข้าสู่ระบบ: ${t.email}`);
+      textLines.push(`   อีเมลเข้าสู่ระบบ (Username): ${t.email}`);
       textLines.push(`   รหัสผ่านเริ่มต้น: ${t.initialPassword || "(มีบัญชีเดิมในระบบแล้ว)"}`);
-      textLines.push(`   รายวิชาที่สอน: ${t.courses.join(", ")}`);
+      textLines.push(`   รายวิชาที่สอน: ${t.courses?.join(", ") || "-"}`);
+      textLines.push(`   เว็บไซต์: http://localhost:3010/login`);
       textLines.push(`   สถานะ: ${t.isNew ? "สร้างบัญชีใหม่ (บังคับเปลี่ยนรหัสผ่าน)" : "บัญชีเดิม"}`);
       textLines.push("--------------------------------------------------");
     });
@@ -309,8 +335,73 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
     setTimeout(() => setCopiedAll(false), 3000);
   }
 
-  function handlePrintHandover() {
-    window.print();
+  function handleCopySingleCredential(t: any) {
+    const lines = [
+      "==================================================",
+      "ใบส่งมอบบัญชีผู้ใช้งานระบบสารสนเทศอาจารย์ผู้สอน",
+      "มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย คณะพุทธศาสตร์ (ภาคการศึกษาที่ 2/2569)",
+      "==================================================",
+      `อาจารย์ผู้สอน: ${t.teacherName}`,
+      `อีเมลเข้าสู่ระบบ (Username): ${t.email}`,
+      `รหัสผ่านเริ่มต้น: ${t.initialPassword || "(มีบัญชีเดิมในระบบแล้ว)"}`,
+      `เว็บไซต์เข้าใช้งาน: http://localhost:3010/login`,
+      `รายวิชาที่รับผิดชอบสอน: ${t.courses?.join(", ") || "-"}`,
+      `สถานะบัญชี: ${t.isNew ? "สร้างใหม่ (บังคับเปลี่ยนรหัสผ่าน)" : "บัญชีเดิม"}`,
+      "--------------------------------------------------",
+      "* คำแนะนำ: กรุณาเปลี่ยนรหัสผ่านทันทีหลังเข้าสู่ระบบครั้งแรก เพื่อความปลอดภัยของข้อมูลเกรดและเวลาเรียน",
+    ];
+    navigator.clipboard.writeText(lines.join("\n"));
+    toast.success(`คัดลอกข้อมูลบัญชีของ ${t.teacherName} เรียบร้อยแล้ว`);
+  }
+
+  function handleExportCredentialsCsv() {
+    if (!syncResult?.teacherCredentials?.length) {
+      toast.error("ไม่มีข้อมูลบัญชีอาจารย์สำหรับส่งออก");
+      return;
+    }
+    const headers = [
+      "ลำดับ",
+      "ชื่ออาจารย์ผู้สอน",
+      "อีเมลเข้าสู่ระบบ (Username)",
+      "รหัสผ่านเริ่มต้น",
+      "รายวิชาที่รับผิดชอบสอน",
+      "สถานะบัญชี",
+      "เว็บไซต์เข้าสู่ระบบ",
+    ];
+    const rows = syncResult.teacherCredentials.map((t: any, idx: number) => [
+      idx + 1,
+      `"${(t.teacherName || "").replace(/"/g, '""')}"`,
+      `"${(t.email || "").replace(/"/g, '""')}"`,
+      `"${(t.initialPassword || "มีบัญชีเดิม").replace(/"/g, '""')}"`,
+      `"${(t.courses?.join("; ") || "").replace(/"/g, '""')}"`,
+      `"${t.isNew ? "สร้างใหม่ (บังคับเปลี่ยนรหัส)" : "บัญชีเดิม"}"`,
+      `"http://localhost:3010/login"`,
+    ]);
+    const csvContent =
+      "\uFEFF" + [headers.join(","), ...rows.map((r: any) => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `MCU_Teacher_Handover_Credentials_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+    toast.success("ดาวน์โหลดไฟล์ CSV เรียบร้อยแล้ว");
+  }
+
+  function handlePrintHandover(teacherEmail?: string) {
+    if (teacherEmail) {
+      setSinglePrintEmail(teacherEmail);
+      setTimeout(() => {
+        window.print();
+        setTimeout(() => setSinglePrintEmail(null), 500);
+      }, 100);
+    } else {
+      setSinglePrintEmail(null);
+      setTimeout(() => {
+        window.print();
+      }, 50);
+    }
   }
 
   function handleOpenAllTeacherHandover() {
@@ -335,16 +426,17 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
       if (teacher?.email) {
         const email = teacher.email;
         const existing = credsMap.get(email);
+        const courseLabel = `${item.courseCode} ${item.courseName || ""}${item.section ? ` (กลุ่ม ${item.section})` : ""}`.trim();
         if (existing) {
-          if (!existing.courses.includes(item.courseCode)) {
-            existing.courses.push(item.courseCode);
+          if (!existing.courses.includes(courseLabel)) {
+            existing.courses.push(courseLabel);
           }
         } else {
           credsMap.set(email, {
             teacherName: teacher.name,
             email,
             initialPassword: "Teacher1234!",
-            courses: [item.courseCode],
+            courses: [courseLabel],
             isNew: true,
           });
         }
@@ -358,6 +450,8 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
         a.teacherName.localeCompare(b.teacherName, "th")
       ),
     });
+    setHandoverSearch("");
+    setSinglePrintEmail(null);
     setIsHandoverModalOpen(true);
   }
 
@@ -389,17 +483,15 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
             <span>ปฏิทินการศึกษา (Academic Calendar)</span>
           </Link>
 
-          {isSuperAdmin && (
-            <button
-              type="button"
-              onClick={handleOpenAllTeacherHandover}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 font-medium text-sm shadow-xs transition"
-              title="พิมพ์ใบส่งมอบบัญชีผู้ใช้และรหัสผ่านสำหรับอาจารย์ผู้สอนทั้งหมด"
-            >
-              <Printer className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>พิมพ์ใบส่งมอบบัญชีอาจารย์</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleOpenAllTeacherHandover}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 font-medium text-sm shadow-xs transition"
+            title="พิมพ์ใบส่งมอบบัญชีผู้ใช้และรหัสผ่านสำหรับอาจารย์ผู้สอนทั้งหมด"
+          >
+            <Printer className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            <span>พิมพ์ใบส่งมอบบัญชีอาจารย์</span>
+          </button>
 
           <button
             type="button"
@@ -1055,133 +1147,372 @@ export function ClassesClient({ initialItems, isSuperAdmin, currentUserId: _curr
       </LiyonDialog>
 
       {/* Modal 2: ใบส่งมอบบัญชีอาจารย์ผู้สอน (Teacher Account Handover Modal) */}
-      <LiyonDialog open={isHandoverModalOpen} onOpenChange={(open) => setIsHandoverModalOpen(open)}>
-        <LiyonDialogHeader
-          title="ใบส่งมอบบัญชีอาจารย์ผู้สอน (Teacher Account Handover)"
-          description="ระบบได้สร้างรายวิชา กำหนด 16 คาบเรียน และสร้างบัญชีอาจารย์ผู้สอนอัตโนมัติเรียบร้อยแล้ว"
-        />
-        <LiyonDialogCloseButton label="ปิด" />
-        <LiyonDialogBody className="space-y-4 max-h-[75vh] overflow-y-auto print:max-h-none print:overflow-visible">
-          {/* สรุปผลการนำเข้า */}
-          <div className="p-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-2xl border border-emerald-200 dark:border-emerald-800/60 flex items-start gap-3">
-            <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
-            <div className="text-xs space-y-1">
-              <div className="font-bold text-emerald-900 dark:text-emerald-200 text-sm">
-                นำเข้ารายวิชาสำเร็จ {syncResult?.importedCount || 0} วิชา
-                {syncResult?.skippedCount > 0 && ` (ข้ามวิชาที่ซ้ำ ${syncResult.skippedCount} วิชา)`}
+      <LiyonDialog open={isHandoverModalOpen} onOpenChange={(open) => setIsHandoverModalOpen(open)} wide>
+        <div className="print:hidden">
+          <LiyonDialogHeader
+            title="ใบส่งมอบบัญชีอาจารย์ผู้สอน (Teacher Account Handover)"
+            description="พิมพ์ใบส่งมอบรหัสผ่านรายบุคคลสำหรับแจกอาจารย์ (พิมพ์กระดาษ/PDF 4 ใบต่อหน้า A4) หรือดูตารางสรุปภาพรวม"
+          />
+          <LiyonDialogCloseButton label="ปิด" />
+        </div>
+
+        <LiyonDialogBody className="space-y-4 max-h-[75vh] overflow-y-auto print:max-h-none print:overflow-visible print:p-0">
+          {/* แถบควบคุมและเครื่องมือ (ซ่อนตอนพิมพ์) */}
+          <div className="space-y-3 print:hidden">
+            {/* สรุปผลภาพรวม */}
+            <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <div>
+                  <span className="font-bold text-emerald-950 dark:text-emerald-100 text-sm">
+                    พร้อมส่งมอบ {syncResult?.teacherCredentials?.length || 0} บัญชีอาจารย์
+                  </span>
+                  <span className="text-emerald-700 dark:text-emerald-300 ml-2">
+                    (ครอบคลุม {syncResult?.importedCount || items.length} รายวิชา 16 คาบเรียน)
+                  </span>
+                </div>
               </div>
-              <p className="text-emerald-700 dark:text-emerald-300">
-                ระบบได้สร้างคาบเรียน 16 คาบเรียนต่อรายวิชา และสร้างรหัสผ่านเริ่มต้นเฉพาะบุคคลสำหรับอาจารย์ผู้สอนเรียบร้อยแล้ว
-              </p>
+
+              {/* สลับมุมมอง Slips vs Table */}
+              <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setHandoverViewMode("slips")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    handoverViewMode === "slips"
+                      ? "bg-primary text-white shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  }`}
+                >
+                  <Scissors className="w-3.5 h-3.5" />
+                  <span>ใบตัดแจกรายบุคคล (4 ใบ/หน้า)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHandoverViewMode("table")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    handoverViewMode === "table"
+                      ? "bg-primary text-white shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+                  }`}
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>ตารางสรุปภาพรวม</span>
+                </button>
+              </div>
+            </div>
+
+            {/* ช่องค้นหาอาจารย์ */}
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={handoverSearch}
+                onChange={(e) => setHandoverSearch(e.target.value)}
+                placeholder="ค้นหาชื่ออาจารย์, อีเมล, หรือรหัสรายวิชา..."
+                className="w-full pl-9 pr-24 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs focus:ring-2 focus:ring-primary focus:outline-none"
+              />
+              {handoverSearch && (
+                <button
+                  type="button"
+                  onClick={() => setHandoverSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 hover:text-slate-600"
+                >
+                  ล้างคำค้น
+                </button>
+              )}
             </div>
           </div>
 
-          {/* ตารางข้อมูลบัญชีอาจารย์ */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
-                <KeyRound className="w-4 h-4 text-primary" />
-                <span>รายการบัญชีผู้ใช้และรหัสผ่านเริ่มต้นของอาจารย์ผู้สอน</span>
-              </div>
-              <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                ทั้งหมด {syncResult?.teacherCredentials?.length || 0} บัญชี
-              </span>
-            </div>
+          {/* พื้นที่พิมพ์เอกสาร (Handover Printable Area) */}
+          <div className="handover-printable-area space-y-4">
+            {/* โหมดที่ 1: สลิปใบส่งมอบรายบุคคล (Slips View - 4 ใบต่อหน้า A4 มีเส้นประตัด) */}
+            {handoverViewMode === "slips" ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 print:gap-4">
+                  {filteredTeacherCredentials.map((cred: any, idx: number) => (
+                    <div
+                      key={cred.email}
+                      className="handover-slip-card border-2 border-dashed border-slate-300 dark:border-slate-700 print:border-slate-400 rounded-2xl p-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 print:bg-white print:text-black shadow-xs flex flex-col justify-between relative overflow-hidden break-inside-avoid"
+                    >
+                      {/* สัญลักษณ์กรรไกรและเส้นตัดมุมบน */}
+                      <div className="absolute top-2.5 right-3 flex items-center gap-1 text-[10px] text-slate-400 print:text-slate-500 font-mono">
+                        <Scissors className="w-3 h-3" />
+                        <span>ตัดตามรอยปรุ</span>
+                      </div>
 
-            <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-2xs">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                    <th className="py-2.5 px-3">อาจารย์ผู้สอน</th>
-                    <th className="py-2.5 px-3">อีเมลเข้าสู่ระบบ</th>
-                    <th className="py-2.5 px-3">รหัสผ่านเริ่มต้น</th>
-                    <th className="py-2.5 px-3">วิชาที่สอน</th>
-                    <th className="py-2.5 px-3">สถานะ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {syncResult?.teacherCredentials?.map((cred: any, idx: number) => (
-                    <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                      <td className="py-3 px-3 font-semibold text-slate-900 dark:text-white">
-                        {cred.teacherName}
-                      </td>
-                      <td className="py-3 px-3 font-mono text-[11px] text-indigo-600 dark:text-indigo-400 font-medium">
-                        {cred.email}
-                      </td>
-                      <td className="py-3 px-3">
-                        {cred.initialPassword ? (
-                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 font-mono font-bold text-amber-800 dark:text-amber-200 text-xs">
-                            <span>{cred.initialPassword}</span>
+                      <div>
+                        {/* หัวแบบฟอร์มทางการ มจร. */}
+                        <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-200 dark:border-slate-800 print:border-slate-300">
+                          <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300 print:text-black flex items-center justify-center shrink-0 font-bold text-xs border border-amber-500/20">
+                            มจร
+                          </div>
+                          <div>
+                            <div className="font-bold text-[11px] leading-tight text-slate-800 dark:text-slate-200 print:text-black">
+                              มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย • คณะพุทธศาสตร์
+                            </div>
+                            <div className="text-xs font-bold text-primary dark:text-indigo-400 print:text-black leading-tight">
+                              ใบส่งมอบบัญชีผู้ใช้ระบบสารสนเทศอาจารย์ผู้สอน
+                            </div>
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 print:text-slate-600">
+                              ภาคการศึกษาที่ 2/2569 (Semester 2/2026)
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* ข้อมูลประจำตัวอาจารย์และรหัสผ่าน */}
+                        <div className="mt-2.5 space-y-2 text-xs">
+                          <div>
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 print:text-slate-600">
+                              อาจารย์ผู้สอน:
+                            </span>
+                            <div className="font-bold text-sm text-slate-900 dark:text-white print:text-black">
+                              {cred.teacherName}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 print:bg-slate-50 border border-slate-200 dark:border-slate-700/80 print:border-slate-300">
+                            <div>
+                              <span className="text-[9.5px] uppercase font-bold text-slate-500 dark:text-slate-400 print:text-slate-600">
+                                อีเมลเข้าสู่ระบบ (Username)
+                              </span>
+                              <div className="font-mono text-xs font-semibold text-indigo-600 dark:text-indigo-400 print:text-black break-all">
+                                {cred.email}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-[9.5px] uppercase font-bold text-slate-500 dark:text-slate-400 print:text-slate-600">
+                                รหัสผ่านเริ่มต้น (Initial Password)
+                              </span>
+                              <div className="font-mono text-xs font-black text-amber-700 dark:text-amber-300 print:text-black">
+                                {cred.initialPassword || "(บัญชีเดิมในระบบ)"}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="text-[10.5px] text-slate-600 dark:text-slate-400 print:text-slate-700">
+                            <span className="font-semibold">เว็บไซต์เข้าสู่ระบบ:</span>{" "}
+                            <span className="font-mono text-primary font-bold">http://localhost:3010/login</span>
+                          </div>
+
+                          {/* รายวิชาที่สอน */}
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 print:text-slate-600">
+                              รายวิชาที่สอน ({cred.courses?.length || 0} วิชา):
+                            </span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {cred.courses?.map((c: string, ci: number) => (
+                                <span
+                                  key={ci}
+                                  className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 print:bg-transparent print:border print:border-slate-300 text-[10px] font-medium text-slate-700 dark:text-slate-300 print:text-black"
+                                >
+                                  {c}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* คำแนะนำความปลอดภัย */}
+                          <div className="text-[9px] text-slate-500 dark:text-slate-400 print:text-slate-600 leading-relaxed border-t border-slate-100 dark:border-slate-800 print:border-slate-200 pt-1.5">
+                            * ระบบใช้สำหรับบันทึกเวลาเรียน 16 คาบ ประเมินสิทธิ์สอบ และส่งเกรด กรุณาเปลี่ยนรหัสผ่านทันทีในการเข้าสู่ระบบครั้งแรก
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ส่วนลงนามรับมอบ */}
+                      <div className="mt-3 pt-2.5 border-t border-slate-200 dark:border-slate-800 print:border-slate-300">
+                        <div className="flex items-end justify-between text-[10px] text-slate-600 dark:text-slate-400 print:text-black">
+                          <div>
+                            <div>ลงชื่อ .................................................... ผู้รับมอบ</div>
+                            <div className="mt-0.5 pl-6">({cred.teacherName})</div>
+                          </div>
+                          <div className="text-right">
+                            <div>วันที่ ..... / ..... / 2569</div>
+                            <div className="text-[9px] text-slate-400 print:text-slate-500 mt-0.5">
+                              ฝ่ายวิชาการ คณะพุทธศาสตร์ มจร.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ปุ่มลัดสำหรับการทำงานหน้าจอ (ซ่อนตอนพิมพ์) */}
+                      <div className="mt-2.5 pt-2 flex items-center justify-end gap-1.5 border-t border-slate-100 dark:border-slate-800 print:hidden">
+                        <button
+                          type="button"
+                          onClick={() => handleCopySingleCredential(cred)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[11px] font-medium text-slate-700 dark:text-slate-300 transition"
+                          title="คัดลอกข้อความสำหรับส่งให้อาจารย์ท่านนี้ทาง LINE หรือ Email"
+                        >
+                          <Copy className="w-3 h-3 text-slate-400" />
+                          <span>คัดลอก</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePrintHandover(cred.email)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition"
+                          title="พิมพ์เฉพาะใบส่งมอบของอาจารย์ท่านนี้"
+                        >
+                          <Printer className="w-3 h-3 text-emerald-600" />
+                          <span>พิมพ์เฉพาะใบนี้</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {filteredTeacherCredentials.length === 0 && (
+                  <div className="p-8 text-center text-slate-400 text-xs border border-dashed rounded-xl">
+                    ไม่พบข้อมูลอาจารย์ที่ตรงกับคำค้นหา
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* โหมดที่ 2: ตารางสรุปภาพรวมทั้งหมด (Summary Table View) */
+              <div>
+                {/* หัวเอกสารทางการกรณีพิมพ์ในโหมดตาราง */}
+                <div className="hidden print:block pb-3 mb-3 border-b-2 border-black text-center space-y-1">
+                  <div className="font-bold text-base">มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย คณะพุทธศาสตร์</div>
+                  <div className="text-sm font-semibold">บัญชีรายชื่ออาจารย์ผู้สอนและรหัสผ่านเริ่มต้น สำหรับเข้าสู่ระบบสารสนเทศ</div>
+                  <div className="text-xs text-slate-600">ภาคการศึกษาที่ 2/2569 • เอกสารควบคุมภายใน ฝ่ายวิชาการ</div>
+                </div>
+
+                <div className="border border-slate-200 dark:border-slate-800 print:border-black rounded-xl overflow-hidden shadow-2xs">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-800/60 print:bg-slate-100 border-b border-slate-200 dark:border-slate-800 print:border-black text-[11px] font-bold text-slate-600 dark:text-slate-400 print:text-black">
+                        <th className="py-2.5 px-3 w-8 text-center">#</th>
+                        <th className="py-2.5 px-3">อาจารย์ผู้สอน</th>
+                        <th className="py-2.5 px-3">อีเมลเข้าสู่ระบบ (Username)</th>
+                        <th className="py-2.5 px-3">รหัสผ่านเริ่มต้น</th>
+                        <th className="py-2.5 px-3">วิชาที่สอน</th>
+                        <th className="py-2.5 px-3">สถานะ</th>
+                        <th className="py-2.5 px-3 text-right print:hidden">การจัดการ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 print:divide-slate-300">
+                      {filteredTeacherCredentials.map((cred: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                          <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">
+                            {idx + 1}
+                          </td>
+                          <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-white print:text-black">
+                            {cred.teacherName}
+                          </td>
+                          <td className="py-2.5 px-3 font-mono text-[11px] text-indigo-600 dark:text-indigo-400 print:text-black font-medium">
+                            {cred.email}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            {cred.initialPassword ? (
+                              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 print:bg-transparent border border-amber-200 dark:border-amber-800/60 print:border-none font-mono font-bold text-amber-800 dark:text-amber-200 print:text-black text-xs">
+                                <span>{cred.initialPassword}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(cred.initialPassword);
+                                    toast.success(`คัดลอกรหัสผ่านของ ${cred.teacherName} แล้ว`);
+                                  }}
+                                  className="text-amber-600 dark:text-amber-400 hover:text-amber-800 ml-1 print:hidden"
+                                  title="คัดลอกรหัสผ่าน"
+                                >
+                                  <Copy className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 dark:text-slate-500 italic text-[11px]">
+                                มีบัญชีเดิมในระบบ
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400 print:text-black font-mono text-[11px]">
+                            {cred.courses?.join(", ") || "-"}
+                          </td>
+                          <td className="py-2.5 px-3">
+                            {cred.isNew ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 print:bg-transparent text-emerald-700 dark:text-emerald-300 print:text-black font-medium text-[10px] border border-emerald-200 dark:border-emerald-800 print:border-none">
+                                <ShieldCheck className="w-3 h-3 text-emerald-500 print:hidden" />
+                                สร้างใหม่
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium text-[10px] print:bg-transparent print:text-black">
+                                บัญชีเดิม
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right print:hidden">
                             <button
                               type="button"
-                              onClick={() => {
-                                navigator.clipboard.writeText(cred.initialPassword);
-                                toast.success(`คัดลอกรหัสผ่านของ ${cred.teacherName} แล้ว`);
-                              }}
-                              className="text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-200 ml-1"
-                              title="คัดลอกรหัสผ่าน"
+                              onClick={() => handleCopySingleCredential(cred)}
+                              className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
+                              title="คัดลอกข้อมูลบัญชีอาจารย์ท่านนี้"
                             >
-                              <Copy className="w-3 h-3" />
+                              <Copy className="w-3.5 h-3.5" />
                             </button>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 dark:text-slate-500 italic text-[11px]">
-                            มีบัญชีเดิมในระบบแล้ว
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3 px-3 text-slate-600 dark:text-slate-400 font-mono text-[11px]">
-                        {cred.courses?.join(", ") || "-"}
-                      </td>
-                      <td className="py-3 px-3">
-                        {cred.isNew ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-medium text-[10px] border border-emerald-200 dark:border-emerald-800">
-                            <ShieldCheck className="w-3 h-3 text-emerald-500" />
-                            สร้างใหม่ (บังคับเปลี่ยนรหัส)
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium text-[10px]">
-                            บัญชีเดิม
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* ส่วนท้ายลงชื่อกรณีพิมพ์ในโหมดตาราง */}
+                <div className="hidden print:grid grid-cols-2 gap-8 pt-8 text-center text-xs">
+                  <div>
+                    <div>เจ้าหน้าที่ผู้ส่งมอบ: ....................................................</div>
+                    <div className="mt-1">(ฝ่ายวิชาการ คณะพุทธศาสตร์)</div>
+                    <div className="mt-1">วันที่ ...../...../2569</div>
+                  </div>
+                  <div>
+                    <div>หัวหน้าฝ่ายบริการการศึกษา: ....................................................</div>
+                    <div className="mt-1">(....................................................)</div>
+                    <div className="mt-1">วันที่ ...../...../2569</div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* ข้อความแจ้งเตือนความปลอดภัย */}
-          <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
+          {/* ข้อความแจ้งเตือนความปลอดภัย (ซ่อนตอนพิมพ์) */}
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 space-y-1 print:hidden">
             <div className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
               <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
               <span>แนวปฏิบัติความปลอดภัยในการส่งมอบบัญชี:</span>
             </div>
             <ul className="list-disc pl-5 space-y-0.5 text-slate-500 dark:text-slate-400">
-              <li>รหัสผ่านเริ่มต้นถูกสร้างแบบสุ่มเฉพาะบุคคล กรุณาส่งมอบข้อมูลให้อาจารย์เฉพาะท่าน</li>
+              <li>ท่านสามารถเลือก <b>"พิมพ์ใบตัดแจกรายบุคคล (4 ใบ/หน้า A4)"</b> แล้วตัดตามรอยปรุแจกอาจารย์แต่ละท่าน เพื่อรักษาความลับของรหัสผ่าน</li>
               <li>ระบบตั้งค่าให้อาจารย์ต้องเปลี่ยนรหัสผ่านทันทีในการเข้าสู่ระบบครั้งแรก (Must Change Password)</li>
-              <li>ท่านสามารถกดปุ่ม "คัดลอกข้อมูลทั้งหมด" เพื่อนำไปส่งทางอีเมลหรือข้อความ หรือกด "พิมพ์ใบส่งมอบ" เพื่อพิมพ์แจกจ่าย</li>
+              <li>ท่านสามารถคลิกปุ่ม <b>"ดาวน์โหลด CSV"</b> เพื่อนำข้อมูลไปส่งข้อความ SMS/LINE อัตโนมัติได้</li>
             </ul>
           </div>
         </LiyonDialogBody>
-        <LiyonDialogFooter className="flex justify-between items-center gap-2">
-          <div className="flex items-center gap-2">
+
+        <LiyonDialogFooter className="flex flex-wrap justify-between items-center gap-2 print:hidden">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={handleCopyAllCredentials}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 transition"
+              onClick={handleExportCredentialsCsv}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 transition"
+              title="ดาวน์โหลดข้อมูลบัญชีเป็นไฟล์ Excel / CSV"
             >
-              {copiedAll ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
-              <span>{copiedAll ? "คัดลอกเรียบร้อยแล้ว" : "คัดลอกข้อมูลทั้งหมด"}</span>
+              <FileDown className="w-3.5 h-3.5 text-slate-500" />
+              <span>ดาวน์โหลด CSV</span>
             </button>
             <button
               type="button"
-              onClick={handlePrintHandover}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 transition"
+              onClick={handleCopyAllCredentials}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 transition"
+              title="คัดลอกข้อความสรุปทั้งหมดเพื่อส่งทางอีเมล"
             >
-              <Printer className="w-3.5 h-3.5 text-slate-400" />
-              <span>พิมพ์ใบส่งมอบ</span>
+              {copiedAll ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+              <span>{copiedAll ? "คัดลอกแล้ว" : "คัดลอกข้อความทั้งหมด"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePrintHandover()}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition shadow-xs"
+              title="พิมพ์เอกสารออกทางเครื่องพิมพ์ หรือบันทึกเป็น PDF"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>พิมพ์ใบส่งมอบ (Print / PDF)</span>
             </button>
           </div>
           <button
