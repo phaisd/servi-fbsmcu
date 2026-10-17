@@ -62,6 +62,16 @@ interface StudentsClientProps {
   isSuperAdmin?: boolean;
 }
 
+function formatMajor(major?: string | null, department?: string | null) {
+  const raw = major || department || "-";
+  return (
+    raw
+      .replace(/^สาขาวิชา\s*/, "")
+      .replace(/^ภาควิชา\s*/, "")
+      .trim() || "-"
+  );
+}
+
 export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _isSuperAdmin }: StudentsClientProps) {
   const router = useRouter();
   const [enrollments, setEnrollments] = useState<StudentItem[]>(initialEnrollments);
@@ -163,7 +173,10 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
         (s.curriculumName || "").includes("ภาษาอังกฤษ") ||
         (s.curriculumName || "").toLowerCase().includes("english") ||
         (s.curriculumName || "").toLowerCase().includes("inter") ||
-        (s.department || "").toLowerCase().includes("english");
+        (s.department || "").toLowerCase().includes("english") ||
+        (s.major || "").toLowerCase().includes("english") ||
+        (s.major || "").toLowerCase().includes("buddhist") ||
+        (s.major || "").toLowerCase().includes("religion");
 
       const isBachelor = (s.degree || "").includes("ตรี") || !s.degree;
 
@@ -183,38 +196,57 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
       // 2. ชั้นปี: ปี 1 / ปี 2 / ปี 3 / ปี 4
       const matchYear = cohortYearFilter === 0 || s.yearLevel === cohortYearFilter;
 
-      // 3. สาขาวิชา: สาขาวิชาพระพุทธศาสนา / สาขาวิชาศาสนาและปรัชญา / สาขาวิชาบาลีสันสกฤต / สาขาวิชาวิปัสสนาภาวนา
+      // 3. สาขาวิชา: คัดกรองตรงสาขาอย่างแม่นยำ ไม่ดึงสาขาอื่นที่อยู่ร่วมคณะ/ภาควิชามาปน
       let matchDept = true;
       if (cohortDeptFilter !== "ALL") {
-        const deptName = s.department || "";
-        const majorName = s.major || "";
-        const currName = s.curriculumName || "";
-        const target = cohortDeptFilter;
+        const major = (s.major || "").replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim();
+        const dept = (s.department || "").replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim();
+        const curr = (s.curriculumName || "").trim();
+        const target = cohortDeptFilter.replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim();
 
-        if (target.includes("พระพุทธศาสนา")) {
+        if (target === "พระพุทธศาสนา") {
+          // ต้องไม่ใช่ วิปัสสนา, บาลี, หรือปรัชญา
+          if (
+            major.includes("วิปัสสนา") ||
+            major.includes("บาลี") ||
+            major.includes("สันสกฤต") ||
+            major.includes("ปรัชญา") ||
+            major.toLowerCase().includes("religion") ||
+            major.toLowerCase().includes("philosophy") ||
+            curr.includes("วิปัสสนา") ||
+            curr.includes("บาลี") ||
+            curr.includes("สันสกฤต") ||
+            curr.includes("ปรัชญา")
+          ) {
+            matchDept = false;
+          } else {
+            matchDept =
+              major.includes("พระพุทธศาสนา") ||
+              major.toLowerCase().includes("buddhist") ||
+              curr.includes("สาขาวิชาพระพุทธศาสนา") ||
+              (dept === "พระพุทธศาสนา" && !major);
+          }
+        } else if (target === "วิปัสสนาภาวนา" || target.includes("วิปัสสนา")) {
+          matchDept = major.includes("วิปัสสนา") || curr.includes("วิปัสสนา");
+        } else if (target === "บาลีสันสกฤต" || target.includes("บาลี")) {
           matchDept =
-            deptName.includes("พระพุทธศาสนา") ||
-            majorName.includes("พระพุทธศาสนา") ||
-            currName.includes("พระพุทธศาสนา");
-        } else if (target.includes("วิปัสสนา")) {
-          matchDept =
-            deptName.includes("วิปัสสนา") ||
-            majorName.includes("วิปัสสนา") ||
-            currName.includes("วิปัสสนา");
+            major.includes("บาลี") ||
+            major.includes("สันสกฤต") ||
+            curr.includes("บาลี") ||
+            curr.includes("สันสกฤต");
         } else if (target.includes("ปรัชญา") || target.includes("ศาสนา")) {
           matchDept =
-            deptName.includes("ปรัชญา") ||
-            deptName.includes("ศาสนา") ||
-            majorName.includes("ปรัชญา") ||
-            currName.includes("ปรัชญา");
-        } else if (target.includes("บาลี") || target.includes("สันสกฤต")) {
-          matchDept =
-            deptName.includes("บาลี") ||
-            deptName.includes("สันสกฤต") ||
-            majorName.includes("บาลี") ||
-            currName.includes("บาลี");
+            major.includes("ปรัชญา") ||
+            major.includes("ศาสนา") ||
+            major.toLowerCase().includes("religion") ||
+            major.toLowerCase().includes("philosophy") ||
+            curr.includes("ปรัชญา") ||
+            curr.includes("ศาสนา");
         } else {
-          matchDept = deptName === target || deptName.includes(target);
+          matchDept =
+            major.includes(target) ||
+            dept.includes(target) ||
+            curr.includes(target);
         }
       }
 
@@ -225,7 +257,8 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
         s.studentCode.toLowerCase().includes(q) ||
         s.firstName.toLowerCase().includes(q) ||
         s.lastName.toLowerCase().includes(q) ||
-        (s.department && s.department.toLowerCase().includes(q));
+        (s.department && s.department.toLowerCase().includes(q)) ||
+        (s.major && s.major.toLowerCase().includes(q));
 
       return matchDegree && matchYear && matchDept && matchSearch;
     });
@@ -690,7 +723,7 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                       </td>
                       <td className="py-3 px-4 text-xs text-slate-600 dark:text-slate-300">
                         <span className="inline-flex px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-medium text-slate-700 dark:text-slate-200 text-2xs">
-                          {st.major || st.department || "-"}
+                          {formatMajor(st.major, st.department)}
                         </span>
                       </td>
                       <td className="py-3 px-4">
@@ -1150,7 +1183,7 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                               )}
                             </div>
                             <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                              ชั้นปีที่ {s.yearLevel} • {s.department || "คณะพุทธศาสตร์"}
+                              ชั้นปีที่ {s.yearLevel} • {formatMajor(s.major, s.department)}
                             </div>
                           </div>
                         </div>

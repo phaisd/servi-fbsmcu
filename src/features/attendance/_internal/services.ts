@@ -2421,6 +2421,7 @@ export async function getAvailableStudentsForCohort(
       degree: s.degree || "ปริญญาตรี",
       curriculumName: s.curriculumName,
       department: s.department,
+      major: s.major,
       faculty: s.faculty,
     })),
     totalAvailable: availableStudents.length,
