@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Users,
   Search,
@@ -148,7 +148,6 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
       if (res.success && res.students) {
         setCohortStudents(res.students);
         setDepartmentOptions(res.departmentOptions || []);
-        setSelectedCohortIds(res.students.map((s: any) => s.id));
       }
     } catch (err: any) {
       toast.error(err.message || "ไม่สามารถดึงข้อมูลนิสิตได้");
@@ -157,78 +156,93 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
     }
   }
 
-  const filteredCohortStudents = cohortStudents.filter((s) => {
-    // 1. ระดับ / หลักสูตร: ปริญญาตรี (ภาคภาษาไทย) / ปริญญาตรี (ภาคภาษาอังกฤษ / English Program) / ปริญญาโท / ปริญญาเอก / ประกาศนียบัตร
-    const isEnglishCurriculum =
-      (s.curriculumName || "").includes("ภาษาอังกฤษ") ||
-      (s.curriculumName || "").toLowerCase().includes("english") ||
-      (s.curriculumName || "").toLowerCase().includes("inter") ||
-      (s.department || "").toLowerCase().includes("english");
+  const filteredCohortStudents = useMemo(() => {
+    return cohortStudents.filter((s) => {
+      // 1. ระดับ / หลักสูตร: ปริญญาตรี (ภาคภาษาไทย) / ปริญญาตรี (ภาคภาษาอังกฤษ / English Program) / ปริญญาโท / ปริญญาเอก / ประกาศนียบัตร
+      const isEnglishCurriculum =
+        (s.curriculumName || "").includes("ภาษาอังกฤษ") ||
+        (s.curriculumName || "").toLowerCase().includes("english") ||
+        (s.curriculumName || "").toLowerCase().includes("inter") ||
+        (s.department || "").toLowerCase().includes("english");
 
-    const isBachelor = (s.degree || "").includes("ตรี") || !s.degree;
+      const isBachelor = (s.degree || "").includes("ตรี") || !s.degree;
 
-    let matchDegree = true;
-    if (cohortDegreeFilter === "BACHELOR_NORMAL" || cohortDegreeFilter === "BACHELOR") {
-      matchDegree = isBachelor && !isEnglishCurriculum;
-    } else if (cohortDegreeFilter === "BACHELOR_ENGLISH" || cohortDegreeFilter === "INTER") {
-      matchDegree = isBachelor && isEnglishCurriculum;
-    } else if (cohortDegreeFilter === "MASTER") {
-      matchDegree = (s.degree || "").includes("โท");
-    } else if (cohortDegreeFilter === "DOCTORATE") {
-      matchDegree = (s.degree || "").includes("เอก");
-    } else if (cohortDegreeFilter === "CERTIFICATE") {
-      matchDegree = (s.degree || "").includes("ประกาศนียบัตร");
-    }
-
-    // 2. ชั้นปี: ปี 1 / ปี 2 / ปี 3 / ปี 4
-    const matchYear = cohortYearFilter === 0 || s.yearLevel === cohortYearFilter;
-
-    // 3. สาขาวิชา: สาขาวิชาพระพุทธศาสนา / สาขาวิชาศาสนาและปรัชญา / สาขาวิชาบาลีสันสกฤต / สาขาวิชาวิปัสสนาภาวนา
-    let matchDept = true;
-    if (cohortDeptFilter !== "ALL") {
-      const deptName = s.department || "";
-      const majorName = s.major || "";
-      const currName = s.curriculumName || "";
-      const target = cohortDeptFilter;
-
-      if (target.includes("พระพุทธศาสนา")) {
-        matchDept =
-          deptName.includes("พระพุทธศาสนา") ||
-          majorName.includes("พระพุทธศาสนา") ||
-          currName.includes("พระพุทธศาสนา");
-      } else if (target.includes("วิปัสสนา")) {
-        matchDept =
-          deptName.includes("วิปัสสนา") ||
-          majorName.includes("วิปัสสนา") ||
-          currName.includes("วิปัสสนา");
-      } else if (target.includes("ปรัชญา") || target.includes("ศาสนา")) {
-        matchDept =
-          deptName.includes("ปรัชญา") ||
-          deptName.includes("ศาสนา") ||
-          majorName.includes("ปรัชญา") ||
-          currName.includes("ปรัชญา");
-      } else if (target.includes("บาลี") || target.includes("สันสกฤต")) {
-        matchDept =
-          deptName.includes("บาลี") ||
-          deptName.includes("สันสกฤต") ||
-          majorName.includes("บาลี") ||
-          currName.includes("บาลี");
-      } else {
-        matchDept = deptName === target || deptName.includes(target);
+      let matchDegree = true;
+      if (cohortDegreeFilter === "BACHELOR_NORMAL" || cohortDegreeFilter === "BACHELOR") {
+        matchDegree = isBachelor && !isEnglishCurriculum;
+      } else if (cohortDegreeFilter === "BACHELOR_ENGLISH" || cohortDegreeFilter === "INTER") {
+        matchDegree = isBachelor && isEnglishCurriculum;
+      } else if (cohortDegreeFilter === "MASTER") {
+        matchDegree = (s.degree || "").includes("โท");
+      } else if (cohortDegreeFilter === "DOCTORATE") {
+        matchDegree = (s.degree || "").includes("เอก");
+      } else if (cohortDegreeFilter === "CERTIFICATE") {
+        matchDegree = (s.degree || "").includes("ประกาศนียบัตร");
       }
-    }
 
-    // 4. คำค้นหา
-    const q = cohortSearch.toLowerCase().trim();
-    const matchSearch =
-      !q ||
-      s.studentCode.toLowerCase().includes(q) ||
-      s.firstName.toLowerCase().includes(q) ||
-      s.lastName.toLowerCase().includes(q) ||
-      (s.department && s.department.toLowerCase().includes(q));
+      // 2. ชั้นปี: ปี 1 / ปี 2 / ปี 3 / ปี 4
+      const matchYear = cohortYearFilter === 0 || s.yearLevel === cohortYearFilter;
 
-    return matchDegree && matchYear && matchDept && matchSearch;
-  });
+      // 3. สาขาวิชา: สาขาวิชาพระพุทธศาสนา / สาขาวิชาศาสนาและปรัชญา / สาขาวิชาบาลีสันสกฤต / สาขาวิชาวิปัสสนาภาวนา
+      let matchDept = true;
+      if (cohortDeptFilter !== "ALL") {
+        const deptName = s.department || "";
+        const majorName = s.major || "";
+        const currName = s.curriculumName || "";
+        const target = cohortDeptFilter;
+
+        if (target.includes("พระพุทธศาสนา")) {
+          matchDept =
+            deptName.includes("พระพุทธศาสนา") ||
+            majorName.includes("พระพุทธศาสนา") ||
+            currName.includes("พระพุทธศาสนา");
+        } else if (target.includes("วิปัสสนา")) {
+          matchDept =
+            deptName.includes("วิปัสสนา") ||
+            majorName.includes("วิปัสสนา") ||
+            currName.includes("วิปัสสนา");
+        } else if (target.includes("ปรัชญา") || target.includes("ศาสนา")) {
+          matchDept =
+            deptName.includes("ปรัชญา") ||
+            deptName.includes("ศาสนา") ||
+            majorName.includes("ปรัชญา") ||
+            currName.includes("ปรัชญา");
+        } else if (target.includes("บาลี") || target.includes("สันสกฤต")) {
+          matchDept =
+            deptName.includes("บาลี") ||
+            deptName.includes("สันสกฤต") ||
+            majorName.includes("บาลี") ||
+            currName.includes("บาลี");
+        } else {
+          matchDept = deptName === target || deptName.includes(target);
+        }
+      }
+
+      // 4. คำค้นหา
+      const q = cohortSearch.toLowerCase().trim();
+      const matchSearch =
+        !q ||
+        s.studentCode.toLowerCase().includes(q) ||
+        s.firstName.toLowerCase().includes(q) ||
+        s.lastName.toLowerCase().includes(q) ||
+        (s.department && s.department.toLowerCase().includes(q));
+
+      return matchDegree && matchYear && matchDept && matchSearch;
+    });
+  }, [cohortStudents, cohortDegreeFilter, cohortYearFilter, cohortDeptFilter, cohortSearch]);
+
+  // ซิงค์เลือกนิสิตตามตัวกรองที่เลือกโดยอัตโนมัติ (เช่น เปลี่ยนเป็น ปี 4 สาขาพระพุทธศาสนา)
+  useEffect(() => {
+    if (cohortStudents.length === 0) return;
+    const matchingIds = filteredCohortStudents.map((s) => s.id);
+    setSelectedCohortIds(matchingIds);
+  }, [cohortStudents, cohortDegreeFilter, cohortYearFilter, cohortDeptFilter, cohortSearch]);
+
+  // รายการนิสิตที่ถูกเลือกและตรงกับตัวกรองที่แสดงผลอยู่ในปัจจุบัน
+  const activeSelectedCohortIds = useMemo(() => {
+    const visibleIdSet = new Set(filteredCohortStudents.map((s) => s.id));
+    return selectedCohortIds.filter((id) => visibleIdSet.has(id));
+  }, [filteredCohortStudents, selectedCohortIds]);
 
   function handleToggleCohortStudent(id: string) {
     setSelectedCohortIds((prev) =>
@@ -247,14 +261,14 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
   }
 
   async function handleConfirmCohortEnrollment() {
-    if (selectedCohortIds.length === 0) {
+    if (activeSelectedCohortIds.length === 0) {
       toast.error("กรุณาเลือกนิสิตอย่างน้อย 1 คน");
       return;
     }
 
     try {
       setIsEnrollingCohort(true);
-      const res = await enrollCohortStudentsAction(classObj.id, selectedCohortIds);
+      const res = await enrollCohortStudentsAction(classObj.id, activeSelectedCohortIds);
       if (res.success) {
         toast.success(`ลงทะเบียนนิสิตเรียบร้อยแล้ว ${res.enrolledCount} รูป/คน!`);
         setIsCohortOpen(false);
@@ -1080,7 +1094,7 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
               {/* สรุปและปุ่มเลือกทั้งหมด */}
               <div className="flex items-center justify-between text-xs px-1">
                 <span className="text-slate-600 dark:text-slate-400 font-medium">
-                  พบนิสิตที่ยังไม่ได้ลงทะเบียน {filteredCohortStudents.length} รูป/คน (เลือกไว้แล้ว {selectedCohortIds.filter((id) => filteredCohortStudents.some((s) => s.id === id)).length} คน)
+                  พบนิสิตที่ยังไม่ได้ลงทะเบียน {filteredCohortStudents.length} รูป/คน (เลือกไว้แล้ว {activeSelectedCohortIds.length} คน)
                 </span>
                 {filteredCohortStudents.length > 0 && (
                   <button
@@ -1088,7 +1102,7 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                     onClick={handleToggleAllCohort}
                     className="text-primary hover:underline font-semibold"
                   >
-                    {filteredCohortStudents.every((s) => selectedCohortIds.includes(s.id))
+                    {filteredCohortStudents.length > 0 && activeSelectedCohortIds.length === filteredCohortStudents.length
                       ? "ยกเลิกการเลือก"
                       : "เลือกทั้งหมดตามตัวกรอง"}
                   </button>
@@ -1162,7 +1176,7 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
           </button>
           <button
             type="button"
-            disabled={isEnrollingCohort || selectedCohortIds.length === 0}
+            disabled={isEnrollingCohort || activeSelectedCohortIds.length === 0}
             onClick={handleConfirmCohortEnrollment}
             className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-bold transition shadow-sm disabled:opacity-50"
           >
@@ -1174,7 +1188,7 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
             ) : (
               <>
                 <Users className="w-4 h-4" />
-                <span>ลงทะเบียนนิสิต ({selectedCohortIds.length} คน)</span>
+                <span>ลงทะเบียนนิสิต ({activeSelectedCohortIds.length} คน)</span>
               </>
             )}
           </button>
