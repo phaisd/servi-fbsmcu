@@ -32,6 +32,7 @@ import { useRouter } from "next/navigation";
 import {
   enrollStudentAction,
   removeStudentAction,
+  batchRemoveStudentsAction,
   batchEnrollStudentsAction,
   getAvailableStudentsForCohortAction,
   enrollCohortStudentsAction,
@@ -86,6 +87,12 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
   // Modal สำหรับลบนิสิต
   const [deleteTarget, setDeleteTarget] = useState<StudentItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // State สำหรับเลือกลบหลายคน และล้างทั้งวิชา
+  const [selectedEnrollmentIds, setSelectedEnrollmentIds] = useState<string[]>([]);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false);
+  const [isClearAllOpen, setIsClearAllOpen] = useState(false);
 
   // Modal State สำหรับดึงนิสิตตามชั้นปี / สาขาวิชา / หลักสูตร (Cohort Enrollment)
   const [isCohortOpen, setIsCohortOpen] = useState(false);
@@ -326,6 +333,62 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
     }
   }
 
+  // เลือก/ยกเลิกเลือกนิสิตสำหรับลบเป็นกลุ่ม
+  function handleToggleEnrollment(id: string) {
+    setSelectedEnrollmentIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  }
+
+  function handleToggleAllEnrollments() {
+    const visibleIds = filteredEnrollments.map((e) => e.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedEnrollmentIds.includes(id));
+    if (allSelected) {
+      setSelectedEnrollmentIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
+    } else {
+      setSelectedEnrollmentIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+    }
+  }
+
+  // ลบนิสิตที่เลือก
+  async function handleConfirmBulkDelete() {
+    if (selectedEnrollmentIds.length === 0) return;
+    try {
+      setIsBulkDeleting(true);
+      const res = await batchRemoveStudentsAction(classObj.id, selectedEnrollmentIds);
+      if (res.success) {
+        toast.success(`ลบนิสิตที่เลือกออกจากรายวิชาเรียบร้อยแล้ว (${res.count} รูป/คน)`);
+        setEnrollments((prev) => prev.filter((e) => !selectedEnrollmentIds.includes(e.id)));
+        setSelectedEnrollmentIds([]);
+        setIsBulkDeleteDialogOpen(false);
+        router.refresh();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "เกิดข้อผิดพลาดในการลบนิสิต");
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  }
+
+  // ล้างรายชื่อนิสิตทั้งหมดในรายวิชา
+  async function handleConfirmClearAll() {
+    try {
+      setIsBulkDeleting(true);
+      const res = await batchRemoveStudentsAction(classObj.id);
+      if (res.success) {
+        toast.success(`ล้างรายชื่อนิสิตทั้งหมดในรายวิชานี้เรียบร้อยแล้ว (${res.count} รูป/คน)`);
+        setEnrollments([]);
+        setSelectedEnrollmentIds([]);
+        setIsClearAllOpen(false);
+        router.refresh();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "เกิดข้อผิดพลาดในการล้างรายชื่อนิสิต");
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  }
+
   // ฟังก์ชันนำเข้า CSV
   async function handleImportCsv() {
     if (!csvText.trim()) {
@@ -503,9 +566,9 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
         </div>
       </div>
 
-      {/* Roster Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="md:col-span-3 relative">
+      {/* Roster Controls & Actions */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="relative flex-1">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
@@ -516,9 +579,34 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
           />
         </div>
 
-        <div className="bg-white dark:bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between shadow-sm">
-          <span className="text-xs text-slate-500">จำนวนนิสิตลงทะเบียน:</span>
-          <span className="font-bold text-base text-primary">{filteredEnrollments.length} รูป/คน</span>
+        <div className="flex items-center gap-2 flex-wrap justify-between sm:justify-end">
+          {selectedEnrollmentIds.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsBulkDeleteDialogOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-semibold shadow-xs transition"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              ลบที่เลือก ({selectedEnrollmentIds.length} คน)
+            </button>
+          )}
+
+          {enrollments.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setIsClearAllOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 text-xs font-semibold shadow-2xs transition"
+              title="ล้างรายชื่อนิสิตทั้งหมดในรายวิชานี้เพื่อดึงใหม่"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              ล้างรายชื่อทั้งหมด
+            </button>
+          )}
+
+          <div className="bg-white dark:bg-slate-900 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-2 shadow-sm text-xs">
+            <span className="text-slate-500">จำนวนนิสิต:</span>
+            <span className="font-bold text-sm text-primary">{filteredEnrollments.length} รูป/คน</span>
+          </div>
         </div>
       </div>
 
@@ -528,7 +616,16 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
           <table className="w-full text-left text-sm">
             <thead className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-xs text-slate-500 font-semibold uppercase">
               <tr>
-                <th className="py-3 px-4">ลำดับ</th>
+                <th className="py-3 px-3 text-center w-10">
+                  <input
+                    type="checkbox"
+                    checked={filteredEnrollments.length > 0 && filteredEnrollments.every((e) => selectedEnrollmentIds.includes(e.id))}
+                    onChange={handleToggleAllEnrollments}
+                    className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                    title="เลือกทั้งหมด"
+                  />
+                </th>
+                <th className="py-3 px-3 text-center w-12">ลำดับ</th>
                 <th className="py-3 px-4">รหัสนิสิต</th>
                 <th className="py-3 px-4">ชื่อ - ฉายา / นามสกุล</th>
                 <th className="py-3 px-4">ชั้นปี</th>
@@ -540,7 +637,7 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredEnrollments.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     <Users className="w-10 h-10 mx-auto text-slate-300 mb-2" />
                     <p className="font-semibold text-slate-600 dark:text-slate-300">ยังไม่มีรายชื่อนิสิตในวิชานี้</p>
                     <p className="text-xs text-slate-400 mt-0.5">
@@ -552,10 +649,22 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                 filteredEnrollments.map((item, idx) => {
                   const st = item.student;
                   const fullName = `${st.title || ""} ${st.firstName} ${st.lastName}`.trim();
+                  const isChecked = selectedEnrollmentIds.includes(item.id);
 
                   return (
-                    <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                      <td className="py-3 px-4 text-xs text-slate-400 font-medium">{idx + 1}</td>
+                    <tr
+                      key={item.id}
+                      className={`hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition ${isChecked ? "bg-primary/5 dark:bg-primary/10" : ""}`}
+                    >
+                      <td className="py-3 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleEnrollment(item.id)}
+                          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                        />
+                      </td>
+                      <td className="py-3 px-3 text-center text-xs text-slate-400 font-medium">{idx + 1}</td>
                       <td className="py-3 px-4 font-mono font-bold text-slate-800 dark:text-slate-200">
                         {st.studentCode}
                       </td>
@@ -789,6 +898,83 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
             className="px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
           >
             {isDeleting ? "กำลังลบ..." : "ยืนยันการลบ"}
+          </button>
+        </LiyonDialogFooter>
+      </LiyonDialog>
+
+      {/* Modal: ยืนยันการลบนิสิตที่เลือกเป็นกลุ่ม */}
+      <LiyonDialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen} danger>
+        <LiyonDialogHeader
+          title="ยืนยันการลบนิสิตที่เลือกออกจากรายวิชา"
+          description={`คุณต้องการนำนิสิตที่เลือกจำนวน ${selectedEnrollmentIds.length} รูป/คน ออกจากรายวิชานี้ใช่หรือไม่?`}
+        />
+        <LiyonDialogCloseButton label="ปิด" />
+        <LiyonDialogBody className="text-xs text-slate-500 space-y-2">
+          <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-950/40 rounded-xl border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300">
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <span>
+              การลบนี้จะถอนเฉพาะการลงทะเบียนในรายวิชานี้เท่านั้น ข้อมูลประวัตินิสิตในระบบมหาวิทยาลัยจะไม่ถูกลบ
+              หากนิสิตเคยมีประวัติเช็คชื่อ ระบบจะเก็บ Audit Log ไว้เพื่อความถูกต้อง
+            </span>
+          </div>
+        </LiyonDialogBody>
+        <LiyonDialogFooter className="flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={isBulkDeleting}
+            onClick={() => setIsBulkDeleteDialogOpen(false)}
+            className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300"
+          >
+            ยกเลิก
+          </button>
+          <button
+            type="button"
+            disabled={isBulkDeleting}
+            onClick={handleConfirmBulkDelete}
+            className="px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
+          >
+            {isBulkDeleting ? "กำลังลบ..." : `ยืนยันลบ (${selectedEnrollmentIds.length} คน)`}
+          </button>
+        </LiyonDialogFooter>
+      </LiyonDialog>
+
+      {/* Modal: ยืนยันการล้างรายชื่อนิสิตทั้งหมด (Clear All Roster) */}
+      <LiyonDialog open={isClearAllOpen} onOpenChange={setIsClearAllOpen} danger>
+        <LiyonDialogHeader
+          title="ยืนยันการล้างรายชื่อนิสิตทั้งหมดในรายวิชา"
+          description={`คุณต้องการนำนิสิตทั้งหมดจำนวน ${enrollments.length} รูป/คน ออกจากรายวิชา ${classObj.courseCode} ${classObj.courseName} ใช่หรือไม่?`}
+        />
+        <LiyonDialogCloseButton label="ปิด" />
+        <LiyonDialogBody className="text-xs text-slate-500 space-y-2">
+          <div className="flex items-start gap-2 p-3 bg-red-50 dark:bg-red-950/40 rounded-xl border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300">
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <div>
+              <p className="font-semibold mb-1">คำแนะนำกรณีดึงกลุ่มนิสิตผิด:</p>
+              <p>
+                ฟังก์ชันนี้เหมาะสำหรับกรณีดึงรายชื่อนิสิตผิดกลุ่ม ชั้นปี หรือผิดสาขาวิชา โดยระบบจะล้างรายชื่อที่ลงทะเบียนไว้ในวิชานี้ทั้งหมด เพื่อให้ท่านสามารถกดปุ่ม <strong>"ดึงนิสิตตามชั้นปี/สาขา"</strong> ใหม่ได้อย่างถูกต้อง
+              </p>
+              <p className="mt-1 text-[11px] text-red-600/80 dark:text-red-400/80">
+                * ข้อมูลนิสิตในทะเบียนกลางจะไม่สูญหายแต่อย่างใด
+              </p>
+            </div>
+          </div>
+        </LiyonDialogBody>
+        <LiyonDialogFooter className="flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={isBulkDeleting}
+            onClick={() => setIsClearAllOpen(false)}
+            className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300"
+          >
+            ยกเลิก
+          </button>
+          <button
+            type="button"
+            disabled={isBulkDeleting}
+            onClick={handleConfirmClearAll}
+            className="px-4 py-2 rounded-xl bg-red-600 text-white text-xs font-semibold hover:bg-red-700 disabled:opacity-50"
+          >
+            {isBulkDeleting ? "กำลังล้างรายชื่อ..." : "ยืนยันล้างรายชื่อทั้งหมด"}
           </button>
         </LiyonDialogFooter>
       </LiyonDialog>

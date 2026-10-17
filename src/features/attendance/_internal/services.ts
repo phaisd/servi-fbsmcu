@@ -735,6 +735,50 @@ export async function removeStudentFromCourse(
 
 export const removeStudentFromClass = removeStudentFromCourse;
 
+export async function batchRemoveStudentsFromCourse(
+  tenantId: string,
+  actorId: string,
+  courseId: string,
+  enrollmentIds?: string[]
+) {
+  const whereClause: any = { courseId };
+  if (enrollmentIds && enrollmentIds.length > 0) {
+    whereClause.id = { in: enrollmentIds };
+  }
+
+  const enrollments = await db.courseEnrollment.findMany({
+    where: whereClause,
+    include: { _count: { select: { records: true } } },
+  });
+
+  const toDropIds = enrollments.filter((e) => e._count.records > 0).map((e) => e.id);
+  const toDeleteIds = enrollments.filter((e) => e._count.records === 0).map((e) => e.id);
+
+  if (toDropIds.length > 0) {
+    await db.courseEnrollment.updateMany({
+      where: { id: { in: toDropIds } },
+      data: { status: EnrollmentStatus.DROPPED },
+    });
+  }
+
+  if (toDeleteIds.length > 0) {
+    await db.courseEnrollment.deleteMany({
+      where: { id: { in: toDeleteIds } },
+    });
+  }
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "course.enrollment.batchRemove",
+    entity: "CourseEnrollment",
+    entityId: courseId,
+    after: { totalRemoved: enrollments.length, dropped: toDropIds.length, deleted: toDeleteIds.length },
+  });
+
+  return { success: true, count: enrollments.length };
+}
+
 /**
  * นำเข้ารายชื่อนิสิตแบบกลุ่ม (Batch Import)
  */

@@ -10,6 +10,7 @@ import {
   getCourseDetail,
   enrollStudentInCourse,
   removeStudentFromCourse,
+  batchRemoveStudentsFromCourse,
   batchEnrollStudents,
   createClassSession,
   updateClassSession,
@@ -114,6 +115,15 @@ export async function removeStudentAction(courseId: string, enrollmentId: string
   const result = await removeStudentFromCourse(session.tenantId, session.userId, courseId, enrollmentId);
   revalidatePath(`/attendance/classes/${courseId}/students`);
   return { success: true, result };
+}
+
+export async function batchRemoveStudentsAction(courseId: string, enrollmentIds?: string[]) {
+  const session = await requireSession();
+  await requirePermission(ATTENDANCE_P.manage);
+  await assertCourseAccess(session.tenantId, courseId, session.userId, session.isSuperAdmin);
+  const result = await batchRemoveStudentsFromCourse(session.tenantId, session.userId, courseId, enrollmentIds);
+  revalidatePath(`/attendance/classes/${courseId}/students`);
+  return result;
 }
 
 export async function batchEnrollStudentsAction(courseId: string, students: any[]) {
