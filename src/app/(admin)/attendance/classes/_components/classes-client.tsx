@@ -16,6 +16,9 @@ import {
   GraduationCap,
   Archive,
   RotateCcw,
+  Pencil,
+  Trash2,
+  AlertTriangle,
   Filter,
   DownloadCloud,
   Copy,
@@ -39,6 +42,8 @@ import {
 import Link from "next/link";
 import {
   createClassAction,
+  updateClassAction,
+  deleteClassAction,
   archiveCourseAction,
   restoreCourseAction,
   getAvailableTimetablesForSyncAction,
@@ -99,6 +104,31 @@ export function ClassesClient({
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Edit & Delete States
+  const [editTarget, setEditTarget] = useState<ClassItem | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ClassItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const [editFormData, setEditFormData] = useState({
+    courseCode: "",
+    courseName: "",
+    courseNameEn: "",
+    credits: 3,
+    term: "2/2569",
+    academicYear: "2569",
+    semester: 2,
+    department: "สาขาวิชาพระพุทธศาสนา",
+    curriculumLanguage: "ปริญญาตรี (ภาคภาษาไทย)",
+    primaryTeacherId: "",
+    room: "",
+    dayOfWeek: 1,
+    startTime: "09.00",
+    endTime: "11.30",
+    description: "",
+  });
 
   // Form State สำหรับสร้างวิชาใหม่
   const [formData, setFormData] = useState({
@@ -245,6 +275,120 @@ export function ClassesClient({
       toast.error(err.message || "เกิดข้อผิดพลาดในการเปิดใช้งาน");
     } finally {
       setIsProcessingAction(false);
+    }
+  }
+
+  function handleOpenEdit(item: ClassItem) {
+    setEditTarget(item);
+
+    const desc = item.description || "";
+    let dept = "สาขาวิชาพระพุทธศาสนา";
+    let curr = "ปริญญาตรี (ภาคภาษาไทย)";
+    let customDesc = desc;
+
+    if (desc.includes("สาขาวิชา:") || desc.includes("หลักสูตร:")) {
+      const parts = desc.split("•");
+      const meta = parts[0] || "";
+      customDesc = parts.slice(1).join("•").trim();
+
+      if (meta.includes("สาขาวิชาศาสนาและปรัชญา")) dept = "สาขาวิชาศาสนาและปรัชญา";
+      else if (meta.includes("สาขาวิชาบาลีสันสกฤต")) dept = "สาขาวิชาบาลีสันสกฤต";
+      else if (meta.includes("สาขาวิชาวิปัสสนาภาวนา")) dept = "สาขาวิชาวิปัสสนาภาวนา";
+      else if (meta.includes("หมวดวิชาศึกษาทั่วไป")) dept = "หมวดวิชาศึกษาทั่วไป";
+      else if (meta.includes("สาขาวิชาพระพุทธศาสนา")) dept = "สาขาวิชาพระพุทธศาสนา";
+
+      if (meta.includes("English Program") || meta.includes("ภาคภาษาอังกฤษ")) curr = "ปริญญาตรี (ภาคภาษาอังกฤษ / English Program)";
+      else if (meta.includes("ปริญญาโท")) curr = "ปริญญาโท";
+      else if (meta.includes("ปริญญาเอก")) curr = "ปริญญาเอก";
+      else if (meta.includes("ประกาศนียบัตร")) curr = "ประกาศนียบัตร";
+      else curr = "ปริญญาตรี (ภาคภาษาไทย)";
+    }
+
+    setEditFormData({
+      courseCode: item.courseCode,
+      courseName: item.courseName,
+      courseNameEn: item.courseNameEn || "",
+      credits: item.credits || 3,
+      term: item.term || "2/2569",
+      academicYear: item.academicYear || "2569",
+      semester: item.semester || 2,
+      department: dept,
+      curriculumLanguage: curr,
+      primaryTeacherId: item.primaryTeacher?.id || "",
+      room: item.room || "",
+      dayOfWeek: item.dayOfWeek || 1,
+      startTime: item.startTime || "09.00",
+      endTime: item.endTime || "11.30",
+      description: customDesc,
+    });
+    setIsEditOpen(true);
+  }
+
+  async function handleUpdateClass(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editTarget) return;
+    if (!editFormData.courseCode.trim() || !editFormData.courseName.trim()) {
+      toast.error("กรุณาระบุรหัสวิชาและชื่อวิชา");
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      const termParts = (editFormData.term || "").split("/");
+      const sem = parseInt(termParts[0], 10) || editFormData.semester || 2;
+      const yr = termParts[1]?.trim() || editFormData.academicYear || "2569";
+      const deptLangMeta = `สาขาวิชา: ${editFormData.department} | หลักสูตร: ${editFormData.curriculumLanguage}`;
+
+      const payload = {
+        courseCode: editFormData.courseCode.trim(),
+        courseName: editFormData.courseName.trim(),
+        courseNameEn: editFormData.courseNameEn?.trim() || null,
+        credits: editFormData.credits,
+        term: editFormData.term.trim(),
+        academicYear: yr,
+        semester: sem,
+        room: editFormData.room?.trim() || null,
+        dayOfWeek: editFormData.dayOfWeek,
+        startTime: editFormData.startTime?.trim() || "09.00",
+        endTime: editFormData.endTime?.trim() || "11.30",
+        primaryTeacherId: editFormData.primaryTeacherId || undefined,
+        description: editFormData.description?.trim()
+          ? `${deptLangMeta} • ${editFormData.description.trim()}`
+          : deptLangMeta,
+      };
+
+      const res = await updateClassAction(editTarget.id, payload);
+      if (res.success && res.class) {
+        toast.success(`แก้ไขข้อมูลวิชา ${payload.courseCode} เรียบร้อยแล้ว`);
+        setItems((prev) =>
+          prev.map((i) => (i.id === editTarget.id ? { ...i, ...res.class } : i))
+        );
+        setIsEditOpen(false);
+        setEditTarget(null);
+        router.refresh();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "เกิดข้อผิดพลาดในการแก้ไขรายวิชา");
+    } finally {
+      setIsUpdating(false);
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteTarget) return;
+    try {
+      setIsDeleting(true);
+      const res = await deleteClassAction(deleteTarget.id);
+      if (res.success) {
+        toast.success(`ลบรายวิชา ${deleteTarget.courseCode} ${deleteTarget.courseName} เรียบร้อยแล้ว`);
+        setItems((prev) => prev.filter((i) => i.id !== deleteTarget.id));
+        setDeleteTarget(null);
+        router.refresh();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "เกิดข้อผิดพลาดในการลบรายวิชา");
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -700,6 +844,26 @@ export function ClassesClient({
                           <Archive className="w-3.5 h-3.5" />
                         </button>
                       )}
+
+                      {/* ปุ่มแก้ไขรายวิชา */}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(item)}
+                        className="p-1 rounded-md text-slate-400 hover:text-primary hover:bg-primary/10 transition"
+                        title="แก้ไขข้อมูลรายวิชา"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+
+                      {/* ปุ่มลบรายวิชา */}
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(item)}
+                        className="p-1 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                        title="ลบรายวิชานี้"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
 
@@ -1020,6 +1184,259 @@ export function ClassesClient({
             </button>
           </LiyonDialogFooter>
         </form>
+      </LiyonDialog>
+
+      {/* Modal สำหรับแก้ไขรายวิชา */}
+      <LiyonDialog open={isEditOpen} onOpenChange={setIsEditOpen} wide>
+        <LiyonDialogHeader
+          title={`แก้ไขข้อมูลรายวิชา: ${editTarget?.courseCode || ""}`}
+          description="ปรับปรุงข้อมูลรายวิชา เช่น ชื่อวิชา, ภาคการศึกษา, สาขาวิชา, หลักสูตรภาษา หรืออาจารย์ผู้สอน"
+        />
+        <LiyonDialogCloseButton label="ปิด" />
+        <form onSubmit={handleUpdateClass} className="space-y-4">
+          <LiyonDialogBody className="space-y-4 max-h-[70vh] overflow-y-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  รหัสวิชา *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="เช่น 101 101"
+                  value={editFormData.courseCode}
+                  onChange={(e) => setEditFormData({ ...editFormData, courseCode: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  ชื่อรายวิชา (ภาษาไทย) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="เช่น พระไตรปิฎกศึกษา"
+                  value={editFormData.courseName}
+                  onChange={(e) => setEditFormData({ ...editFormData, courseName: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                ชื่อรายวิชา (ภาษาอังกฤษ) <span className="text-slate-400 font-normal text-[11px]">(ช่วยจำแนกภาคภาษาไทย หรือ ภาคภาษาอังกฤษ / English Program)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="เช่น Tipitaka Studies"
+                value={editFormData.courseNameEn}
+                onChange={(e) => setEditFormData({ ...editFormData, courseNameEn: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  ภาคการศึกษา (เทอม) *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="เช่น 2/2569"
+                  value={editFormData.term}
+                  onChange={(e) => setEditFormData({ ...editFormData, term: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  สาขาวิชา *
+                </label>
+                <select
+                  value={editFormData.department}
+                  onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                >
+                  <option value="สาขาวิชาพระพุทธศาสนา">สาขาวิชาพระพุทธศาสนา</option>
+                  <option value="สาขาวิชาศาสนาและปรัชญา">สาขาวิชาศาสนาและปรัชญา</option>
+                  <option value="สาขาวิชาบาลีสันสกฤต">สาขาวิชาบาลีสันสกฤต</option>
+                  <option value="สาขาวิชาวิปัสสนาภาวนา">สาขาวิชาวิปัสสนาภาวนา</option>
+                  <option value="หมวดวิชาศึกษาทั่วไป">หมวดวิชาศึกษาทั่วไป (วิชากลาง)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  หลักสูตรภาษา *
+                </label>
+                <select
+                  value={editFormData.curriculumLanguage}
+                  onChange={(e) => setEditFormData({ ...editFormData, curriculumLanguage: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                >
+                  <option value="ปริญญาตรี (ภาคภาษาไทย)">ปริญญาตรี (ภาคภาษาไทย)</option>
+                  <option value="ปริญญาตรี (ภาคภาษาอังกฤษ / English Program)">ปริญญาตรี (ภาคภาษาอังกฤษ / English Program)</option>
+                  <option value="ปริญญาโท">ปริญญาโท</option>
+                  <option value="ปริญญาเอก">ปริญญาเอก</option>
+                  <option value="ประกาศนียบัตร">ประกาศนียบัตร</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                อาจารย์ผู้สอน (ผู้รับผิดชอบรายวิชา)
+              </label>
+              <select
+                value={editFormData.primaryTeacherId}
+                onChange={(e) => setEditFormData({ ...editFormData, primaryTeacherId: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              >
+                <option value="">-- ไม่ระบุ / กำหนดภายหลัง --</option>
+                {teacherOptions.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  ห้องเรียน
+                </label>
+                <input
+                  type="text"
+                  placeholder="เช่น B302, ห้องเรียน 1"
+                  value={editFormData.room}
+                  onChange={(e) => setEditFormData({ ...editFormData, room: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  วันเรียน
+                </label>
+                <select
+                  value={editFormData.dayOfWeek}
+                  onChange={(e) => setEditFormData({ ...editFormData, dayOfWeek: Number(e.target.value) })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                >
+                  <option value={1}>วันจันทร์</option>
+                  <option value={2}>วันอังคาร</option>
+                  <option value={3}>วันพุธ</option>
+                  <option value={4}>วันพฤหัสบดี</option>
+                  <option value={5}>วันศุกร์</option>
+                  <option value={6}>วันเสาร์</option>
+                  <option value={7}>วันอาทิตย์</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  เวลาเริ่ม
+                </label>
+                <input
+                  type="text"
+                  placeholder="09.00"
+                  value={editFormData.startTime}
+                  onChange={(e) => setEditFormData({ ...editFormData, startTime: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  เวลาสิ้นสุด
+                </label>
+                <input
+                  type="text"
+                  placeholder="11.30"
+                  value={editFormData.endTime}
+                  onChange={(e) => setEditFormData({ ...editFormData, endTime: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                รายละเอียดเพิ่มเติม
+              </label>
+              <textarea
+                rows={2}
+                placeholder="คำอธิบายรายวิชา (ถ้ามี)"
+                value={editFormData.description}
+                onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              />
+            </div>
+          </LiyonDialogBody>
+
+          <LiyonDialogFooter className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setIsEditOpen(false)}
+              className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 text-xs font-medium transition"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="submit"
+              disabled={isUpdating}
+              className="px-4 py-2 rounded-xl bg-primary text-white hover:bg-primary/90 text-xs font-medium transition disabled:opacity-50"
+            >
+              {isUpdating ? "กำลังบันทึกข้อมูล..." : "บันทึกการแก้ไข"}
+            </button>
+          </LiyonDialogFooter>
+        </form>
+      </LiyonDialog>
+
+      {/* Modal ยืนยันการลบรายวิชา (Delete Course Modal) */}
+      <LiyonDialog open={!!deleteTarget} onOpenChange={(open) => !open && !isDeleting && setDeleteTarget(null)} danger>
+        <LiyonDialogHeader
+          title="ยืนยันการลบรายวิชา"
+          description={`วิชา ${deleteTarget?.courseCode} — ${deleteTarget?.courseName} (ภาค ${deleteTarget?.term})`}
+        />
+        <LiyonDialogCloseButton label="ปิด" />
+        <LiyonDialogBody className="space-y-3 text-xs text-slate-600 dark:text-slate-400">
+          <div className="flex items-start gap-2.5 p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300">
+            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-bold">คำเตือนการลบรายวิชา:</p>
+              <p>
+                การลบรายวิชานี้จะนำข้อมูลคาบเรียน การลงทะเบียนของนิสิต และประวัติการเข้าเรียนทั้งหมดของวิชานี้ออกจากระบบอย่างถาวร
+                หากท่านสร้างวิชาผิด เช่น สะกดชื่อวิชาหรือรหัสวิชาผิด ท่านสามารถใช้ปุ่ม <strong>"แก้ไข"</strong> แทนการลบได้
+              </p>
+            </div>
+          </div>
+        </LiyonDialogBody>
+        <LiyonDialogFooter className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setDeleteTarget(null)}
+            className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300"
+          >
+            ยกเลิก
+          </button>
+          <button
+            type="button"
+            disabled={isDeleting}
+            onClick={handleConfirmDelete}
+            className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold disabled:opacity-50 transition"
+          >
+            {isDeleting ? "กำลังลบรายวิชา..." : "ยืนยันการลบรายวิชา"}
+          </button>
+        </LiyonDialogFooter>
       </LiyonDialog>
 
       {/* Modal ยืนยันการปิดภาคการศึกษา (Archive Course) */}

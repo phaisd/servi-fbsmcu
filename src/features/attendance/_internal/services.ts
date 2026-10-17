@@ -476,17 +476,44 @@ export async function updateCourse(
     semester: number;
     description: string | null;
     room: string | null;
+    dayOfWeek: number | null;
     startTime: string | null;
     endTime: string | null;
     status: any;
     calculationRules: any;
+    primaryTeacherId: string;
   }>
 ) {
   const before = await db.course.findUnique({ where: { id: courseId } });
   const result = await db.course.update({
     where: { id: courseId },
     data,
+    include: {
+      primaryTeacher: { select: { id: true, name: true, email: true } },
+      instructor: { select: { name: true, email: true } },
+      teachers: { select: { user: { select: { name: true, email: true } }, isPrimary: true } },
+      _count: { select: { enrollments: true, sessions: true } },
+    },
   });
+
+  if (data.primaryTeacherId) {
+    await db.courseTeacher.upsert({
+      where: {
+        courseId_userId: {
+          courseId,
+          userId: data.primaryTeacherId,
+        },
+      },
+      update: { isPrimary: true },
+      create: {
+        tenantId,
+        courseId,
+        userId: data.primaryTeacherId,
+        isPrimary: true,
+        role: "TEACHER",
+      },
+    });
+  }
 
   await writeAudit({
     tenantId,
@@ -502,6 +529,42 @@ export async function updateCourse(
 }
 
 export const updateClass = updateCourse;
+
+/**
+ * ลบรายวิชาอย่างถาวร
+ */
+export async function deleteCourse(tenantId: string, actorId: string, courseId: string) {
+  const before = await db.course.findUnique({
+    where: { id: courseId },
+    include: {
+      _count: {
+        select: { enrollments: true, sessions: true },
+      },
+    },
+  });
+
+  if (!before) {
+    throw new Error("ไม่พบรายวิชาที่ต้องการลบ");
+  }
+
+  await db.course.delete({
+    where: { id: courseId },
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "course.delete",
+    entity: "Course",
+    entityId: courseId,
+    before,
+    after: null,
+  });
+
+  return { success: true };
+}
+
+export const deleteClass = deleteCourse;
 
 // =========================================================================
 // 2. STUDENTS & COURSE ENROLLMENT MANAGEMENT

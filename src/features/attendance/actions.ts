@@ -6,6 +6,7 @@ import { ATTENDANCE_P } from "./permissions";
 import {
   createCourse,
   updateCourse,
+  deleteCourse,
   getCourseDetail,
   enrollStudentInCourse,
   removeStudentFromCourse,
@@ -81,6 +82,17 @@ export async function updateCourseAction(courseId: string, data: unknown) {
 }
 
 export const updateClassAction = updateCourseAction;
+
+export async function deleteCourseAction(courseId: string) {
+  const session = await requireSession();
+  await requirePermission(ATTENDANCE_P.manage);
+  await assertCourseAccess(session.tenantId, courseId, session.userId, session.isSuperAdmin);
+  const result = await deleteCourse(session.tenantId, session.userId, courseId);
+  revalidatePath("/attendance/classes");
+  return result;
+}
+
+export const deleteClassAction = deleteCourseAction;
 
 export async function enrollStudentAction(data: unknown) {
   const session = await requireSession();
