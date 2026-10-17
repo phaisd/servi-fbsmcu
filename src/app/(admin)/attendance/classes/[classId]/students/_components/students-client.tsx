@@ -79,6 +79,58 @@ function formatMajor(major?: string | null, department?: string | null) {
   return raw || "-";
 }
 
+function getStudentNormalizedMajor(s: {
+  curriculumName?: string | null;
+  department?: string | null;
+  major?: string | null;
+}) {
+  const m = (s.major || "").toLowerCase().trim();
+  const d = (s.department || "").replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").toLowerCase().trim();
+  const c = (s.curriculumName || "").toLowerCase().trim();
+
+  // 1. วิปัสสนาภาวนา
+  if (m.includes("วิปัสสนา") || c.includes("วิปัสสนา")) {
+    return "VIPASSANA";
+  }
+
+  // 2. บาลีสันสกฤต
+  if (
+    m.includes("บาลี") ||
+    m.includes("สันสกฤต") ||
+    d.includes("บาลี") ||
+    d.includes("สันสกฤต") ||
+    c.includes("บาลี") ||
+    c.includes("สันสกฤต")
+  ) {
+    return "BALI";
+  }
+
+  // 3. ศาสนาและปรัชญา / Religion and Philosophy
+  if (
+    m.includes("religion") ||
+    m.includes("philosophy") ||
+    m.includes("ปรัชญา") ||
+    (m.includes("ศาสนา") && !m.includes("พระพุทธศาสนา")) ||
+    d.includes("ปรัชญา") ||
+    (d.includes("ศาสนา") && !d.includes("พระพุทธศาสนา")) ||
+    c.includes("ปรัชญา")
+  ) {
+    return "RELIGION_AND_PHILOSOPHY";
+  }
+
+  // 4. พระพุทธศาสนา / Buddhist Studies
+  if (
+    m.includes("buddhist") ||
+    m.includes("พระพุทธศาสนา") ||
+    d.includes("พระพุทธศาสนา") ||
+    c.includes("พระพุทธศาสนา")
+  ) {
+    return "BUDDHIST_STUDIES";
+  }
+
+  return d || m || "OTHER";
+}
+
 export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _isSuperAdmin }: StudentsClientProps) {
   const router = useRouter();
   const [enrollments, setEnrollments] = useState<StudentItem[]>(initialEnrollments);
@@ -206,54 +258,36 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
       // 3. สาขาวิชา: คัดกรองตรงสาขาอย่างแม่นยำ ไม่ดึงสาขาอื่นที่อยู่ร่วมคณะ/ภาควิชามาปน
       let matchDept = true;
       if (cohortDeptFilter !== "ALL") {
-        const major = (s.major || "").replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim();
-        const dept = (s.department || "").replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim();
-        const curr = (s.curriculumName || "").trim();
-        const target = cohortDeptFilter.replace(/^สาขาวิชา\s*/, "").replace(/^ภาควิชา\s*/, "").trim();
+        const studentCategory = getStudentNormalizedMajor(s);
+        const targetClean = cohortDeptFilter
+          .replace(/^สาขาวิชา\s*/, "")
+          .replace(/^ภาควิชา\s*/, "")
+          .trim()
+          .toLowerCase();
 
-        if (target === "พระพุทธศาสนา") {
-          // ต้องไม่ใช่ วิปัสสนา, บาลี, หรือปรัชญา
-          if (
-            major.includes("วิปัสสนา") ||
-            major.includes("บาลี") ||
-            major.includes("สันสกฤต") ||
-            major.includes("ปรัชญา") ||
-            major.toLowerCase().includes("religion") ||
-            major.toLowerCase().includes("philosophy") ||
-            curr.includes("วิปัสสนา") ||
-            curr.includes("บาลี") ||
-            curr.includes("สันสกฤต") ||
-            curr.includes("ปรัชญา")
-          ) {
-            matchDept = false;
-          } else {
-            matchDept =
-              major.includes("พระพุทธศาสนา") ||
-              major.toLowerCase().includes("buddhist") ||
-              curr.includes("สาขาวิชาพระพุทธศาสนา") ||
-              (dept === "พระพุทธศาสนา" && !major);
-          }
-        } else if (target === "วิปัสสนาภาวนา" || target.includes("วิปัสสนา")) {
-          matchDept = major.includes("วิปัสสนา") || curr.includes("วิปัสสนา");
-        } else if (target === "บาลีสันสกฤต" || target.includes("บาลี")) {
-          matchDept =
-            major.includes("บาลี") ||
-            major.includes("สันสกฤต") ||
-            curr.includes("บาลี") ||
-            curr.includes("สันสกฤต");
-        } else if (target.includes("ปรัชญา") || target.includes("ศาสนา")) {
-          matchDept =
-            major.includes("ปรัชญา") ||
-            major.includes("ศาสนา") ||
-            major.toLowerCase().includes("religion") ||
-            major.toLowerCase().includes("philosophy") ||
-            curr.includes("ปรัชญา") ||
-            curr.includes("ศาสนา");
+        let targetCategory = "OTHER";
+        if (targetClean.includes("buddhist") || targetClean.includes("พระพุทธศาสนา")) {
+          targetCategory = "BUDDHIST_STUDIES";
+        } else if (
+          targetClean.includes("religion") ||
+          targetClean.includes("philosophy") ||
+          targetClean.includes("ปรัชญา") ||
+          (targetClean.includes("ศาสนา") && !targetClean.includes("พระพุทธศาสนา"))
+        ) {
+          targetCategory = "RELIGION_AND_PHILOSOPHY";
+        } else if (targetClean.includes("วิปัสสนา")) {
+          targetCategory = "VIPASSANA";
+        } else if (targetClean.includes("บาลี") || targetClean.includes("สันสกฤต")) {
+          targetCategory = "BALI";
+        }
+
+        if (targetCategory !== "OTHER") {
+          matchDept = studentCategory === targetCategory;
         } else {
-          matchDept =
-            major.includes(target) ||
-            dept.includes(target) ||
-            curr.includes(target);
+          const m = (s.major || "").toLowerCase();
+          const d = (s.department || "").toLowerCase();
+          const c = (s.curriculumName || "").toLowerCase();
+          matchDept = m.includes(targetClean) || d.includes(targetClean) || c.includes(targetClean);
         }
       }
 
@@ -1056,7 +1090,17 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                   </label>
                   <select
                     value={cohortDegreeFilter}
-                    onChange={(e) => setCohortDegreeFilter(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCohortDegreeFilter(val);
+                      if (val === "BACHELOR_ENGLISH") {
+                        if (cohortDeptFilter === "สาขาวิชาพระพุทธศาสนา") setCohortDeptFilter("Buddhist Studies");
+                        else if (cohortDeptFilter === "สาขาวิชาศาสนาและปรัชญา") setCohortDeptFilter("Religion and Philosophy");
+                      } else if (val === "BACHELOR_NORMAL") {
+                        if (cohortDeptFilter === "Buddhist Studies") setCohortDeptFilter("สาขาวิชาพระพุทธศาสนา");
+                        else if (cohortDeptFilter === "Religion and Philosophy") setCohortDeptFilter("สาขาวิชาศาสนาและปรัชญา");
+                      }
+                    }}
                     className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs truncate font-medium"
                   >
                     <option value="ALL">🎓 ทุกระดับ / หลักสูตร</option>
@@ -1095,10 +1139,19 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                     className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs truncate font-medium"
                   >
                     <option value="ALL">🏛️ ทั้งหมดทุกสาขาวิชา</option>
-                    <option value="สาขาวิชาพระพุทธศาสนา">สาขาวิชาพระพุทธศาสนา</option>
-                    <option value="สาขาวิชาศาสนาและปรัชญา">สาขาวิชาศาสนาและปรัชญา</option>
-                    <option value="สาขาวิชาบาลีสันสกฤต">สาขาวิชาบาลีสันสกฤต</option>
-                    <option value="สาขาวิชาวิปัสสนาภาวนา">สาขาวิชาวิปัสสนาภาวนา</option>
+
+                    <optgroup label="🇬🇧 หลักสูตรภาษาอังกฤษ (English Program)">
+                      <option value="Buddhist Studies">Buddhist Studies</option>
+                      <option value="Religion and Philosophy">Religion and Philosophy</option>
+                    </optgroup>
+
+                    <optgroup label="🇹🇭 หลักสูตรภาษาไทย (Thai Program)">
+                      <option value="สาขาวิชาพระพุทธศาสนา">สาขาวิชาพระพุทธศาสนา</option>
+                      <option value="สาขาวิชาศาสนาและปรัชญา">สาขาวิชาศาสนาและปรัชญา</option>
+                      <option value="สาขาวิชาบาลีสันสกฤต">สาขาวิชาบาลีสันสกฤต</option>
+                      <option value="สาขาวิชาวิปัสสนาภาวนา">สาขาวิชาวิปัสสนาภาวนา</option>
+                    </optgroup>
+
                     {departmentOptions
                       .filter(
                         (dept) =>
@@ -1107,7 +1160,10 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                           !dept.includes("ปรัชญา") &&
                           !dept.includes("ศาสนา") &&
                           !dept.includes("บาลี") &&
-                          !dept.includes("สันสกฤต")
+                          !dept.includes("สันสกฤต") &&
+                          !dept.toLowerCase().includes("buddhist") &&
+                          !dept.toLowerCase().includes("religion") &&
+                          !dept.toLowerCase().includes("philosoph")
                       )
                       .map((dept) => (
                         <option key={dept} value={dept}>
@@ -1183,15 +1239,32 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
                               <span className="font-medium text-xs text-slate-800 dark:text-slate-200">
                                 {s.fullName || `${s.title || ""} ${s.firstName} ${s.lastName}`.trim()}
                               </span>
-                              {(s.curriculumName?.includes("ภาษาอังกฤษ") || (s.major && s.major.toLowerCase().includes("buddhist"))) ? (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                                  English Program
-                                </span>
-                              ) : s.degree ? (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                                  {s.degree}
-                                </span>
-                              ) : null}
+                              {(() => {
+                                const isEng =
+                                  (s.curriculumName || "").includes("ภาษาอังกฤษ") ||
+                                  (s.curriculumName || "").toLowerCase().includes("english") ||
+                                  (s.curriculumName || "").toLowerCase().includes("inter") ||
+                                  (s.department || "").toLowerCase().includes("english") ||
+                                  (s.major || "").toLowerCase().includes("english") ||
+                                  (s.major || "").toLowerCase().includes("buddhist") ||
+                                  (s.major || "").toLowerCase().includes("religion");
+
+                                if (isEng) {
+                                  return (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                                      English Program
+                                    </span>
+                                  );
+                                }
+                                if (s.degree) {
+                                  return (
+                                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                                      {s.degree}
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </div>
                             <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                               ชั้นปีที่ {s.yearLevel} • {formatMajor(s.major, s.department)}
