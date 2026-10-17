@@ -1257,283 +1257,423 @@ export function StudentsDirectoryClient({
       </div>
 
       {/* ── ADD / EDIT MODAL ── */}
+      {/* ── ADD / EDIT STUDENT MODAL ── */}
       {isModalOpen && (
         <LiyonDialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div className="bg-card w-full max-w-lg rounded-2xl border border-border shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-              <div className="p-5 border-b border-border flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
-                    <UserCheck className="w-4 h-4" />
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5">
+            <div className="bg-card w-full max-w-2xl rounded-2xl border border-border shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 flex flex-col max-h-[92vh]">
+              {/* Modal Header */}
+              <div className="p-5 border-b border-border flex items-center justify-between bg-muted/20 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-2xs">
+                    <UserCheck className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-foreground text-base">
-                      {editingStudent ? "แก้ไขข้อมูลนิสิต" : "เพิ่มนิสิตใหม่เข้าระบบ"}
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      บันทึกข้อมูลเข้าสู่ฐานข้อมูลกลางของมหาวิทยาลัย
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-foreground text-base">
+                        {editingStudent ? "แก้ไขข้อมูลนิสิต" : "เพิ่มนิสิตใหม่เข้าระบบ"}
+                      </h3>
+                      {editingStudent && (
+                        <span className="px-2 py-0.5 rounded-full text-2xs font-mono font-bold bg-primary/10 text-primary">
+                          {editingStudent.studentCode}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {editingStudent
+                        ? `ปรับปรุงข้อมูลของ ${editingStudent.title || ""} ${editingStudent.firstName} ${editingStudent.lastName}`
+                        : "บันทึกข้อมูลเข้าสู่ฐานข้อมูลกลางของมหาวิทยาลัย"}
                     </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition cursor-pointer"
+                  className="w-8 h-8 rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <form onSubmit={handleSaveStudent}>
-                <LiyonDialogBody className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-foreground mb-1">
-                        คำนำหน้า
-                      </label>
-                      <select
-                        value={formData.title}
-                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                        className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        <option value="พระ">พระ</option>
-                        <option value="พระมหา">พระมหา</option>
-                        <option value="สามเณร">สามเณร</option>
-                        <option value="นาย">นาย</option>
-                        <option value="นางสาว">นางสาว</option>
-                        <option value="นาง">นาง</option>
-                        <option value="แม่ชี">แม่ชี</option>
-                      </select>
-                    </div>
-
-                    <div className="col-span-2">
-                      <label className="block text-xs font-medium text-foreground mb-1">
-                        รหัสนิสิต <span className="text-destructive">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={formData.studentCode}
-                        onChange={(e) => {
-                          const newCode = e.target.value.trim();
-                          setFormData((prev) => {
-                            const oldDefaultEmail = prev.studentCode ? `${prev.studentCode}@mcu.ac.th` : "";
-                            const shouldAutoUpdate =
-                              !prev.email ||
-                              prev.email === oldDefaultEmail ||
-                              prev.email === "student@mcu.ac.th";
-                            return {
-                              ...prev,
-                              studentCode: newCode,
-                              email: shouldAutoUpdate && newCode ? `${newCode}@mcu.ac.th` : prev.email,
-                            };
-                          });
-                        }}
-                        placeholder="เช่น 6601201001"
-                        className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-foreground mb-1">
-                        ชื่อ <span className="text-destructive">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={formData.firstName}
-                        onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                        placeholder="ชื่อนิสิต"
-                        className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-foreground mb-1">
-                        นามสกุล / ฉายา <span className="text-destructive">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={formData.lastName}
-                        onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                        placeholder="นามสกุลหรือฉายา"
-                        className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-foreground mb-1">
-                        ระดับการศึกษา
-                      </label>
-                      <select
-                        value={formData.degree}
-                        onChange={(e) => setFormData({ ...formData, degree: e.target.value })}
-                        className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        <option value="ปริญญาตรี">ปริญญาตรี</option>
-                        <option value="ปริญญาโท">ปริญญาโท</option>
-                        <option value="ปริญญาเอก">ปริญญาเอก</option>
-                        <option value="ประกาศนียบัตร">ประกาศนียบัตร</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-foreground mb-1">
-                        ชั้นปี
-                      </label>
-                      <select
-                        value={formData.yearLevel}
-                        onChange={(e) =>
-                          setFormData({ ...formData, yearLevel: Number(e.target.value) })
-                        }
-                        className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        <option value={1}>ชั้นปีที่ 1</option>
-                        <option value={2}>ชั้นปีที่ 2</option>
-                        <option value={3}>ชั้นปีที่ 3</option>
-                        <option value={4}>ชั้นปีที่ 4</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">
-                      ชื่อหลักสูตร / หลักสูตรภาษา
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.curriculumName}
-                      onChange={(e) => setFormData({ ...formData, curriculumName: e.target.value })}
-                      placeholder="เช่น พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา หรือระบุ (หลักสูตรภาษาอังกฤษ)"
-                      className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    />
-                    <p className="text-2xs text-muted-foreground mt-1">
-                      💡 หากเป็นภาคภาษาอังกฤษ ให้มีคำว่า &ldquo;(หลักสูตรภาษาอังกฤษ)&rdquo; หรือ &ldquo;English Program&rdquo; ในชื่อหลักสูตร
-                    </p>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-medium text-foreground">
-                        สาขาวิชา / ภาควิชา
-                      </label>
-                      <div className="flex items-center gap-1.5 text-2xs">
-                        <span className="text-muted-foreground">แนะนำ:</span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              department: "Buddhist Studies",
-                              major: "Buddhist Studies",
-                            }))
-                          }
-                          className="px-2 py-0.5 rounded bg-muted hover:bg-primary/10 hover:text-primary transition font-medium"
-                          title="คลิกเพื่อเลือก Buddhist Studies (ภาคภาษาอังกฤษ)"
-                        >
-                          Buddhist Studies
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setFormData((prev) => ({
-                              ...prev,
-                              department: "Religion and Philosophy",
-                              major: "Religion and Philosophy",
-                            }))
-                          }
-                          className="px-2 py-0.5 rounded bg-muted hover:bg-primary/10 hover:text-primary transition font-medium"
-                          title="คลิกเพื่อเลือก Religion and Philosophy (ภาคภาษาอังกฤษ)"
-                        >
-                          Religion and Philosophy
-                        </button>
+              {/* Modal Form */}
+              <form onSubmit={handleSaveStudent} className="flex flex-col flex-1 overflow-hidden">
+                <LiyonDialogBody className="p-5 space-y-4 overflow-y-auto flex-1">
+                  {/* ── SECTION 1: ข้อมูลประจำตัวนิสิต ── */}
+                  <div className="bg-muted/30 dark:bg-muted/10 border border-border/70 rounded-2xl p-4 space-y-3.5">
+                    <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+                      <div className="w-5 h-5 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+                        <Users className="w-3.5 h-3.5" />
                       </div>
+                      <span>ข้อมูลประจำตัวและสถานภาพนิสิต</span>
                     </div>
-                    <input
-                      type="text"
-                      value={formData.department}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          department: e.target.value,
-                          major: e.target.value,
-                        })
-                      }
-                      placeholder="เช่น Buddhist Studies, Religion and Philosophy, สาขาวิชาพระพุทธศาสนา"
-                      className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    />
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-xs font-medium text-foreground">
-                          อีเมล (MCU Email)
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                          คำนำหน้า
                         </label>
-                        {formData.studentCode && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setFormData((prev) => ({
-                                ...prev,
-                                email: `${prev.studentCode}@mcu.ac.th`,
-                              }))
-                            }
-                            className="text-2xs text-primary hover:underline cursor-pointer"
-                            title="คลิกเพื่อใส่อีเมลรหัสนิสิต@mcu.ac.th"
-                          >
-                            ใช้ {formData.studentCode}@mcu.ac.th
-                          </button>
-                        )}
+                        <select
+                          value={formData.title}
+                          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                          className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                        >
+                          <option value="พระ">พระ</option>
+                          <option value="พระมหา">พระมหา</option>
+                          <option value="สามเณร">สามเณร</option>
+                          <option value="นาย">นาย</option>
+                          <option value="นางสาว">นางสาว</option>
+                          <option value="นาง">นาง</option>
+                          <option value="แม่ชี">แม่ชี</option>
+                        </select>
                       </div>
-                      <input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        placeholder={
-                          formData.studentCode
-                            ? `${formData.studentCode}@mcu.ac.th`
-                            : "รหัสนิสิต@mcu.ac.th"
-                        }
-                        className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
-                      />
+
+                      <div>
+                        <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                          รหัสนิสิต <span className="text-destructive">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.studentCode}
+                          onChange={(e) => {
+                            const newCode = e.target.value.trim();
+                            setFormData((prev) => {
+                              const oldDefaultEmail = prev.studentCode ? `${prev.studentCode}@mcu.ac.th` : "";
+                              const shouldAutoUpdate =
+                                !prev.email ||
+                                prev.email === oldDefaultEmail ||
+                                prev.email === "student@mcu.ac.th";
+                              return {
+                                ...prev,
+                                studentCode: newCode,
+                                email: shouldAutoUpdate && newCode ? `${newCode}@mcu.ac.th` : prev.email,
+                              };
+                            });
+                          }}
+                          placeholder="เช่น 6601201001"
+                          className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono font-bold"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                          สถานภาพการศึกษา
+                        </label>
+                        <select
+                          value={formData.studyStatus}
+                          onChange={(e) => setFormData({ ...formData, studyStatus: e.target.value })}
+                          className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                        >
+                          <option value="ปกติ">ปกติ (Active)</option>
+                          <option value="รักษาสถานภาพ">รักษาสถานภาพ</option>
+                          <option value="ลาพักการศึกษา">ลาพักการศึกษา</option>
+                          <option value="พ้นสภาพ">พ้นสภาพ</option>
+                          <option value="สำเร็จการศึกษา">สำเร็จการศึกษา</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                          ชื่อนิสิต <span className="text-destructive">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.firstName}
+                          onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                          placeholder="ระบุชื่อจริง เช่น กิติศักดิ์"
+                          className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                          นามสกุล / ฉายา <span className="text-destructive">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={formData.lastName}
+                          onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                          placeholder="ระบุนามสกุลหรือฉายา เช่น กิตฺติสกฺโก"
+                          className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── SECTION 2: ข้อมูลการศึกษาและหลักสูตร ── */}
+                  <div className="bg-muted/30 dark:bg-muted/10 border border-border/70 rounded-2xl p-4 space-y-3.5">
+                    <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+                      <div className="w-5 h-5 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                        <GraduationCap className="w-3.5 h-3.5" />
+                      </div>
+                      <span>ข้อมูลการศึกษาและหลักสูตร</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                          ระดับการศึกษา
+                        </label>
+                        <select
+                          value={formData.degree}
+                          onChange={(e) => setFormData({ ...formData, degree: e.target.value })}
+                          className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                        >
+                          <option value="ปริญญาตรี">ปริญญาตรี</option>
+                          <option value="ปริญญาโท">ปริญญาโท</option>
+                          <option value="ปริญญาเอก">ปริญญาเอก</option>
+                          <option value="ประกาศนียบัตร">ประกาศนียบัตร</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                          ชั้นปี
+                        </label>
+                        <select
+                          value={formData.yearLevel}
+                          onChange={(e) =>
+                            setFormData({ ...formData, yearLevel: Number(e.target.value) })
+                          }
+                          className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
+                        >
+                          <option value={1}>ชั้นปีที่ 1</option>
+                          <option value={2}>ชั้นปีที่ 2</option>
+                          <option value={3}>ชั้นปีที่ 3</option>
+                          <option value={4}>ชั้นปีที่ 4</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Quick Preset Buttons for Major */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          เลือกสาขาวิชามาตรฐาน (คลิกเพื่อเติมข้อมูลอัตโนมัติ)
+                        </label>
+                        <span className="text-[11px] text-muted-foreground">6 สาขาวิชา</span>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                        {[
+                          {
+                            label: "พระพุทธศาสนา",
+                            major: "พระพุทธศาสนา",
+                            department: "ภาควิชาพระพุทธศาสนา",
+                            curriculum: "พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา",
+                            tag: "ภาคไทย",
+                          },
+                          {
+                            label: "ศาสนาและปรัชญา",
+                            major: "ศาสนาและปรัชญา",
+                            department: "ภาควิชาศาสนาและปรัชญา",
+                            curriculum: "พุทธศาสตรบัณฑิต สาขาวิชาศาสนาและปรัชญา",
+                            tag: "ภาคไทย",
+                          },
+                          {
+                            label: "วิปัสสนาภาวนา",
+                            major: "วิปัสสนาภาวนา",
+                            department: "ภาควิชาพระพุทธศาสนา",
+                            curriculum: "พุทธศาสตรบัณฑิต สาขาวิชาวิปัสสนาภาวนา",
+                            tag: "ภาคไทย",
+                          },
+                          {
+                            label: "บาลีสันสกฤต",
+                            major: "บาลีสันสกฤต",
+                            department: "ภาควิชาพระพุทธศาสนา",
+                            curriculum: "พุทธศาสตรบัณฑิต สาขาวิชาบาลีสันสกฤต",
+                            tag: "ภาคไทย",
+                          },
+                          {
+                            label: "Buddhist Studies",
+                            major: "Buddhist Studies",
+                            department: "ภาควิชาพระพุทธศาสนา",
+                            curriculum: "พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา (หลักสูตรภาษาอังกฤษ)",
+                            tag: "Inter",
+                          },
+                          {
+                            label: "Religion & Philosophy",
+                            major: "Religion and Philosophy",
+                            department: "ภาควิชาศาสนาและปรัชญา",
+                            curriculum: "พุทธศาสตรบัณฑิต สาขาวิชาศาสนาและปรัชญา (หลักสูตรภาษาอังกฤษ)",
+                            tag: "Inter",
+                          },
+                        ].map((item) => {
+                          const isSelected =
+                            formData.major === item.major ||
+                            formData.department === item.major;
+                          return (
+                            <button
+                              key={item.major}
+                              type="button"
+                              onClick={() =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  major: item.major,
+                                  department: item.department,
+                                  curriculumName: item.curriculum,
+                                  faculty: "คณะพุทธศาสตร์",
+                                }))
+                              }
+                              className={`px-2.5 py-1.5 rounded-xl text-xs font-medium border text-left flex items-center justify-between transition cursor-pointer ${
+                                isSelected
+                                  ? "bg-primary text-primary-foreground border-primary shadow-xs font-semibold"
+                                  : "bg-background border-border hover:bg-muted text-foreground"
+                              }`}
+                            >
+                              <span className="truncate">{item.label}</span>
+                              <span
+                                className={`text-[10px] px-1.5 py-0.5 rounded-md font-semibold ${
+                                  isSelected
+                                    ? "bg-white/20 text-white"
+                                    : "bg-muted text-muted-foreground"
+                                }`}
+                              >
+                                {item.tag}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                          สาขาวิชา (Major)
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.major}
+                          onChange={(e) => setFormData({ ...formData, major: e.target.value })}
+                          placeholder="เช่น พระพุทธศาสนา หรือ Buddhist Studies"
+                          className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                          ภาควิชา / คณะ (Department / Faculty)
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.department}
+                          onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                          placeholder="เช่น ภาควิชาพระพุทธศาสนา"
+                          className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                      </div>
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-foreground mb-1">
-                        เบอร์โทรศัพท์ (ไม่จำเป็นต้องกรอก)
+                      <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                        ชื่อหลักสูตรเต็ม (Curriculum Name)
                       </label>
                       <input
-                        type="tel"
-                        value={formData.phoneNumber}
-                        onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-                        placeholder="ไม่จำเป็นต้องกรอก (เว้นว่างได้)"
-                        className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        type="text"
+                        value={formData.curriculumName}
+                        onChange={(e) => setFormData({ ...formData, curriculumName: e.target.value })}
+                        placeholder="เช่น พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา หรือระบุ (หลักสูตรภาษาอังกฤษ)"
+                        className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
                       />
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        💡 หากเป็น <strong>ภาคภาษาอังกฤษ</strong> ให้มีคำว่า &ldquo;(หลักสูตรภาษาอังกฤษ)&rdquo; หรือ &ldquo;English&rdquo; ในชื่อหลักสูตร
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* ── SECTION 3: ช่องทางการติดต่อ ── */}
+                  <div className="bg-muted/30 dark:bg-muted/10 border border-border/70 rounded-2xl p-4 space-y-3.5">
+                    <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+                      <div className="w-5 h-5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                        <Mail className="w-3.5 h-3.5" />
+                      </div>
+                      <span>ช่องทางการติดต่อและบัญชีนิสิต</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            อีเมล (MCU Email)
+                          </label>
+                          {formData.studentCode && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  email: `${prev.studentCode}@mcu.ac.th`,
+                                }))
+                              }
+                              className="text-[11px] text-primary hover:underline font-medium cursor-pointer"
+                              title="คลิกเพื่อใช้อีเมลรหัสนิสิต@mcu.ac.th"
+                            >
+                              ใช้ {formData.studentCode}@mcu.ac.th
+                            </button>
+                          )}
+                        </div>
+                        <div className="relative">
+                          <Mail className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          <input
+                            type="email"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            placeholder={
+                              formData.studentCode
+                                ? `${formData.studentCode}@mcu.ac.th`
+                                : "รหัสนิสิต@mcu.ac.th"
+                            }
+                            className="w-full pl-9 pr-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                          เบอร์โทรศัพท์ติดต่อ
+                        </label>
+                        <div className="relative">
+                          <Phone className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          <input
+                            type="tel"
+                            value={formData.phoneNumber}
+                            onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+                            placeholder="เว้นว่างได้ เช่น 0812345678"
+                            className="w-full pl-9 pr-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </LiyonDialogBody>
 
-                <LiyonDialogFooter className="p-4 border-t border-border flex items-center justify-end gap-2 bg-muted/20">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-border bg-card hover:bg-muted text-xs font-medium text-foreground transition cursor-pointer"
-                  >
-                    ยกเลิก
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 transition cursor-pointer"
-                  >
-                    {isSubmitting ? "กำลังบันทึก..." : "บันทึกข้อมูล"}
-                  </button>
+                {/* Modal Footer */}
+                <LiyonDialogFooter className="p-4 border-t border-border flex items-center justify-between gap-2 bg-muted/20 shrink-0">
+                  <div className="text-2xs text-muted-foreground hidden sm:block">
+                    <span className="text-destructive font-bold">*</span> จำเป็นต้องระบุรหัสนิสิต ชื่อ และนามสกุล/ฉายา
+                  </div>
+                  <div className="flex items-center gap-2 ml-auto">
+                    <button
+                      type="button"
+                      onClick={() => setIsModalOpen(false)}
+                      className="px-4 py-2 rounded-xl border border-border bg-card hover:bg-muted text-xs font-medium text-foreground transition cursor-pointer"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 disabled:opacity-50 transition cursor-pointer flex items-center gap-1.5 shadow-sm"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      {isSubmitting ? "กำลังบันทึก..." : editingStudent ? "บันทึกการแก้ไข" : "บันทึกนิสิตใหม่"}
+                    </button>
+                  </div>
                 </LiyonDialogFooter>
               </form>
             </div>
