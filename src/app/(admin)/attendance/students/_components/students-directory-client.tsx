@@ -1259,13 +1259,13 @@ export function StudentsDirectoryClient({
 
                     <div>
                       <label className="block text-xs font-medium text-foreground mb-1">
-                        เบอร์โทรศัพท์ (ถ้ามี)
+                        เบอร์โทรศัพท์ (ไม่จำเป็นต้องกรอก)
                       </label>
                       <input
                         type="tel"
                         value={formData.phoneNumber}
                         onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-                        placeholder="08X-XXX-XXXX"
+                        placeholder="ไม่จำเป็นต้องกรอก (เว้นว่างได้)"
                         className="w-full px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
                       />
                     </div>
