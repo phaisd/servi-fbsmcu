@@ -542,12 +542,19 @@ model AdminDocument {
   visibility  DocumentVisibility @default(PUBLIC)
   isPublished Boolean            @default(true) @map("is_published")
 
+  docNumber   String?  @map("doc_number") @db.VarChar(100) // e.g. "๑๕/๒๕๖๘" หรือ "15/2568"
+  year        String?  @db.VarChar(20) // e.g. "2569", "2568" (ปี พ.ศ.)
+  issuerLevel String?  @default("FACULTY") @map("issuer_level") @db.VarChar(50) // "UNIVERSITY" (ระดับมหาวิทยาลัย) | "FACULTY" (ระดับคณะพุทธศาสตร์)
+  docType     String?  @default("GENERAL") @map("doc_type") @db.VarChar(50) // "ORDER" (คำสั่ง) | "ANNOUNCEMENT" (ประกาศ) | "REGULATION" (ระเบียบ/ข้อบังคับ) | "FORM" | "MANUAL" | "OTHER"
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, category, visibility])
+  @@index([tenantId, year])
+  @@index([tenantId, issuerLevel])
   @@map("admin_documents")
 }
 
@@ -660,7 +667,11 @@ model Student {
   faculty        String?  @default("คณะพุทธศาสตร์") @db.VarChar(255)
   email          String?  @db.VarChar(255)
   phoneNumber    String?  @map("phone_number") @db.VarChar(50)
+  nationality    String?  @db.VarChar(100)
+  country        String?  @db.VarChar(100)
+  address        String?  @db.Text
   isActive       Boolean  @default(true) @map("is_active")
+
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 

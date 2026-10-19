@@ -497,6 +497,10 @@ export async function createOrUpdateStudentAction(data: {
   studyStatus?: string | null;
   email?: string | null;
   phoneNumber?: string | null;
+  gender?: string | null;
+  nationality?: string | null;
+  country?: string | null;
+  address?: string | null;
 }) {
   const session = await requireSession();
   await requirePermission(ATTENDANCE_P.manage);

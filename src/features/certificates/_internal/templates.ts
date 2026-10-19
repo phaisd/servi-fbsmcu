@@ -217,11 +217,13 @@ export function buildCertificateDocumentText(meta: CertificateRequestMetadata): 
     const majorEn = formatMajorEn(meta.major, meta.degreeLevel);
     const semesterEn = meta.semesterEn || "second semester";
     const academicYearEn = meta.academicYearEn || "2026";
-    const passportClause = passportNo ? `, holding Passport No. ${passportNo},` : ",";
+    const passportClause = passportNo ? `, Passport No. ${passportNo}` : "";
+    const isNewStudent = meta.applicantType === "NEW_STUDENT";
+    const defaultEngP1 = isNewStudent
+      ? `This is to certify that ${fullName}, whose age is ${age} years old, ${nationality} Nationality${passportClause} has been officially accepted and admitted to study at the Faculty of Buddhism, Mahachulalongkornrajavidyalaya University, Lamsai Sub-District, Wangnoi District, Phra Nakhon Si Ayutthaya Province, 13170, Thailand. ${pronounCap} will study in the ${degreeProgramEn}, Major in ${majorEn}, Academic Year ${academicYearEn}. ${pronounPosCap} application identification reference is ${studentCode}. This letter is issued as evidence for visa application.`
+      : `This is to certify that ${fullName}, whose age is ${age} years old, ${nationality} Nationality${passportClause} is currently enrolled as a student of the Faculty of Buddhism, Mahachulalongkornrajavidyalaya University, Lamsai Sub-District, Wangnoi District, Phra Nakhon Si Ayutthaya Province, 13170, Thailand. ${pronounCap} is studying in the ${degreeProgramEn}, Major in ${majorEn}, Year ${yearNum}, in the ${semesterEn} of an Academic Year ${academicYearEn}, ${pronounPosCap} student identification is ${studentCode}.`;
 
-    const p1 =
-      meta.customBodyText?.trim() ||
-      `This is to certify that ${fullName}, whose age is ${age} years old, ${nationality} Nationality${passportClause} is currently enrolled as a student of the Faculty of Buddhism, Mahachulalongkornrajavidyalaya University, Lamsai Sub-District, Wangnoi District, Phra Nakhon Si Ayutthaya Province, 13170, Thailand. ${pronounCap} is studying in the ${degreeProgramEn}, Major in ${majorEn}, Year ${yearNum}, in the ${semesterEn} of an Academic Year ${academicYearEn}, ${pronounPosCap} student identification is ${studentCode}.`;
+    const p1 = meta.customBodyText?.trim() || defaultEngP1;
 
     return {
       template,
@@ -269,9 +271,9 @@ export function buildCertificateDocumentText(meta: CertificateRequestMetadata): 
 
   if (template === "RESIDENCE_MEMO") {
     const addr = meta.addressLine || "MCU";
-    const sub = meta.subdistrict || "Lam Sai";
+    const sub = meta.subdistrict || "lam Sai";
     const dist = meta.district || "Wang Noi";
-    const prov = meta.province || "Phra Nakhon Si Ayutthaya";
+    const prov = meta.province || "Wang Noi";
     const zip = meta.postalCode || "13170";
 
     const p1 =
@@ -302,9 +304,12 @@ export function buildCertificateDocumentText(meta: CertificateRequestMetadata): 
     ? `สัญชาติ ไทย `
     : `สัญชาติ ${nationality} ประเทศ ${country} ถือหนังสือเดินทางเลขที่ ${passportNo || "-"} และวีซ่าประเภท ${visaTypeText} `;
 
-  const p1 =
-    meta.customBodyText?.trim() ||
-    `โดยหนังสือนี้ขอรับรองว่า ${fullName} อายุ ${age} ปี ${foreignClause}เป็นนิสิตคณะพุทธศาสตร์ ${curriculumFullTh} ชั้นปีที่ ${yearNum} ${majorFullTh} มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย รหัสประจำตัวนิสิต ${studentCode} เพื่อเป็นหลักฐาน ${purposePhraseTh} จึงออกหนังสือนี้ไว้เป็นสำคัญ`;
+  const isNewStudent = meta.applicantType === "NEW_STUDENT";
+  const defaultThaiP1 = isNewStudent
+    ? `โดยหนังสือนี้ขอรับรองว่า ${fullName} อายุ ${age} ปี ${foreignClause}เป็นผู้ผ่านการคัดเลือกและมีสิทธิ์เข้าศึกษาต่อในคณะพุทธศาสตร์ ${curriculumFullTh} ${majorFullTh} มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย ประจำปีการศึกษา ๒๕๖๙ (เลขที่ใบสมัคร/อ้างอิง ${studentCode}) เพื่อเป็นหลักฐาน ${purposePhraseTh} จึงออกหนังสือนี้ไว้เป็นสำคัญ`
+    : `โดยหนังสือนี้ขอรับรองว่า ${fullName} อายุ ${age} ปี ${foreignClause}เป็นนิสิตคณะพุทธศาสตร์ ${curriculumFullTh} ชั้นปีที่ ${yearNum} ${majorFullTh} มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย รหัสประจำตัวนิสิต ${studentCode} เพื่อเป็นหลักฐาน ${purposePhraseTh} จึงออกหนังสือนี้ไว้เป็นสำคัญ`;
+
+  const p1 = meta.customBodyText?.trim() || defaultThaiP1;
 
   return {
     template: "THAI_CERT",

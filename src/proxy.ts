@@ -4,6 +4,7 @@ import { CURRENT_PATH_HEADER } from "@/shared/lib/security/callback-url";
 
 const PUBLIC_PREFIXES = [
   "/portal",
+  "/verify",
   "/reset-password/",
   "/verify-email/",
   "/api/auth/",
@@ -23,6 +24,10 @@ export async function proxy(req: NextRequest) {
   }
 
   // 2. Direct Public Aliases: เข้าถึงหน้าบริการสาธารณะได้โดยตรงโดยไม่ต้องมี "/portal"
+  if (pathname === "/verify/certificate" || pathname.startsWith("/verify/certificate/")) {
+    const sub = pathname.replace("/verify/certificate", "");
+    return NextResponse.rewrite(new URL(`/portal/certificates/verify${sub}${search}`, req.url));
+  }
   if (pathname === "/meetings" || pathname === "/meetings/book") {
     return NextResponse.rewrite(new URL(`/portal${pathname}${search}`, req.url));
   }

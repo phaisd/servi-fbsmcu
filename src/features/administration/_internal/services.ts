@@ -4,20 +4,38 @@ import { writeAudit } from "@/features/identity/server";
 import { DocumentCategory } from "@/generated/prisma";
 import type { Prisma } from "@/generated/prisma";
 
-export async function getAdminDocuments(tenantId: string, filters?: { category?: DocumentCategory; search?: string }) {
+export interface DocumentFilterOptions {
+  category?: DocumentCategory;
+  search?: string;
+  year?: string;
+  issuerLevel?: string;
+  docType?: string;
+}
+
+export async function getAdminDocuments(tenantId: string, filters?: DocumentFilterOptions) {
   const where: Prisma.AdminDocumentWhereInput = { tenantId };
   if (filters?.category) where.category = filters.category;
+  if (filters?.year && filters.year !== "ALL") where.year = filters.year;
+  if (filters?.issuerLevel && filters.issuerLevel !== "ALL") where.issuerLevel = filters.issuerLevel;
+  if (filters?.docType && filters.docType !== "ALL") where.docType = filters.docType;
   if (filters?.search) {
-    where.title = { contains: filters.search };
+    where.OR = [
+      { title: { contains: filters.search, mode: "insensitive" } },
+      { description: { contains: filters.search, mode: "insensitive" } },
+      { docNumber: { contains: filters.search, mode: "insensitive" } },
+    ];
   }
 
   return db.adminDocument.findMany({
     where,
-    orderBy: { createdAt: "desc" },
+    orderBy: [
+      { year: "desc" },
+      { createdAt: "desc" },
+    ],
   });
 }
 
-export async function getPublicDocuments(tenantId: string, isInternalUser: boolean, filters?: { category?: DocumentCategory; search?: string }) {
+export async function getPublicDocuments(tenantId: string, isInternalUser: boolean, filters?: DocumentFilterOptions) {
   const where: Prisma.AdminDocumentWhereInput = { 
     tenantId, 
     isPublished: true,
@@ -28,13 +46,23 @@ export async function getPublicDocuments(tenantId: string, isInternalUser: boole
   }
 
   if (filters?.category) where.category = filters.category;
+  if (filters?.year && filters.year !== "ALL") where.year = filters.year;
+  if (filters?.issuerLevel && filters.issuerLevel !== "ALL") where.issuerLevel = filters.issuerLevel;
+  if (filters?.docType && filters.docType !== "ALL") where.docType = filters.docType;
   if (filters?.search) {
-    where.title = { contains: filters.search };
+    where.OR = [
+      { title: { contains: filters.search, mode: "insensitive" } },
+      { description: { contains: filters.search, mode: "insensitive" } },
+      { docNumber: { contains: filters.search, mode: "insensitive" } },
+    ];
   }
 
   return db.adminDocument.findMany({
     where,
-    orderBy: { createdAt: "desc" },
+    orderBy: [
+      { year: "desc" },
+      { createdAt: "desc" },
+    ],
   });
 }
 

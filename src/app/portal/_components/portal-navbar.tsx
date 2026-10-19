@@ -100,8 +100,12 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
           },
         ];
 
-  // บริการออนไลน์อื่นๆ ที่ยังคงมีให้เข้าถึงได้เสมอ
-  const serviceItems = [
+  // บริการออนไลน์: ดึงจากการตั้งค่า tenantSettings.servicesSection
+  const servicesConfig = tenantSettings?.servicesSection;
+  const isServicesSectionEnabled = servicesConfig?.enabled !== false;
+  const configuredServices = servicesConfig?.items?.filter((s) => s.enabled !== false);
+
+  const defaultServiceItems = [
     { label: locale === "th" ? "หลักสูตรการศึกษา" : "Curriculums", href: "/programs" },
     { label: locale === "th" ? "ตารางเรียน / ตารางสอน" : "Class Timetables", href: "/timetables" },
     { label: locale === "th" ? "ข่าวประชาสัมพันธ์" : "Announcements", href: "/portal/news" },
@@ -111,6 +115,14 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
     { label: locale === "th" ? "ขอหนังสือรับรอง" : "Certificate Requests", href: "/portal/certificates" },
     { label: locale === "th" ? "กิจกรรมนิสิต" : "Student Events", href: "/portal/events" },
   ];
+
+  const serviceItems =
+    configuredServices && configuredServices.length > 0
+      ? configuredServices.map((s) => ({
+          label: locale === "th" ? s.titleTh || s.titleEn : s.titleEn || s.titleTh,
+          href: s.href,
+        }))
+      : defaultServiceItems;
 
   const isAnyServiceActive = serviceItems.some(
     (s) => pathname.startsWith(s.href) || pathname.startsWith(`/portal${s.href}`)
@@ -174,48 +186,50 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
           </Link>
         ))}
 
-        {/* เมนูดรอปดาวน์บริการออนไลน์ (คงเมนูทั้งหมดไว้) */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setServicesOpen(!servicesOpen)}
-            className={cn(
-              "flex items-center gap-1 px-3 py-1.5 rounded-[var(--r-md)] text-sm font-medium transition-colors whitespace-nowrap cursor-pointer",
-              isAnyServiceActive
-                ? "bg-[var(--brand)] text-[var(--on-brand)] font-semibold shadow-xs"
-                : "text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--glass-strong)]"
-            )}
-          >
-            <span>{locale === "th" ? "บริการออนไลน์" : "Online Services"}</span>
-            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", servicesOpen && "rotate-180")} />
-          </button>
+        {/* เมนูดรอปดาวน์บริการออนไลน์ (ปรับตามการตั้งค่า Services Section) */}
+        {isServicesSectionEnabled && serviceItems.length > 0 && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setServicesOpen(!servicesOpen)}
+              className={cn(
+                "flex items-center gap-1 px-3 py-1.5 rounded-[var(--r-md)] text-sm font-medium transition-colors whitespace-nowrap cursor-pointer",
+                isAnyServiceActive
+                  ? "bg-[var(--brand)] text-[var(--on-brand)] font-semibold shadow-xs"
+                  : "text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--glass-strong)]"
+              )}
+            >
+              <span>{locale === "th" ? "บริการออนไลน์" : "Online Services"}</span>
+              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", servicesOpen && "rotate-180")} />
+            </button>
 
-          {servicesOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-30"
-                onClick={() => setServicesOpen(false)}
-                aria-hidden="true"
-              />
-              <div className="absolute left-0 mt-2 w-52 rounded-[var(--r-lg)] bg-[var(--surface)] border border-[var(--border)] shadow-lg py-1.5 z-40 backdrop-blur-md">
-                {serviceItems.map((service) => (
-                  <Link
-                    key={service.href}
-                    href={service.href}
-                    className={cn(
-                      "block px-3.5 py-2 text-sm transition-colors",
-                      pathname.startsWith(service.href)
-                        ? "bg-[var(--glass-strong)] text-[var(--brand-ink)] font-semibold"
-                        : "text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--glass-hover)]"
-                    )}
-                  >
-                    {service.label}
-                  </Link>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
+            {servicesOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-30"
+                  onClick={() => setServicesOpen(false)}
+                  aria-hidden="true"
+                />
+                <div className="absolute left-0 mt-2 w-52 rounded-[var(--r-lg)] bg-[var(--surface)] border border-[var(--border)] shadow-lg py-1.5 z-40 backdrop-blur-md">
+                  {serviceItems.map((service) => (
+                    <Link
+                      key={service.href}
+                      href={service.href}
+                      className={cn(
+                        "block px-3.5 py-2 text-sm transition-colors",
+                        pathname.startsWith(service.href)
+                          ? "bg-[var(--glass-strong)] text-[var(--brand-ink)] font-semibold"
+                          : "text-[var(--text-2)] hover:text-[var(--text)] hover:bg-[var(--glass-hover)]"
+                      )}
+                    >
+                      {service.label}
+                    </Link>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Contact Pill ปุ่มติดต่อ (ถ้าเปิดใช้งานในการตั้งค่า) */}
         {contactPill && (
@@ -461,24 +475,28 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
               </Link>
             ))}
 
-            <div className="my-2 border-t border-[var(--border)]" />
-            <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider px-2 py-1">
-              {locale === "th" ? "บริการออนไลน์" : "Online Services"}
-            </span>
-            {serviceItems.map((service) => (
-              <Link
-                key={service.href}
-                href={service.href}
-                className={cn(
-                  "px-3 py-2 rounded-[var(--r-md)] text-sm font-medium transition-colors",
-                  pathname.startsWith(service.href)
-                    ? "bg-[var(--brand)] text-[var(--on-brand)] font-semibold"
-                    : "text-[var(--text-2)] hover:bg-[var(--glass-strong)] hover:text-[var(--text)]"
-                )}
-              >
-                {service.label}
-              </Link>
-            ))}
+            {isServicesSectionEnabled && serviceItems.length > 0 && (
+              <>
+                <div className="my-2 border-t border-[var(--border)]" />
+                <span className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider px-2 py-1">
+                  {locale === "th" ? "บริการออนไลน์" : "Online Services"}
+                </span>
+                {serviceItems.map((service) => (
+                  <Link
+                    key={service.href}
+                    href={service.href}
+                    className={cn(
+                      "px-3 py-2 rounded-[var(--r-md)] text-sm font-medium transition-colors",
+                      pathname.startsWith(service.href)
+                        ? "bg-[var(--brand)] text-[var(--on-brand)] font-semibold"
+                        : "text-[var(--text-2)] hover:bg-[var(--glass-strong)] hover:text-[var(--text)]"
+                    )}
+                  >
+                    {service.label}
+                  </Link>
+                ))}
+              </>
+            )}
 
             {contactPill && (
               <Link

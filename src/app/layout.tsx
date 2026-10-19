@@ -31,13 +31,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const fontSize = tenantSettings?.fontSize || "normal";
   return (
     <html lang={locale} data-palette={palette} data-font-size={fontSize} suppressHydrationWarning>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var s=localStorage.getItem('vibe_font_size');if(s){document.documentElement.setAttribute('data-font-size',s);}}catch(e){}})();`,
-          }}
-        />
-      </head>
       <body className={`${inter.variable} ${sarabun.variable} font-sans antialiased`} suppressHydrationWarning>
         <div className="bg" aria-hidden="true" />
         <I18nProvider locale={locale} messages={UI_MESSAGES}>

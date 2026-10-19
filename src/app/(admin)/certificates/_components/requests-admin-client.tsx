@@ -19,6 +19,10 @@ import {
   Sparkles,
   UserCheck,
   X,
+  AlertTriangle,
+  Edit3,
+  Users,
+  RefreshCw,
 } from "lucide-react";
 import {
   CERTIFICATE_PURPOSES,
@@ -32,7 +36,10 @@ import {
   deleteCertificateRequestAction,
   lookupStudentByCodeAction,
   importCertificateRequestsAction,
+  updateCertificateNoticeAction,
+  syncCertificatesToStudentDirectoryAction,
 } from "@/features/certificates/actions";
+
 
 interface SerializedItem {
   id: string;
@@ -59,6 +66,10 @@ interface CertTypeItem {
 interface Props {
   initialItems: SerializedItem[];
   certificateTypes: CertTypeItem[];
+  initialNotice?: {
+    noticeTh: string;
+    noticeEn?: string;
+  };
 }
 
 const TEMPLATE_LABELS: Record<
@@ -91,7 +102,11 @@ const TEMPLATE_LABELS: Record<
   },
 };
 
-export function RequestsAdminClient({ initialItems, certificateTypes }: Props) {
+export function RequestsAdminClient({
+  initialItems,
+  certificateTypes,
+  initialNotice,
+}: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -101,6 +116,20 @@ export function RequestsAdminClient({ initialItems, certificateTypes }: Props) {
   const [templateFilter, setTemplateFilter] = useState<string>("ALL");
   const [toast, setToast] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  // Announcement notice state (Admin editable)
+  const [notice, setNotice] = useState(
+    initialNotice || {
+      noticeTh: "*สำหรับการขอต่ออายุวีซ่า ให้ดำเนินการ ก่อนหมดอายุที่ท้ายเล่ม 30 วัน",
+      noticeEn:
+        "*For visa extension requests, please submit your application at least 30 days before your visa/passport expiration date.",
+    }
+  );
+  const [isNoticeEditOpen, setIsNoticeEditOpen] = useState(false);
+  const [editNoticeTh, setEditNoticeTh] = useState(notice.noticeTh);
+  const [editNoticeEn, setEditNoticeEn] = useState(notice.noticeEn || "");
+  const [isSavingNotice, setIsSavingNotice] = useState(false);
+
 
   // New Request Modal State
   const [newForm, setNewForm] = useState<{
@@ -158,6 +187,31 @@ export function RequestsAdminClient({ initialItems, certificateTypes }: Props) {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
   };
+
+  const handleSaveNotice = async () => {
+    if (!editNoticeTh.trim()) {
+      notify("กรุณากรอกข้อความประกาศภาษาไทย");
+      return;
+    }
+    setIsSavingNotice(true);
+    try {
+      await updateCertificateNoticeAction({
+        noticeTh: editNoticeTh.trim(),
+        noticeEn: editNoticeEn.trim(),
+      });
+      setNotice({
+        noticeTh: editNoticeTh.trim(),
+        noticeEn: editNoticeEn.trim(),
+      });
+      setIsNoticeEditOpen(false);
+      notify("บันทึกข้อความประกาศหน้าคำร้องเรียบร้อยแล้ว");
+    } catch {
+      notify("เกิดข้อผิดพลาดในการบันทึกประกาศ");
+    } finally {
+      setIsSavingNotice(false);
+    }
+  };
+
 
   const filteredItems = useMemo(() => {
     return initialItems.filter((item) => {
@@ -534,6 +588,41 @@ export function RequestsAdminClient({ initialItems, certificateTypes }: Props) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => {
+              setEditNoticeTh(notice.noticeTh);
+              setEditNoticeEn(notice.noticeEn || "");
+              setIsNoticeEditOpen(true);
+            }}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100"
+          >
+            <AlertTriangle className="h-4 w-4 text-rose-600" />
+            แก้ไขประกาศหน้าคำร้อง
+          </button>
+
+          <button
+            type="button"
+            disabled={isPending}
+            onClick={() => {
+              startTransition(async () => {
+                try {
+                  const res = await syncCertificatesToStudentDirectoryAction();
+                  notify(
+                    `ซิงค์ข้อมูลนิสิต (เพศ, สัญชาติ, เชื้อชาติ/ประเทศ, ที่อยู่) เข้าสู่ทะเบียนนิสิตเรียบร้อยแล้ว (${res.syncedCount} รายการ)`
+                  );
+                } catch {
+                  notify("เกิดข้อผิดพลาดในการซิงค์ข้อมูลสู่ทะเบียนนิสิต");
+                }
+              });
+            }}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+            title="ดึงข้อมูลเพศ สัญชาติ เชื้อชาติ/ประเทศ และที่อยู่ เข้าสู่ทะเบียนประวัตินิสิต"
+          >
+            <Users className="h-4 w-4 text-blue-600" />
+            ซิงค์ประวัติสู่ทะเบียนนิสิต
+          </button>
+
           <Link
             href="/certificates/types"
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
@@ -541,6 +630,8 @@ export function RequestsAdminClient({ initialItems, certificateTypes }: Props) {
             <Settings2 className="h-4 w-4 text-slate-500" />
             ประเภทหนังสือรับรอง
           </Link>
+
+
 
           <button
             type="button"
@@ -889,6 +980,7 @@ export function RequestsAdminClient({ initialItems, certificateTypes }: Props) {
                         setNewForm((prev) => ({
                           ...prev,
                           docTemplate: tpl,
+                          docNo: tpl === "RESIDENCE_MEMO" ? "" : prev.docNo,
                           fontSizePt: tpl === "ENG_CERT" ? 12.5 : 16,
                           language:
                             tpl === "ENG_CERT" ? "In English language" : "In Thai language",
@@ -933,7 +1025,9 @@ export function RequestsAdminClient({ initialItems, certificateTypes }: Props) {
                     </div>
                     <div>
                       <span className="mb-1 block text-[11px] font-semibold text-slate-700">
-                        เลขที่หนังสือ
+                        {newForm.docTemplate === "RESIDENCE_MEMO"
+                          ? "เลขที่บันทึกข้อความ (กรอกเลขเอง)"
+                          : "เลขที่หนังสือรับรอง (รันเลขอัตโนมัติ)"}
                       </span>
                       <input
                         type="text"
@@ -941,10 +1035,16 @@ export function RequestsAdminClient({ initialItems, certificateTypes }: Props) {
                         onChange={(e) =>
                           setNewForm((prev) => ({ ...prev, docNo: e.target.value }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
+                        placeholder={
+                          newForm.docTemplate === "RESIDENCE_MEMO"
+                            ? "กรอกเลขเอง เช่น ๘๐๐๒/ ว ๐๗๓"
+                            : "เช่น 8002 / 716"
+                        }
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-mono"
                       />
                     </div>
                   </div>
+
                 </div>
               </div>
 
@@ -1144,6 +1244,94 @@ export function RequestsAdminClient({ initialItems, certificateTypes }: Props) {
           </div>
         </div>
       )}
+
+      {/* ADMIN NOTICE EDIT MODAL */}
+      {isNoticeEditOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl ring-1 ring-slate-900/10">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-red-100 text-red-700">
+                  <Edit3 className="h-4 w-4" />
+                </span>
+                <h3 className="text-base font-bold text-slate-900">
+                  แก้ไขข้อความประกาศสีแดงหน้าคำร้อง (Admin)
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsNoticeEditOpen(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                  ข้อความประกาศภาษาไทย (Thai Notice Banner) *
+                </label>
+                <textarea
+                  rows={3}
+                  value={editNoticeTh}
+                  onChange={(e) => setEditNoticeTh(e.target.value)}
+                  placeholder="*สำหรับการขอต่ออายุวีซ่า ให้ดำเนินการ ก่อนหมดอายุที่ท้ายเล่ม 30 วัน"
+                  className="w-full rounded-xl border border-slate-300 p-3 text-xs leading-relaxed focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                  ข้อความประกาศภาษาอังกฤษ (English Notice Banner - ถ้ามี)
+                </label>
+                <textarea
+                  rows={2}
+                  value={editNoticeEn}
+                  onChange={(e) => setEditNoticeEn(e.target.value)}
+                  placeholder="*For visa extension requests, please submit your application at least 30 days before your visa/passport expiration date."
+                  className="w-full rounded-xl border border-slate-300 p-3 text-xs leading-relaxed focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditNoticeTh("*สำหรับการขอต่ออายุวีซ่า ให้ดำเนินการ ก่อนหมดอายุที่ท้ายเล่ม 30 วัน");
+                    setEditNoticeEn(
+                      "*For visa extension requests, please submit your application at least 30 days before your visa/passport expiration date."
+                    );
+                  }}
+                  className="text-xs font-semibold text-slate-500 hover:text-slate-700 underline"
+                >
+                  คืนค่าเริ่มต้น (Reset Default)
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsNoticeEditOpen(false)}
+                    className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSavingNotice}
+                    onClick={handleSaveNotice}
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-red-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-red-500 disabled:opacity-50"
+                  >
+                    {isSavingNotice ? <span className="h-3.5 w-3.5 animate-spin">⏳</span> : null}
+                    บันทึกประกาศ
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

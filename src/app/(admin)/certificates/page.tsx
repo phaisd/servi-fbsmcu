@@ -1,6 +1,10 @@
 import { requirePermission } from "@/features/identity/server";
 import { CERTIFICATES_P, parseCertificateNote, inferDefaultTemplate } from "@/features/certificates";
-import { getAllCertificateRequests, getCertificateTypes } from "@/features/certificates/server";
+import {
+  getAllCertificateRequests,
+  getCertificateTypes,
+  getCertificateNotice,
+} from "@/features/certificates/server";
 import { RequestsAdminClient } from "./_components/requests-admin-client";
 
 export const dynamic = "force-dynamic";
@@ -11,9 +15,10 @@ export const metadata = {
 
 export default async function CertificateRequestsAdminPage() {
   const ctx = await requirePermission(CERTIFICATES_P.requestView);
-  const [items, types] = await Promise.all([
+  const [items, types, notice] = await Promise.all([
     getAllCertificateRequests(ctx.tenantId),
     getCertificateTypes(ctx.tenantId),
+    getCertificateNotice(ctx.tenantId),
   ]);
 
   const serializedItems = items.map((item) => {
@@ -48,6 +53,8 @@ export default async function CertificateRequestsAdminPage() {
     <RequestsAdminClient
       initialItems={serializedItems}
       certificateTypes={serializedTypes}
+      initialNotice={notice}
     />
   );
 }
+

@@ -19,12 +19,14 @@ import {
   Globe,
   Heart,
   ShieldCheck,
+  BarChart3,
 } from "lucide-react";
 import {
   DEFAULT_SERVICES_SECTION_SETTINGS,
   DEFAULT_NEWS_SECTION_SETTINGS,
   DEFAULT_FACULTY_BANNER_SETTINGS,
 } from "@/features/identity";
+import { getExecutiveAcademicStats } from "@/features/attendance/server";
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   BookOpen,
@@ -39,6 +41,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Clock,
   Heart,
   ShieldCheck,
+  BarChart3,
 };
 
 export const dynamic = "force-dynamic";
@@ -53,12 +56,15 @@ export default async function PortalIndexPage() {
   const newsConfig = settings?.newsSection ?? DEFAULT_NEWS_SECTION_SETTINGS;
   const facultyConfig = settings?.facultyBanner ?? DEFAULT_FACULTY_BANNER_SETTINGS;
 
-  const newsRes = newsConfig.enabled
-    ? await getPublicNewsList(tenantId, {
-        page: 1,
-        pageSize: newsConfig.pageSize || 4,
-      }).catch(() => ({ items: [] }))
-    : { items: [] };
+  const [academicStats, newsRes] = await Promise.all([
+    getExecutiveAcademicStats(tenantId).catch(() => null),
+    newsConfig.enabled
+      ? getPublicNewsList(tenantId, {
+          page: 1,
+          pageSize: newsConfig.pageSize || 4,
+        }).catch(() => ({ items: [] }))
+      : Promise.resolve({ items: [] }),
+  ]);
   const latestNews = newsRes.items;
 
   const servicesConfig = settings?.servicesSection ?? DEFAULT_SERVICES_SECTION_SETTINGS;
@@ -154,6 +160,120 @@ export default async function PortalIndexPage() {
                   </Link>
                 );
               })}
+            </div>
+          </section>
+        )}
+
+        {/* ══════════ Section: Executive Academic Overview & Cohort Analytics (แดชบอร์ดสรุปสถิตินิสิตแยกชั้นปี) ══════════ */}
+        {academicStats && (
+          <section className="space-y-6 rounded-3xl border border-border/80 bg-gradient-to-b from-card to-muted/30 p-6 sm:p-8 shadow-xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-5">
+              <div>
+                <div className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-primary">
+                  <BarChart3 className="h-4 w-4" />
+                  <span>
+                    {locale === "th"
+                      ? "ศูนย์ข้อมูลสถิตินิสิตและงานวิชาการสำหรับผู้บริหาร"
+                      : "Executive Academic & Cohort Intelligence"}
+                  </span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight mt-1 text-foreground">
+                  {locale === "th"
+                    ? "สรุปภาพรวมจำนวนนิสิตแยกตามชั้นปีและหลักสูตร"
+                    : "Student Cohort Matrix & Program Distribution"}
+                </h2>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {locale === "th"
+                    ? "สถิติข้อมูลนิสิตคณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย อัปเดตล่าสุดตามทะเบียนกลาง"
+                    : "Official student enrollment and academic distribution metrics of the Faculty of Buddhism, MCU."}
+                </p>
+              </div>
+
+              <Link
+                href="/attendance/students"
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground shadow-xs transition hover:bg-primary/90 whitespace-nowrap self-start sm:self-center"
+              >
+                <span>{locale === "th" ? "เปิดทะเบียนนิสิต & เมทริกซ์เต็มรูปแบบ" : "Open Cohort Matrix"}</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
+
+            {/* Metric KPI Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <div className="p-4 rounded-2xl border border-primary/20 bg-primary/5">
+                <span className="text-2xs font-semibold text-primary block">
+                  {locale === "th" ? "นิสิตทั้งหมดในทะเบียน" : "Total Enrolled Students"}
+                </span>
+                <div className="text-2xl sm:text-3xl font-extrabold text-foreground mt-1">
+                  {academicStats.totalStudents} <span className="text-xs font-normal text-muted-foreground">รูป/คน</span>
+                </div>
+                <span className="text-[11px] text-muted-foreground mt-1 block">
+                  {locale === "th" ? `เปิดสอน ${academicStats.totalCourses} รายวิชา` : `${academicStats.totalCourses} active courses`}
+                </span>
+              </div>
+
+              <div className="p-4 rounded-2xl border border-emerald-500/20 bg-emerald-500/5">
+                <span className="text-2xs font-semibold text-emerald-800 dark:text-emerald-300 block">
+                  {locale === "th" ? "ชั้นปี 1 (First Year)" : "Year 1 Cohort"}
+                </span>
+                <div className="text-2xl sm:text-3xl font-extrabold text-emerald-900 dark:text-emerald-200 mt-1">
+                  {academicStats.yearDistribution.year1} <span className="text-xs font-normal text-muted-foreground">รูป/คน</span>
+                </div>
+                <span className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80 mt-1 block">
+                  {locale === "th" ? "นิสิตเข้าใหม่ล่าสุด" : "Freshmen cohort"}
+                </span>
+              </div>
+
+              <div className="p-4 rounded-2xl border border-blue-500/20 bg-blue-500/5">
+                <span className="text-2xs font-semibold text-blue-800 dark:text-blue-300 block">
+                  {locale === "th" ? "ชั้นปี 2 - 3 (Sophomore & Junior)" : "Years 2 & 3"}
+                </span>
+                <div className="text-2xl sm:text-3xl font-extrabold text-blue-900 dark:text-blue-200 mt-1">
+                  {academicStats.yearDistribution.year2 + academicStats.yearDistribution.year3} <span className="text-xs font-normal text-muted-foreground">รูป/คน</span>
+                </div>
+                <span className="text-[11px] text-blue-700/80 dark:text-blue-300/80 mt-1 block">
+                  {locale === "th" ? `ปี 2: ${academicStats.yearDistribution.year2} | ปี 3: ${academicStats.yearDistribution.year3}` : `Yr 2: ${academicStats.yearDistribution.year2} | Yr 3: ${academicStats.yearDistribution.year3}`}
+                </span>
+              </div>
+
+              <div className="p-4 rounded-2xl border border-purple-500/20 bg-purple-500/5">
+                <span className="text-2xs font-semibold text-purple-800 dark:text-purple-300 block">
+                  {locale === "th" ? "ชั้นปี 4 & บัณฑิตศึกษา" : "Year 4 & Graduate"}
+                </span>
+                <div className="text-2xl sm:text-3xl font-extrabold text-purple-900 dark:text-purple-200 mt-1">
+                  {academicStats.yearDistribution.year4 + academicStats.programDistribution.graduate} <span className="text-xs font-normal text-muted-foreground">รูป/คน</span>
+                </div>
+                <span className="text-[11px] text-purple-700/80 dark:text-purple-300/80 mt-1 block">
+                  {locale === "th" ? `ปี 4: ${academicStats.yearDistribution.year4} | ป.โท-เอก: ${academicStats.programDistribution.graduate}` : `Yr 4: ${academicStats.yearDistribution.year4} | Grad: ${academicStats.programDistribution.graduate}`}
+                </span>
+              </div>
+            </div>
+
+            {/* Secondary detail row: Program languages and quick cohort insight */}
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-muted/40 p-3.5 text-xs border border-border/50">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-semibold text-foreground">สัดส่วนหลักสูตร:</span>
+                <span className="inline-flex items-center gap-1 rounded-md bg-sky-500/10 px-2 py-0.5 text-2xs font-semibold text-sky-700 dark:text-sky-300">
+                  🇹🇭 ภาคภาษาไทย: {academicStats.programDistribution.thai} คน
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-2xs font-semibold text-amber-700 dark:text-amber-300">
+                  🇬🇧 ภาคภาษาอังกฤษ (Inter): {academicStats.programDistribution.english} คน
+                </span>
+                {academicStats.programDistribution.graduate > 0 && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-purple-500/10 px-2 py-0.5 text-2xs font-semibold text-purple-700 dark:text-purple-300">
+                    🎓 บัณฑิตศึกษา: {academicStats.programDistribution.graduate} คน
+                  </span>
+                )}
+              </div>
+
+              <div className="text-2xs text-muted-foreground">
+                <Link
+                  href="/attendance/students"
+                  className="font-semibold text-primary hover:underline flex items-center gap-1"
+                >
+                  {locale === "th" ? "คลิกเพื่อดูทะเบียนนิสิตและบัตรประวัตินิสิต" : "View Student Directory & Profiles"} &rarr;
+                </Link>
+              </div>
             </div>
           </section>
         )}

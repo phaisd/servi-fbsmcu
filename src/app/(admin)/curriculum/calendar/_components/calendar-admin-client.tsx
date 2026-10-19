@@ -17,6 +17,7 @@ import {
   ExternalLink,
   Info,
   Globe,
+  X,
 } from "lucide-react";
 import {
   LiyonCard,
@@ -640,7 +641,7 @@ export function CalendarAdminClient({
       <LiyonDialog open={isNewYearOpen} onOpenChange={setIsNewYearOpen}>
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
           <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95">
-            <LiyonDialogHeader className="p-6 border-b border-slate-100 dark:border-slate-800">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -650,9 +651,15 @@ export function CalendarAdminClient({
                     สำหรับรองรับการเปลี่ยนแปลงในปีการศึกษาถัดไป (เช่น 2027 / 2570)
                   </p>
                 </div>
-                <LiyonDialogCloseButton onClick={() => setIsNewYearOpen(false)} />
+                <button
+                  type="button"
+                  onClick={() => setIsNewYearOpen(false)}
+                  className="rounded-lg p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            </LiyonDialogHeader>
+            </div>
 
             <form onSubmit={handleCreateNewYear}>
               <LiyonDialogBody className="p-6 space-y-4">
@@ -741,7 +748,7 @@ export function CalendarAdminClient({
       <LiyonDialog open={isEventModalOpen} onOpenChange={setIsEventModalOpen}>
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
           <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95">
-            <LiyonDialogHeader className="p-6 border-b border-slate-100 dark:border-slate-800">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -751,9 +758,15 @@ export function CalendarAdminClient({
                     ระบุรายละเอียดกิจกรรมและช่วงเวลาตามประกาศมหาวิทยาลัย
                   </p>
                 </div>
-                <LiyonDialogCloseButton onClick={() => setIsEventModalOpen(false)} />
+                <button
+                  type="button"
+                  onClick={() => setIsEventModalOpen(false)}
+                  className="rounded-lg p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            </LiyonDialogHeader>
+            </div>
 
             <form onSubmit={handleSaveEvent}>
               <LiyonDialogBody className="p-6 space-y-4">

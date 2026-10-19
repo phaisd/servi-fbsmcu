@@ -14,7 +14,12 @@ import {
   deleteCertificateRequest,
   bulkImportCertificateRequests,
   lookupStudentForCertificate,
+  getNextCertificateDocNo,
+  getCertificateNotice,
+  updateCertificateNotice,
+  syncAllCertificatesToStudentDirectory,
 } from "./_internal/services";
+
 import {
   createCertificateTypeSchema,
   updateCertificateTypeSchema,
@@ -22,6 +27,7 @@ import {
   updateCertificateRequestSchema,
   reviewCertificateRequestSchema,
   type CertificateRequestMetadata,
+  type CertificateTemplateType,
 } from "./_internal/validations";
 
 function revalidateAllCertificates() {
@@ -122,4 +128,62 @@ export async function importCertificateRequestsAction(records: Partial<Certifica
   const res = await bulkImportCertificateRequests(session.tenantId, session.userId, records);
   revalidateAllCertificates();
   return res;
+}
+
+export async function getNextDocNoAction(template: CertificateTemplateType) {
+  const session = await requireSession();
+  await requirePermission(CERTIFICATES_P.requestView);
+  return getNextCertificateDocNo(session.tenantId, template);
+}
+
+export async function getCertificateNoticeAction() {
+  const session = await auth().catch(() => null);
+  const tenantId = session?.tenantId || (await resolvePublicTenantId());
+  return getCertificateNotice(tenantId);
+}
+
+export async function updateCertificateNoticeAction(data: { noticeTh: string; noticeEn?: string }) {
+  const session = await requireSession();
+  await requirePermission(CERTIFICATES_P.requestManage);
+  const res = await updateCertificateNotice(session.tenantId, session.userId, data);
+  revalidateAllCertificates();
+  return res;
+}
+
+export async function syncCertificatesToStudentDirectoryAction() {
+  const session = await requireSession();
+  await requirePermission(CERTIFICATES_P.requestManage);
+  const res = await syncAllCertificatesToStudentDirectory(session.tenantId, session.userId);
+  revalidatePath("/attendance/students");
+  revalidateAllCertificates();
+  return res;
+}import fs from "node:fs/promises";
+import path from "node:path";
+
+export async function uploadCertificateAttachmentAction(formData: FormData) {
+  const file = formData.get("file");
+  if (!file || !(file instanceof File) || file.size === 0) {
+    throw new Error("No file provided");
+  }
+  const maxSizeBytes = 15 * 1024 * 1024; // 15MB
+  if (file.size > maxSizeBytes) {
+    throw new Error("File too large (max 15MB)");
+  }
+  const uploadsDir = path.join(process.cwd(), "public", "uploads", "certificates");
+  await fs.mkdir(uploadsDir, { recursive: true });
+
+  const rawExt = file.name.split(".").pop()?.toLowerCase() ?? "pdf";
+  const safeBaseName = path
+    .basename(file.name, `.${rawExt}`)
+    .replace(/[^a-zA-Z0-9_\u0E00-\u0E7F-]/g, "_")
+    .slice(0, 40);
+
+  const filename = `cert-attach-${Date.now()}-${safeBaseName || "doc"}.${rawExt}`;
+  const filePath = path.join(uploadsDir, filename);
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  await fs.writeFile(filePath, buffer);
+
+  const url = `/uploads/certificates/${filename}`;
+  return { url, fileName: file.name, fileSize: file.size };
 }

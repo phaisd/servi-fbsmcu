@@ -3,7 +3,18 @@ import nodemailer from "nodemailer";
 import { env, smtpConfigured } from "./env";
 import { logger } from "./logger";
 import { prisma } from "./prisma";
-import type { SmtpSettings } from "@/features/identity";
+interface SmtpSettings {
+  enabled?: boolean;
+  service?: string;
+  host?: string;
+  port?: number;
+  secure?: boolean;
+  user?: string;
+  pass?: string;
+  from?: string;
+  fromName?: string;
+  fromEmail?: string;
+}
 
 export interface MailInput {
   to: string;

@@ -18,6 +18,7 @@ import {
   HelpCircle,
   Calculator,
   RefreshCw,
+  X,
 } from "lucide-react";
 import {
   LiyonCard,
@@ -35,6 +36,7 @@ import {
   batchUpdateCourseGradesAction,
   updateCourseGradingConfigAction,
 } from "@/features/attendance/actions";
+import { formatDate } from "@/shared/lib/format";
 
 interface StudentGradeItem {
   enrollmentId: string;
@@ -50,7 +52,7 @@ interface StudentGradeItem {
   gender: string;
   studyStatus: string;
   attendancePercentage: number;
-  isEligible: boolean;
+  isEligible: boolean | null;
   eligibilityStatusTh: string;
   assignmentScore: number | null;
   midtermScore: number | null;
@@ -73,12 +75,21 @@ interface GradesClientProps {
     id: string;
     courseCode: string;
     courseName: string;
+    courseNameEn?: string;
     credits: number;
+    section?: string;
     term: string;
     academicYear: string;
     semester: number;
     room: string;
     primaryTeacher: string;
+    degree?: string;
+    programLanguage?: string;
+    faculty?: string;
+    yearLevel?: string;
+    major?: string;
+    startDate?: string | null;
+    endDate?: string | null;
   };
   initialGradingConfig: GradingConfig;
   initialStudents: StudentGradeItem[];
@@ -257,8 +268,23 @@ export function GradesClient({
     }
   };
 
-  // ส่งออกคะแนนเป็น CSV
+  // ส่งออกคะแนนเป็น CSV พร้อมหัวกระดาษรายงานครบถ้วน
   const handleExportCsv = () => {
+    const startStr = course.startDate ? formatDate(course.startDate, "th") : "-";
+    const endStr = course.endDate ? formatDate(course.endDate, "th") : "-";
+
+    const headerLines = [
+      `"ใบรายการบันทึกคะแนนและเกรด (Grade Record Report)"`,
+      `"ระดับหลักสูตร:","${course.degree || "ระดับปริญญาตรี"}","หลักสูตรภาคภาษา:","${course.programLanguage || "หลักสูตรภาคภาษาไทย"}"`,
+      `"คณะ:","${course.faculty || "นิสิตคณะพุทธศาสตร์"}","ชั้นปีที่:","${course.yearLevel || "ชั้นปีที่ 1"}","สาขาวิชา:","${course.major || "สาขาวิชาพระพุทธศาสนา"}"`,
+      `"ภาคการศึกษา:","${course.semester}","ปีการศึกษา:","${course.academicYear}","ภาคเรียน:","${course.term}"`,
+      `"รหัสวิชา:","${course.courseCode}","ชื่อรายวิชา:","${course.courseName}${course.courseNameEn ? ` (${course.courseNameEn})` : ""}","หน่วยกิต:","${course.credits} หน่วยกิต"`,
+      `"ชื่ออาจารย์ผู้สอน:","${course.primaryTeacher}","กลุ่ม/ห้องเรียน:","กลุ่ม ${course.section || "1"} / ห้อง ${course.room || "-"}"`,
+      `"วันเปิดเรียน:","${startStr}","วันสิ้นสุด:","${endStr}"`,
+      `"วันที่ออกรายงาน:","${formatDate(new Date(), "th", { time: true })}","จำนวนนิสิตทั้งหมด:","${students.length} รูป/คน"`,
+      `""`,
+    ];
+
     const headers = [
       "ลำดับ",
       "รหัสนิสิต",
@@ -297,15 +323,164 @@ export function GradesClient({
       `"${s.gradeRemarks ?? ""}"`,
     ]);
 
-    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const csvContent = "\uFEFF" + [...headerLines, headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
-    link.setAttribute("download", `grades_${course.courseCode}_${course.term.replace("/", "-")}.csv`);
+    link.setAttribute("download", `เกรด_${course.courseCode}_${course.courseName.replace(/[\/\\:*?"<>|]/g, "_")}_${course.term.replace("/", "-")}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    toast.success("ส่งออกไฟล์ CSV พร้อมหัวกระดาษสำเร็จ");
+  };
+
+  // ส่งออกเป็น Excel (.xls) พร้อมตารางหัวกระดาษและการจัดรูปแบบ
+  const handleExportExcel = () => {
+    const startStr = course.startDate ? formatDate(course.startDate, "th") : "-";
+    const endStr = course.endDate ? formatDate(course.endDate, "th") : "-";
+    const reportDate = formatDate(new Date(), "th", { time: true });
+
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8"/>
+        <style>
+          body { font-family: 'Sarabun', 'TH Sarabun New', Tahoma, sans-serif; font-size: 13px; }
+          table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+          .header-table td { padding: 4px 8px; font-size: 13px; }
+          .title { font-size: 17px; font-weight: bold; text-align: center; color: #1e293b; }
+          .subtitle { font-size: 14px; font-weight: bold; text-align: center; color: #334155; }
+          .meta-label { font-weight: bold; color: #334155; background-color: #f1f5f9; border: 1px solid #cbd5e1; width: 160px; }
+          .meta-value { border: 1px solid #cbd5e1; padding-left: 6px; }
+          .data-table th { background-color: #e2e8f0; color: #0f172a; font-weight: bold; border: 1px solid #94a3b8; padding: 6px 8px; text-align: center; font-size: 12px; }
+          .data-table td { border: 1px solid #cbd5e1; padding: 5px 6px; font-size: 12px; vertical-align: middle; }
+          .text-center { text-align: center; }
+          .text-right { text-align: right; }
+          .grade-pass { font-weight: bold; color: #15803d; }
+          .grade-fail { font-weight: bold; color: #b91c1c; }
+        </style>
+      </head>
+      <body>
+        <!-- หัวกระดาษรายงาน -->
+        <table class="header-table">
+          <tr>
+            <td colspan="16" class="title">มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย</td>
+          </tr>
+          <tr>
+            <td colspan="16" class="subtitle">ใบรายการบันทึกคะแนนและเกรด (Grade Record Report)</td>
+          </tr>
+          <tr>
+            <td colspan="16" class="subtitle" style="font-size: 12px; font-weight: normal; color: #64748b;">ออกรายงานเมื่อ: ${reportDate}</td>
+          </tr>
+          <tr><td colspan="16"></td></tr>
+          <tr>
+            <td class="meta-label">ระดับหลักสูตร:</td>
+            <td class="meta-value" colspan="5">${course.degree || "ระดับปริญญาตรี"}</td>
+            <td class="meta-label">หลักสูตรภาคภาษา:</td>
+            <td class="meta-value" colspan="9">${course.programLanguage || "หลักสูตรภาคภาษาไทย"}</td>
+          </tr>
+          <tr>
+            <td class="meta-label">คณะ:</td>
+            <td class="meta-value" colspan="5">${course.faculty || "นิสิตคณะพุทธศาสตร์"}</td>
+            <td class="meta-label">ชั้นปีที่:</td>
+            <td class="meta-value" colspan="3">${course.yearLevel || "ชั้นปีที่ 1"}</td>
+            <td class="meta-label">สาขาวิชา:</td>
+            <td class="meta-value" colspan="5">${course.major || "สาขาวิชาพระพุทธศาสนา"}</td>
+          </tr>
+          <tr>
+            <td class="meta-label">ภาคการศึกษา:</td>
+            <td class="meta-value" colspan="2">ภาคการศึกษาที่ ${course.semester}</td>
+            <td class="meta-label">ปีการศึกษา:</td>
+            <td class="meta-value" colspan="2">${course.academicYear}</td>
+            <td class="meta-label">ภาคเรียน:</td>
+            <td class="meta-value" colspan="9">${course.term}</td>
+          </tr>
+          <tr>
+            <td class="meta-label">รหัสวิชา:</td>
+            <td class="meta-value" colspan="2" style="font-weight: bold;">${course.courseCode}</td>
+            <td class="meta-label">ชื่อรายวิชา:</td>
+            <td class="meta-value" colspan="6" style="font-weight: bold;">${course.courseName}${course.courseNameEn ? ` (${course.courseNameEn})` : ""}</td>
+            <td class="meta-label">หน่วยกิต:</td>
+            <td class="meta-value" colspan="5">${course.credits} หน่วยกิต</td>
+          </tr>
+          <tr>
+            <td class="meta-label">อาจารย์ผู้สอน:</td>
+            <td class="meta-value" colspan="5">${course.primaryTeacher}</td>
+            <td class="meta-label">ห้องเรียน/กลุ่ม:</td>
+            <td class="meta-value" colspan="9">กลุ่ม ${course.section || "1"} / ห้อง ${course.room || "-"}</td>
+          </tr>
+          <tr>
+            <td class="meta-label">วันเปิดเรียน:</td>
+            <td class="meta-value" colspan="5">${startStr}</td>
+            <td class="meta-label">วันสิ้นสุด:</td>
+            <td class="meta-value" colspan="9">${endStr}</td>
+          </tr>
+          <tr><td colspan="16"></td></tr>
+        </table>
+
+        <!-- ตารางคะแนนและเกรด -->
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>ลำดับ</th>
+              <th>รหัสนิสิต</th>
+              <th>คำนำหน้า</th>
+              <th>ชื่อ</th>
+              <th>นามสกุล / ฉายา</th>
+              <th>ชั้นปี</th>
+              <th>สาขาวิชา</th>
+              <th>การเข้าเรียน (%)</th>
+              <th>สิทธิ์สอบ</th>
+              <th>คะแนนเก็บ (${config.assignmentMax})</th>
+              <th>กลางภาค (${config.midtermMax})</th>
+              <th>จิตวิสัย (${config.affectiveMax})</th>
+              <th>ปลายภาค (${config.finalMax})</th>
+              <th>รวม (100)</th>
+              <th>เกรด</th>
+              <th>หมายเหตุ</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${students
+              .map(
+                (s, idx) => `
+              <tr>
+                <td class="text-center">${idx + 1}</td>
+                <td class="text-center" style="mso-number-format:'\\@';">${s.studentCode}</td>
+                <td class="text-center">${s.title || ""}</td>
+                <td>${s.firstName}</td>
+                <td>${s.lastName}</td>
+                <td class="text-center">${s.yearLevel}</td>
+                <td>${s.major || "-"}</td>
+                <td class="text-center">${s.attendancePercentage}%</td>
+                <td class="text-center">${s.isEligible ? "มีสิทธิ์สอบ" : "หมดสิทธิ์สอบ"}</td>
+                <td class="text-right">${s.assignmentScore ?? "-"}</td>
+                <td class="text-right">${s.midtermScore ?? "-"}</td>
+                <td class="text-right">${s.affectiveScore ?? "-"}</td>
+                <td class="text-right">${s.finalScore ?? "-"}</td>
+                <td class="text-right" style="font-weight: bold;">${s.totalScore ?? "-"}</td>
+                <td class="text-center ${s.grade === "F" ? "grade-fail" : "grade-pass"}">${s.grade ?? "-"}</td>
+                <td>${s.gradeRemarks || ""}</td>
+              </tr>
+            `
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob(["\uFEFF" + html], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `เกรด_${course.courseCode}_${course.courseName.replace(/[\/\\:*?"<>|]/g, "_")}_${course.term.replace("/", "-")}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("ส่งออกไฟล์ Excel พร้อมหัวกระดาษสำเร็จ");
   };
 
   // นำเข้าคะแนนจาก CSV
@@ -327,7 +502,21 @@ export function GradesClient({
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        if (i === 0 && (line.includes("รหัส") || line.includes("studentCode") || line.includes("ลำดับ"))) {
+        // ข้ามบรรทัดหัวรายงาน บรรทัดคอมเมนต์ หรือหัวตาราง
+        if (
+          !line ||
+          line.startsWith("#") ||
+          line.includes("ใบรายการบันทึกคะแนน") ||
+          line.includes("ระดับหลักสูตร") ||
+          line.includes("รหัสวิชา:") ||
+          line.includes("ชื่ออาจารย์ผู้สอน:") ||
+          line.includes("วันเปิดเรียน:") ||
+          line.includes("ภาคการศึกษา:") ||
+          line.includes("นิสิตคณะพุทธศาสตร์") ||
+          line.includes("วันที่ออกรายงาน:") ||
+          line.includes("studentCode") ||
+          (line.includes("รหัส") && line.includes("ลำดับ"))
+        ) {
           continue;
         }
 
@@ -406,18 +595,42 @@ export function GradesClient({
             </Link>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 mb-1">
+          <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
             <span className="px-2.5 py-0.5 rounded-lg bg-primary/10 text-primary font-bold text-xs">
               {course.courseCode}
             </span>
-            <span className="text-xs text-slate-400">ภาคการศึกษา {course.term}</span>
+            <span className="px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 font-semibold text-xs border border-blue-200 dark:border-blue-800">
+              {course.degree || "ระดับปริญญาตรี"}
+            </span>
+            <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 font-semibold text-xs border border-emerald-200 dark:border-emerald-800">
+              {course.programLanguage || "หลักสูตรภาคภาษาไทย"}
+            </span>
+            <span className="px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 font-semibold text-xs border border-amber-200 dark:border-amber-800">
+              {course.faculty || "คณะพุทธศาสตร์"}
+            </span>
+            <span className="text-xs text-slate-500 font-medium">
+              • {course.yearLevel || "ชั้นปีที่ 1"} • ภาคเรียน {course.term} (ภาค {course.semester}/{course.academicYear})
+            </span>
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
             สมุดบันทึกคะแนนและเกรด (Gradebook)
           </h1>
-          <p className="text-slate-500 text-sm mt-0.5">
-            {course.courseName} • อาจารย์ผู้สอน: {course.primaryTeacher}
+          <p className="text-slate-600 dark:text-slate-300 text-sm mt-1">
+            <span className="font-semibold text-slate-900 dark:text-white">{course.courseName}</span>
+            {course.courseNameEn && <span className="text-slate-500"> ({course.courseNameEn})</span>}
+            {" • "}
+            <span>สาขาวิชา: <b className="text-slate-800 dark:text-slate-200">{course.major || "-"}</b></span>
+            {" • "}
+            <span>อาจารย์ผู้สอน: <b className="text-slate-800 dark:text-slate-200">{course.primaryTeacher}</b></span>
+            {course.startDate && (
+              <>
+                {" • "}
+                <span className="text-slate-500">
+                  วันเปิดเรียน-สิ้นสุด: {formatDate(course.startDate, "th")} - {formatDate(course.endDate, "th")}
+                </span>
+              </>
+            )}
           </p>
         </div>
 
@@ -470,10 +683,21 @@ export function GradesClient({
           <button
             type="button"
             onClick={handleExportCsv}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 text-xs font-semibold shadow-2xs transition"
+            title="ส่งออกเป็นไฟล์ CSV พร้อมหัวกระดาษข้อมูลรายวิชาครบถ้วน"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 text-xs font-semibold shadow-2xs transition cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5" />
+            <Download className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
             ส่งออก CSV
+          </button>
+
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            title="ส่งออกเป็นไฟล์ Excel (.xls) พร้อมตารางหัวกระดาษและการจัดรูปแบบสวยงาม"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 text-xs font-semibold shadow-2xs transition cursor-pointer"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+            ส่งออก Excel
           </button>
 
           <button
@@ -850,7 +1074,7 @@ export function GradesClient({
       <LiyonDialog open={isConfigOpen} onOpenChange={setIsConfigOpen}>
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
           <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95">
-            <LiyonDialogHeader className="p-6 border-b border-slate-100 dark:border-slate-800">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -860,9 +1084,15 @@ export function GradesClient({
                     กำหนดคะแนนเต็มของแต่ละส่วน (ผลรวมต้องได้ 100 คะแนน)
                   </p>
                 </div>
-                <LiyonDialogCloseButton onClick={() => setIsConfigOpen(false)} />
+                <button
+                  type="button"
+                  onClick={() => setIsConfigOpen(false)}
+                  className="rounded-lg p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            </LiyonDialogHeader>
+            </div>
 
             <form onSubmit={handleSaveConfig}>
               <LiyonDialogBody className="p-6 space-y-4">
@@ -981,7 +1211,7 @@ export function GradesClient({
       <LiyonDialog open={isImportOpen} onOpenChange={setIsImportOpen}>
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
           <div className="w-full max-w-lg bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden animate-in fade-in zoom-in-95">
-            <LiyonDialogHeader className="p-6 border-b border-slate-100 dark:border-slate-800">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -991,9 +1221,15 @@ export function GradesClient({
                     วางข้อมูล CSV ที่คัดลอกมาจาก Excel หรือไฟล์ตารางคะแนน
                   </p>
                 </div>
-                <LiyonDialogCloseButton onClick={() => setIsImportOpen(false)} />
+                <button
+                  type="button"
+                  onClick={() => setIsImportOpen(false)}
+                  className="rounded-lg p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-            </LiyonDialogHeader>
+            </div>
 
             <LiyonDialogBody className="p-6 space-y-4">
               <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-xl border border-blue-200 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">

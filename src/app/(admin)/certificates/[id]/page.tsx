@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/features/identity/server";
 import { CERTIFICATES_P, parseCertificateNote, inferDefaultTemplate } from "@/features/certificates";
-import { getCertificateRequestById, getCertificateTypes } from "@/features/certificates/server";
+import { getCertificateRequestById, getCertificateTypes, getNextCertificateDocNo } from "@/features/certificates/server";
 import { CertificateStudioClient } from "./_components/certificate-studio-client";
 
 export const dynamic = "force-dynamic";
@@ -24,10 +24,18 @@ export default async function CertificateStudioPage({
   }
 
   const parsedMeta = parseCertificateNote(request.note);
+  const template = parsedMeta.docTemplate ?? inferDefaultTemplate(parsedMeta);
+  const nextDocNo = await getNextCertificateDocNo(ctx.tenantId, template);
+
   const metadata = {
     ...parsedMeta,
-    docTemplate: parsedMeta.docTemplate ?? inferDefaultTemplate(parsedMeta),
+    docTemplate: template,
+    docNo:
+      template === "RESIDENCE_MEMO"
+        ? parsedMeta.docNo?.trim() || ""
+        : parsedMeta.docNo?.trim() || nextDocNo,
   };
+
 
   const serializedRequest = {
     id: request.id,
@@ -48,6 +56,7 @@ export default async function CertificateStudioPage({
     <CertificateStudioClient
       request={serializedRequest}
       certificateTypes={types.map((t) => ({ id: t.id, name: t.name }))}
+      suggestedNextDocNo={nextDocNo}
     />
   );
 }

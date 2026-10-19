@@ -6,7 +6,7 @@ import {
   generateRollingQrToken,
   getSessionScannedStudents,
   assertCourseAccess,
-} from "@/features/attendance/_internal/services";
+} from "@/features/attendance/server";
 import { prisma as db } from "@/shared/lib/infra/prisma";
 
 export async function GET(

@@ -7,6 +7,7 @@ import {
   parseCertificateNote,
   serializeCertificateNote,
   type CertificateRequestMetadata,
+  type CertificateTemplateType,
 } from "./validations";
 import { INITIAL_EXCEL_CERTIFICATE_RECORDS, inferDefaultTemplate } from "./templates";
 
@@ -168,6 +169,9 @@ export async function lookupStudentForCertificate(tenantId: string, query: strin
     sex: student.gender === "หญิง" || student.gender === "F" ? "F" : "M",
     email: student.email || `${student.studentCode}@mcu.ac.th`,
     phone: student.phoneNumber || "",
+    nationality: student.nationality || "",
+    country: student.country || "",
+    address: student.address || "",
     language: isEngCurr ? ("In English language" as const) : ("In Thai language" as const),
   };
 }
@@ -275,7 +279,7 @@ export async function deleteCertificateType(tenantId: string, actorId: string, i
 // Certificate Requests
 // ==========================================
 
-export async function getMyCertificateRequests(tenantId: string, userId?: string | null) {
+export async function getMyCertificateRequests(tenantId: string, _userId?: string | null) {
   await ensureCertificateDefaults(tenantId);
   return db.certificateRequest.findMany({
     where: { tenantId },
@@ -380,8 +384,17 @@ export async function createCertificateRequest(
     after: result,
   });
 
+  if (data.metadata?.studentCode) {
+    try {
+      await syncCertificateStudentToDirectory(tenantId, data.metadata);
+    } catch (e) {
+      console.warn("Failed to sync student to directory on create:", e);
+    }
+  }
+
   return result;
 }
+
 
 export async function updateCertificateRequest(
   tenantId: string,
@@ -440,8 +453,17 @@ export async function updateCertificateRequest(
     after: result,
   });
 
+  if (mergedMeta?.studentCode) {
+    try {
+      await syncCertificateStudentToDirectory(tenantId, mergedMeta);
+    } catch (e) {
+      console.warn("Failed to sync student to directory on update:", e);
+    }
+  }
+
   return result;
 }
+
 
 export async function reviewCertificateRequest(
   tenantId: string,
@@ -538,7 +560,310 @@ export async function bulkImportCertificateRequests(
       });
       createdCount++;
     }
+
+    if (rec.studentCode) {
+      try {
+        await syncCertificateStudentToDirectory(tenantId, rec);
+      } catch (e) {
+        console.warn("Failed to sync imported student to directory:", e);
+      }
+    }
   }
 
   return { createdCount, updatedCount };
+
 }
+
+/**
+ * ดึงข้อมูลการตรวจสอบความถูกต้องของหนังสือรับรองสำหรับ ตม. / หน่วยงานภายนอก (Public Verification)
+ * ค้นหาได้ทั้งจาก ID (UUID), เลขที่หนังสือ (docNo), หรือรหัสนิสิต (studentCode)
+ */
+export async function getPublicCertificateVerification(queryIdOrCode: string) {
+  const clean = queryIdOrCode.trim();
+  if (!clean) return null;
+
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clean);
+  type RequestWithTenant = Awaited<ReturnType<typeof db.certificateRequest.findFirst<{
+    include: {
+      certificateType: true;
+      tenant: { select: { id: true; code: true; nameTh: true; nameEn: true; logoUrl: true } };
+    };
+  }>>>;
+  let request: RequestWithTenant = null;
+
+  if (isUuid) {
+    request = await db.certificateRequest.findUnique({
+      where: { id: clean },
+      include: {
+        certificateType: true,
+        tenant: { select: { id: true, code: true, nameTh: true, nameEn: true, logoUrl: true } },
+      },
+    });
+  }
+
+  if (!request) {
+    const all = await db.certificateRequest.findMany({
+      take: 200,
+      include: {
+        certificateType: true,
+        tenant: { select: { id: true, code: true, nameTh: true, nameEn: true, logoUrl: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    request = all.find((r) => {
+      const meta = parseCertificateNote(r.note);
+      const matchDocNo = meta.docNo && meta.docNo.replace(/\s+/g, "").includes(clean.replace(/\s+/g, ""));
+      const matchStudent = meta.studentCode && meta.studentCode.trim().toLowerCase() === clean.toLowerCase();
+      const matchSeq = meta.seqNo && String(meta.seqNo) === clean;
+      return matchDocNo || matchStudent || matchSeq;
+    }) ?? null;
+  }
+
+  if (!request) return null;
+
+  const metadata = parseCertificateNote(request.note);
+  return {
+    id: request.id,
+    tenantId: request.tenantId,
+    tenantNameTh: request.tenant.nameTh,
+    tenantNameEn: request.tenant.nameEn,
+    tenantLogoUrl: request.tenant.logoUrl,
+    certificateTypeName: request.certificateType.name,
+    status: request.status,
+    createdAt: request.createdAt.toISOString(),
+    updatedAt: request.updatedAt.toISOString(),
+    metadata: {
+      ...metadata,
+      docTemplate: metadata.docTemplate ?? inferDefaultTemplate(metadata),
+    },
+  };
+}
+
+/**
+ * คำนวณเลขที่หนังสือฉบับถัดไปอัตโนมัติต่อจากฉบับล่าสุดในระบบ (Auto-increment Doc No.)
+ * แยกตามหมวดหมู่แม่แบบเอกสาร (THAI_CERT, ENG_CERT, BANK_LETTER, RESIDENCE_MEMO)
+ */
+export async function getNextCertificateDocNo(
+  tenantId: string,
+  template: CertificateTemplateType = "THAI_CERT"
+): Promise<string> {
+  // 1. หนังสือบันทึกข้อความ ให้กรอกเลขเอง ไม่ใช้เลขรันอัตโนมัติจากทะเบียนหนังสือรับรอง
+  if (template === "RESIDENCE_MEMO") {
+    return "";
+  }
+
+  // 2. หนังสือรับรองทุกฉบับ (ภาษาไทย, ภาษาอังกฤษ, หนังสือติดต่อธนาคาร ฯลฯ)
+  // ให้ใช้เลขทะเบียนต่อเนื่องกันอัตโนมัติทุกฉบับ
+  const requests = await db.certificateRequest.findMany({
+    where: { tenantId },
+    select: { note: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const thaiToArabic = (str: string) =>
+    str.replace(/[๐-๙]/g, (d) => String("๐๑๒๓๔๕๖๗๘๙".indexOf(d)));
+
+  let maxNum = 0;
+  let hasFound = false;
+
+  for (const r of requests) {
+    const m = parseCertificateNote(r.note);
+    if (!m.docNo?.trim()) continue;
+
+    // ข้ามเอกสารบันทึกข้อความ (หมวด ว)
+    if (m.docTemplate === "RESIDENCE_MEMO" || m.docNo.includes("ว")) continue;
+
+    const norm = thaiToArabic(m.docNo.trim());
+    // ค้นหาเลขที่หนังสือ เช่น 8002 / 715 หรือ 8002/ 170 หรือ / 715
+    const match = norm.match(/8002\s*\/\s*(\d+)/i);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (num > maxNum && num < 100000) {
+        maxNum = num;
+        hasFound = true;
+      }
+    }
+  }
+
+  // เลขถัดไปแบบต่อเนื่องกันทุกฉบับ
+  const nextVal = hasFound && maxNum > 0 ? maxNum + 1 : 716;
+
+  if (template === "ENG_CERT") {
+    return `8002/ ${nextVal}`;
+  }
+  return `8002 / ${nextVal}`;
+}
+
+
+// ==========================================
+// Certificate Notice Banner (Admin Customizable)
+// ==========================================
+
+export const DEFAULT_CERTIFICATE_NOTICE_TH =
+  "*สำหรับการขอต่ออายุวีซ่า ให้ดำเนินการ ก่อนหมดอายุที่ท้ายเล่ม 30 วัน";
+export const DEFAULT_CERTIFICATE_NOTICE_EN =
+  "*For visa extension requests, please submit your application at least 30 days before your visa/passport expiration date.";
+
+export async function getCertificateNotice(tenantId: string): Promise<{
+  noticeTh: string;
+  noticeEn: string;
+}> {
+  const tenant = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: { settings: true },
+  });
+  const settings = (tenant?.settings as Record<string, unknown>) || {};
+  const certSettings = (settings.certificates as { noticeTh?: string; noticeEn?: string } | undefined) || {};
+  return {
+    noticeTh: certSettings.noticeTh?.trim() || DEFAULT_CERTIFICATE_NOTICE_TH,
+    noticeEn: certSettings.noticeEn?.trim() || DEFAULT_CERTIFICATE_NOTICE_EN,
+  };
+}
+
+export async function updateCertificateNotice(
+  tenantId: string,
+  actorId: string,
+  input: { noticeTh: string; noticeEn?: string }
+) {
+  const tenant = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: { settings: true },
+  });
+  const existingSettings = (tenant?.settings as Record<string, unknown>) || {};
+  const existingCert = (existingSettings.certificates as Record<string, unknown> | undefined) || {};
+  const updatedSettings = {
+    ...existingSettings,
+    certificates: {
+      ...existingCert,
+      noticeTh: input.noticeTh.trim() || DEFAULT_CERTIFICATE_NOTICE_TH,
+      noticeEn: (input.noticeEn || "").trim() || DEFAULT_CERTIFICATE_NOTICE_EN,
+    },
+  };
+
+  await db.tenant.update({
+    where: { id: tenantId },
+
+    data: { settings: updatedSettings },
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "certificate.notice_update",
+    entity: "tenant_settings",
+    entityId: tenantId,
+    before: existingSettings.certificates || null,
+    after: updatedSettings.certificates,
+  });
+
+  return {
+    noticeTh: updatedSettings.certificates.noticeTh,
+    noticeEn: updatedSettings.certificates.noticeEn,
+  };
+}
+
+// ==========================================
+// Sync Student Profile to Student Directory
+// (เพศ, สัญชาติ, เชื้อชาติ/ประเทศ, ที่อยู่)
+// ==========================================
+
+export async function syncCertificateStudentToDirectory(
+  tenantId: string,
+  meta: Partial<CertificateRequestMetadata>
+) {
+  const code = meta.studentCode?.trim();
+  if (!code) return null;
+
+  const genderStr =
+    meta.sex === "F" || meta.sex === "หญิง"
+      ? "หญิง (F)"
+      : meta.sex === "M" || meta.sex === "ชาย"
+      ? "ชาย (M)"
+      : meta.sex || null;
+
+  const existing = await db.student.findFirst({
+    where: { tenantId, studentCode: { equals: code, mode: "insensitive" } },
+  });
+
+  if (existing) {
+    return db.student.update({
+      where: { id: existing.id },
+      data: {
+        gender: genderStr || existing.gender,
+        nationality: meta.nationality?.trim() || existing.nationality,
+        country: meta.country?.trim() || existing.country,
+        address: meta.fullAddress?.trim() || existing.address,
+      },
+    });
+  }
+
+  // Create new student in directory if not exists
+  const rawName = meta.fullName?.trim() || `นิสิต ${code}`;
+  const parts = rawName.split(/\s+/);
+  const firstName = parts[0] || rawName;
+  const lastName = parts.slice(1).join(" ") || "-";
+
+  let yr = 1;
+  if (meta.classYear) {
+    const m = meta.classYear.match(/(\d+)/);
+    if (m) yr = parseInt(m[1], 10);
+  }
+
+  return db.student.create({
+    data: {
+      tenantId,
+      studentCode: code,
+      firstName,
+      lastName,
+      gender: genderStr || "ชาย (M)",
+      nationality: meta.nationality?.trim() || "Thai",
+      country: meta.country?.trim() || "Thailand",
+      address: meta.fullAddress?.trim() || "",
+      yearLevel: yr,
+      degree: meta.degreeLevel || "ปริญญาตรี",
+      major: meta.major || "Buddhist Studies",
+      email: meta.email || `${code}@mcu.ac.th`,
+      faculty: "คณะพุทธศาสตร์",
+      studyStatus: "ปกติ",
+      isActive: true,
+    },
+  });
+}
+
+export async function syncAllCertificatesToStudentDirectory(
+  tenantId: string,
+  actorId: string
+) {
+  const requests = await db.certificateRequest.findMany({
+    where: { tenantId },
+    select: { note: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  let syncedCount = 0;
+  for (const r of requests) {
+    const meta = parseCertificateNote(r.note);
+    if (!meta.studentCode?.trim()) continue;
+    try {
+      await syncCertificateStudentToDirectory(tenantId, meta);
+      syncedCount++;
+    } catch (e) {
+      console.warn("Failed to sync record:", meta.studentCode, e);
+    }
+  }
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "student.sync_from_certificates",
+    entity: "students",
+    entityId: tenantId,
+    before: null,
+    after: { syncedCount },
+  });
+
+  return { success: true, syncedCount };
+}
+
+

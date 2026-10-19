@@ -44,8 +44,11 @@ export {
   batchUpdateCourseGrades,
   updateCourseGradingConfig,
   getAllStudentsDirectory,
+  getExecutiveAcademicStats,
   createOrUpdateStudent,
   deleteStudent,
+  generateRollingQrToken,
+  getSessionScannedStudents,
 } from "./_internal/services";
 
 export {

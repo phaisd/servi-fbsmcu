@@ -19,18 +19,28 @@ import {
   Globe,
   Building2,
   FileSpreadsheet,
+  FileDown,
 } from "lucide-react";
 import {
   CertificateA4Document,
   CERTIFICATE_PURPOSES,
   buildCertificateDocumentText,
+  downloadCertificateAsWordDoc,
   type CertificateRequestMetadata,
   type CertificateTemplateType,
+  SIGNER_PRESETS,
+  SIGNER_NAME_PRESETS_TH,
+  SIGNER_NAME_PRESETS_EN,
+  SIGNER_TITLE_PRESETS_TH,
+  SIGNER_TITLE_PRESETS_EN,
+  CERTIFICATE_FONT_PRESETS,
+  type CertificateFontPreset,
 } from "@/features/certificates";
 import {
   updateCertificateRequestAction,
   reviewRequestAction,
   lookupStudentByCodeAction,
+  getNextDocNoAction,
 } from "@/features/certificates/actions";
 
 interface SerializedCertificateRequest {
@@ -51,6 +61,7 @@ interface SerializedCertificateRequest {
 interface Props {
   request: SerializedCertificateRequest;
   certificateTypes: { id: string; name: string }[];
+  suggestedNextDocNo?: string;
 }
 
 const TEMPLATE_CARDS: {
@@ -95,16 +106,22 @@ const TEMPLATE_CARDS: {
   },
 ];
 
-export function CertificateStudioClient({ request }: Props) {
+export function CertificateStudioClient({ request, suggestedNextDocNo = "8002 / 716" }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [suggestedDocNo, setSuggestedDocNo] = useState<string>(suggestedNextDocNo);
   const [meta, setMeta] = useState<CertificateRequestMetadata>(() => {
     const initial = request.metadata;
     const tpl = initial.docTemplate || "THAI_CERT";
     return {
       ...initial,
       docTemplate: tpl,
+      docNo: initial.docNo?.trim() || suggestedNextDocNo,
+      fontFamily: initial.fontFamily ?? (tpl === "ENG_CERT" ? "Times New Roman" : "Sarabun"),
       fontSizePt: initial.fontSizePt ?? (tpl === "ENG_CERT" ? 12.5 : 16),
+      footerFontSizePt: initial.footerFontSizePt ?? 13.5,
+      footerLayout: initial.footerLayout ?? "TWO_COLUMNS",
+      portalVerifyUrl: initial.portalVerifyUrl ?? "",
       lineHeight: initial.lineHeight ?? 1.85,
       marginTopMm: initial.marginTopMm ?? 24,
       marginSideMm: initial.marginSideMm ?? 25,
@@ -134,19 +151,76 @@ export function CertificateStudioClient({ request }: Props) {
 
   const handleSelectTemplate = (tpl: CertificateTemplateType) => {
     const card = TEMPLATE_CARDS.find((c) => c.id === tpl);
-    setMeta((prev) => ({
-      ...prev,
-      docTemplate: tpl,
-      fontSizePt: card ? card.defaultFontPt : 16,
-      lineHeight: card ? card.defaultLineHeight : 1.85,
-      language: tpl === "ENG_CERT" ? "In English language" : "In Thai language",
-    }));
+    startTransition(async () => {
+      try {
+        const nextNoForTpl = await getNextDocNoAction(tpl);
+        setSuggestedDocNo(nextNoForTpl);
+        setMeta((prev) => {
+          if (tpl === "RESIDENCE_MEMO") {
+            return {
+              ...prev,
+              docTemplate: tpl,
+              docNo: prev.docTemplate === "RESIDENCE_MEMO" ? prev.docNo : "",
+              fontFamily: prev.fontFamily || "Sarabun",
+              fontSizePt: card ? card.defaultFontPt : 16,
+              lineHeight: card ? card.defaultLineHeight : 1.85,
+              language: "In Thai language",
+            };
+          }
+          const isAutoLike =
+            !prev.docNo ||
+            prev.docNo.startsWith("8002") ||
+            prev.docNo.startsWith("๘๐๐๒");
+          return {
+            ...prev,
+            docTemplate: tpl,
+            docNo: isAutoLike ? nextNoForTpl : prev.docNo,
+            fontFamily: prev.fontFamily || (tpl === "ENG_CERT" ? "Times New Roman" : "Sarabun"),
+            fontSizePt: card ? card.defaultFontPt : 16,
+            lineHeight: card ? card.defaultLineHeight : 1.85,
+            language: tpl === "ENG_CERT" ? "In English language" : "In Thai language",
+          };
+        });
+        showToast(
+          tpl === "RESIDENCE_MEMO"
+            ? `สลับเป็นบันทึกข้อความ (ให้กรอกเลขที่หนังสือเอง)`
+            : `สลับเป็น ${card?.title || tpl} (เลขหนังสือต่อเนื่อง: ${nextNoForTpl})`
+        );
+      } catch {
+        setMeta((prev) => ({
+          ...prev,
+          docTemplate: tpl,
+          fontFamily: prev.fontFamily || (tpl === "ENG_CERT" ? "Times New Roman" : "Sarabun"),
+          fontSizePt: card ? card.defaultFontPt : 16,
+          lineHeight: card ? card.defaultLineHeight : 1.85,
+          language: tpl === "ENG_CERT" ? "In English language" : "In Thai language",
+        }));
+      }
+    });
+  };
+
+  const handleAutoAssignDocNo = () => {
+    if (meta.docTemplate === "RESIDENCE_MEMO") {
+      showToast("หนังสือบันทึกข้อความ ให้กรอกเลขที่หนังสือเองตามสมุดทะเบียนสารบรรณ");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const next = await getNextDocNoAction(meta.docTemplate || "THAI_CERT");
+        setSuggestedDocNo(next);
+        updateField("docNo", next);
+        showToast(`อัพเดตเลขที่หนังสือรับรองต่อเนื่องอัตโนมัติ: ${next}`);
+      } catch {
+        showToast("ไม่สามารถดึงเลขที่หนังสืออัตโนมัติได้");
+      }
+    });
   };
 
   const handleResetOriginalFont = () => {
     const isEng = meta.docTemplate === "ENG_CERT";
     setMeta((prev) => ({
       ...prev,
+      fontFamily: isEng ? "Times New Roman" : "Sarabun",
       fontSizePt: isEng ? 12.5 : 16,
       lineHeight: 1.85,
       marginTopMm: 24,
@@ -154,9 +228,14 @@ export function CertificateStudioClient({ request }: Props) {
     }));
     showToast(
       isEng
-        ? "ตั้งค่าขนาดตัวอักษรเท่าต้นฉบับภาษาอังกฤษ (12.5pt) เรียบร้อย"
-        : "ตั้งค่าขนาดตัวอักษรเท่าต้นฉบับหนังสือราชการไทย (16pt) เรียบร้อย"
+        ? "ตั้งค่าขนาดตัวอักษรเท่าต้นฉบับภาษาอังกฤษ (12.5pt, Times New Roman) เรียบร้อย"
+        : "ตั้งค่าขนาดตัวอักษรเท่าต้นฉบับหนังสือราชการไทย (16pt, Sarabun) เรียบร้อย"
     );
+  };
+
+  const handleExportWord = () => {
+    downloadCertificateAsWordDoc(meta, meta.docNo, meta.fullName || request.userName, request.id);
+    showToast("ส่งออกไฟล์ Microsoft Word (.doc) สำเร็จ");
   };
 
   const handleSave = (approveAlso = false) => {
@@ -332,6 +411,16 @@ export function CertificateStudioClient({ request }: Props) {
 
             <button
               type="button"
+              onClick={handleExportWord}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-sky-300 bg-sky-50 px-3.5 py-2 text-xs font-semibold text-sky-800 shadow-xs transition hover:bg-sky-100"
+              title="ดาวน์โหลดเป็นไฟล์ Microsoft Word (.doc) เพื่อนำไปแก้ไขต่อใน Word ได้ทันที"
+            >
+              <FileDown className="h-4 w-4 text-sky-600" />
+              ส่งออกเป็น Word (.doc)
+            </button>
+
+            <button
+              type="button"
               onClick={handlePrint}
               className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-800"
             >
@@ -448,6 +537,43 @@ export function CertificateStudioClient({ request }: Props) {
               {/* TAB 1: FONT SIZE & LAYOUT */}
               {activeTab === "layout" && (
                 <div className="space-y-5">
+                  {/* Google Fonts & Typography Selector */}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
+                    <div className="mb-2.5 flex items-center justify-between">
+                      <label className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                        <Type className="h-3.5 w-3.5 text-indigo-600" />
+                        แบบฟอนต์หนังสือ (Google Fonts / Thai Official)
+                      </label>
+                      <span className="rounded-md bg-indigo-100/70 px-2 py-0.5 text-[11px] font-bold text-indigo-800">
+                        {CERTIFICATE_FONT_PRESETS.find(
+                          (f: CertificateFontPreset) => f.id === (meta.fontFamily || (isEng ? "Times New Roman" : "Sarabun"))
+                        )?.name || meta.fontFamily || "Sarabun"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {CERTIFICATE_FONT_PRESETS.map((font: CertificateFontPreset) => {
+                        const activeFontId = meta.fontFamily || (isEng ? "Times New Roman" : "Sarabun");
+                        const isCurrent = activeFontId === font.id;
+                        return (
+                          <button
+                            key={font.id}
+                            type="button"
+                            onClick={() => updateField("fontFamily", font.id)}
+                            className={`flex flex-col items-start rounded-xl border p-2.5 text-left transition ${
+                              isCurrent
+                                ? "border-indigo-600 bg-white ring-2 ring-indigo-600/20 shadow-xs"
+                                : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                            }`}
+                          >
+                            <span className="text-xs font-bold text-slate-900">{font.name}</span>
+                            <span className="text-[10px] text-slate-500 line-clamp-1">{font.description}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <div>
                     <div className="mb-2 flex items-center justify-between">
                       <label className="text-xs font-bold text-slate-800">
@@ -624,23 +750,252 @@ export function CertificateStudioClient({ request }: Props) {
                       </label>
                     )}
                   </div>
+
+                  {/* ปรับแต่งส่วนท้ายเอกสารและ URL ตรวจสอบ (Footer Settings) */}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5 space-y-3">
+                    <div>
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-700">
+                          ขนาดตัวอักษรส่วนท้าย (Footer Font Size)
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateField(
+                                "footerFontSizePt",
+                                Math.max(7, Number(((meta.footerFontSizePt ?? 10.5) - 0.5).toFixed(1)))
+                              )
+                            }
+                            className="h-6 w-6 rounded border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100"
+                          >
+                            -
+                          </button>
+                          <span className="w-14 text-center font-mono text-xs font-bold text-indigo-700">
+                            {meta.footerFontSizePt ?? 10.5} pt
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              updateField(
+                                "footerFontSizePt",
+                                Math.min(13, Number(((meta.footerFontSizePt ?? 10.5) + 0.5).toFixed(1)))
+                              )
+                            }
+                            className="h-6 w-6 rounded border border-slate-300 bg-white text-xs font-bold text-slate-700 hover:bg-slate-100"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                      <input
+                        type="range"
+                        min={7}
+                        max={13}
+                        step={0.5}
+                        value={meta.footerFontSizePt ?? 10.5}
+                        onChange={(e) => updateField("footerFontSizePt", parseFloat(e.target.value))}
+                        className="w-full accent-indigo-600"
+                      />
+                      <div className="mt-1 flex justify-between text-[10px] text-slate-400">
+                        <span>7pt (กะทัดรัดพิเศษ)</span>
+                        <span className="font-semibold text-indigo-600">10-11pt (แนะนำ ไม่ตัดคำ)</span>
+                        <span>13pt (มาตรฐานเอกสาร)</span>
+                      </div>
+                    </div>
+
+                    {/* แก้ไขข้อความส่วนท้ายฝั่งซ้าย */}
+                    <div>
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <label className="text-xs font-semibold text-slate-700">
+                          ข้อความส่วนท้ายฝั่งซ้าย (สำนักงานคณบดี/ผู้ประสานงาน)
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const defaultText =
+                              meta.docTemplate === "BANK_LETTER"
+                                ? `ติดต่อผู้ประสานงาน:\n${meta.coordinatorNameTh || "นายดวงดี โอฐสู"}\nโทร. ${meta.coordinatorPhoneTh || "089-516-7544 / 095-470-7849"}\nhttps://fb.mcu.ac.th/`
+                                : meta.docTemplate === "ENG_CERT"
+                                ? `Office of Dean, Faculty of Buddhism\nMahachulalongkornrajavidyalaya University\nTel. +66 3524 8000 ext. 8323, 8096\nhttps://fb.mcu.ac.th/`
+                                : `สำนักงานคณบดีคณะพุทธศาสตร์\nมหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย\nโทรศัพท์ ๐-๓๕๒๔-๘๐๙๖ ภายใน ๘๐๙๖\nhttps://fb.mcu.ac.th/`;
+                            updateField("footerLeftText", defaultText);
+                            showToast("รีเซ็ตข้อความส่วนท้ายเป็นค่ามาตรฐานเรียบร้อย");
+                          }}
+                          className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition"
+                        >
+                          🔄 ค่ามาตรฐาน (4 บรรทัด)
+                        </button>
+                      </div>
+                      <textarea
+                        rows={4}
+                        value={
+                          meta.footerLeftText !== undefined && meta.footerLeftText !== ""
+                            ? meta.footerLeftText
+                            : meta.docTemplate === "BANK_LETTER"
+                            ? `ติดต่อผู้ประสานงาน:\n${meta.coordinatorNameTh || "นายดวงดี โอฐสู"}\nโทร. ${meta.coordinatorPhoneTh || "089-516-7544 / 095-470-7849"}\nhttps://fb.mcu.ac.th/`
+                            : meta.docTemplate === "ENG_CERT"
+                            ? `Office of Dean, Faculty of Buddhism\nMahachulalongkornrajavidyalaya University\nTel. +66 3524 8000 ext. 8323, 8096\nhttps://fb.mcu.ac.th/`
+                            : `สำนักงานคณบดีคณะพุทธศาสตร์\nมหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย\nโทรศัพท์ ๐-๓๕๒๔-๘๐๙๖ ภายใน ๘๐๙๖\nhttps://fb.mcu.ac.th/`
+                        }
+                        onChange={(e) => updateField("footerLeftText", e.target.value)}
+                        placeholder="พิมพ์ข้อความส่วนท้ายฝั่งซ้าย แต่ละบรรทัดจะขึ้นแถวใหม่บนเอกสาร"
+                        className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-800 font-mono leading-relaxed focus:border-indigo-500 focus:outline-none"
+                      />
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        ✍️ สามารถพิมพ์แก้ไขชื่อหน่วยงาน เบอร์โทรศัพท์ หรือเว็บไซต์ได้โดยตรง แต่ละบรรทัดจะแสดงแยกกันบนเอกสาร
+                      </p>
+                    </div>
+
+                    {/* การจัดวางท้ายกระดาษ (2 คอลัมน์ vs แถวเดี่ยว) */}
+                    <div>
+                      <span className="mb-1.5 block text-xs font-semibold text-slate-700">
+                        รูปแบบการจัดวางส่วนท้าย (Footer Layout)
+                      </span>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => updateField("footerLayout", "TWO_COLUMNS")}
+                          className={`rounded-lg border p-2 text-left transition ${
+                            (meta.footerLayout ?? "TWO_COLUMNS") === "TWO_COLUMNS"
+                              ? "border-indigo-600 bg-indigo-50/70 font-bold text-indigo-900"
+                              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                          }`}
+                        >
+                          <div>✨ 2 คอลัมน์ (แนะนำ)</div>
+                          <div className="text-[10px] font-normal text-slate-500 mt-0.5">
+                            ซ้าย สนง.คณะฯ/ผู้ประสานงาน / ขวา QR พอดี 1 หน้า A4
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => updateField("footerLayout", "STACKED")}
+                          className={`rounded-lg border p-2 text-left transition ${
+                            meta.footerLayout === "STACKED"
+                              ? "border-indigo-600 bg-indigo-50/70 font-bold text-indigo-900"
+                              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                          }`}
+                        >
+                          <div>แถวเดี่ยวเต็มความกว้าง</div>
+                          <div className="text-[10px] font-normal text-slate-500 mt-0.5">
+                            ซ้อนแนวตั้งตามลำดับเดิม
+                          </div>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* URL ตรวจสอบเอกสาร */}
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-slate-700">
+                        URL เว็บไซต์ระบบตรวจสอบ (Verification Portal URL)
+                      </label>
+                      <input
+                        type="text"
+                        value={meta.portalVerifyUrl || ""}
+                        onChange={(e) => updateField("portalVerifyUrl", e.target.value)}
+                        placeholder="ปล่อยว่างเพื่อใช้อัตโนมัติ หรือระบุ เช่น https://fb.mcu.ac.th/portal/certificates/verify"
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      />
+                      <p className="mt-1 text-[10px] text-slate-500">
+                        🌐 ใช้แสดงต่อท้าย https://fb.mcu.ac.th/ และเข้ารหัสใน QR Code เมื่อขึ้นโฮสติ้งจริง
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
 
               {/* TAB 2: DOCUMENT NUMBER & SIGNER */}
               {activeTab === "doc" && (
                 <div className="space-y-3.5">
-                  <div>
-                    <label className="mb-1 block text-xs font-semibold text-slate-700">
-                      เลขที่หนังสือ (ที่ อว ... หรือ MCU No.)
-                    </label>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3.5">
+                    <div className="mb-2 flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-semibold text-slate-700">
+                          {meta.docTemplate === "RESIDENCE_MEMO"
+                            ? "เลขที่หนังสือบันทึกข้อความ (กรอกเลขเอง)"
+                            : "เลขที่หนังสือรับรอง (รันเลขอัตโนมัติต่อเนื่องทุกฉบับ)"}
+                        </label>
+                        {meta.docTemplate === "RESIDENCE_MEMO" ? (
+                          <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                            ✍️ กรอกเลขเอง (ทะเบียนสารบรรณภายใน)
+                          </span>
+                        ) : (
+                          <span className="text-[10px] bg-indigo-100 text-indigo-800 font-bold px-2 py-0.5 rounded-full border border-indigo-200">
+                            🔢 รันเลขอัตโนมัติต่อเนื่องทุกฉบับ (Continuous Auto No.)
+                          </span>
+                        )}
+                      </div>
+                      {meta.docTemplate !== "RESIDENCE_MEMO" && (
+                        <button
+                          type="button"
+                          onClick={handleAutoAssignDocNo}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-200 bg-white px-2.5 py-1 text-[11px] font-bold text-indigo-600 shadow-2xs transition hover:bg-indigo-50 hover:text-indigo-800"
+                          title="ดึงเลขที่หนังสือรับรองฉบับถัดไปอัตโนมัติ (ต่อเนื่องทุกฉบับ)"
+                        >
+                          <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
+                          <span>เลขถัดไปอัตโนมัติ: {suggestedDocNo}</span>
+                        </button>
+                      )}
+                    </div>
                     <input
                       type="text"
                       value={meta.docNo || ""}
                       onChange={(e) => updateField("docNo", e.target.value)}
-                      placeholder="เช่น 8002 / 710"
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
+                      placeholder={
+                        meta.docTemplate === "RESIDENCE_MEMO"
+                          ? "กรอกเลขที่บันทึกข้อความ เช่น ๘๐๐๒/ ว ๐๗๓ หรือตามที่ออกเลข"
+                          : `เช่น ${suggestedDocNo}`
+                      }
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 font-mono text-xs font-bold text-slate-900 focus:border-indigo-500 focus:outline-none"
                     />
+                    <p className="mt-1.5 text-[11px] text-slate-500">
+                      💡 {meta.docTemplate === "RESIDENCE_MEMO"
+                        ? "หนังสือบันทึกข้อความ กำหนดให้กรอกเลขเองตามสมุดทะเบียนสารบรรณของคณะ ไม่ใช้เลขรวมกับหนังสือรับรอง"
+                        : "หนังสือรับรองทุกฉบับ (ภาษาไทย, ภาษาอังกฤษ, ธนาคาร) ใช้เลขต่อเนื่องกันอัตโนมัติ และสามารถแก้ไขเลขเองได้"}
+                    </p>
+                  </div>
+
+
+                  {/* กล่องเลือกชุดข้อมูลผู้ลงนามมาตรฐาน (Signer Presets) */}
+                  <div className="rounded-xl border border-indigo-200/80 bg-indigo-50/60 p-3.5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                        <UserCheck className="h-4 w-4 text-indigo-600" />
+                        <span>เลือกผู้ลงนามมาตรฐาน (Signer Presets)</span>
+                      </label>
+                      <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-100/70 px-2 py-0.5 rounded-full">
+                        ✨ ป้องกันพิมพ์ผิด
+                      </span>
+                    </div>
+                    <select
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (!val) return;
+                        const preset = SIGNER_PRESETS.find((p) => p.id === val);
+                        if (preset) {
+                          setMeta((prev) => ({
+                            ...prev,
+                            signerNameTh: preset.nameTh,
+                            signerTitleTh: preset.titleTh,
+                            signerNameEn: preset.nameEn,
+                            signerTitleEn: preset.titleEn,
+                          }));
+                          showToast(`เลือกผู้ลงนาม: ${preset.label}`);
+                        }
+                      }}
+                      defaultValue=""
+                      className="w-full rounded-lg border border-indigo-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 font-medium focus:border-indigo-500 focus:outline-none"
+                    >
+                      <option value="">-- เลือกจากรายชื่อผู้บริหาร / ผู้มีอำนาจลงนาม --</option>
+                      {SIGNER_PRESETS.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-[10px] text-slate-500">
+                      💡 เมื่อเลือก ระบบจะใส่ชื่อและตำแหน่งมาตรฐานให้ครบทั้งภาษาไทยและอังกฤษโดยอัตโนมัติ (และยังสามารถพิมพ์แก้ไขเพิ่มเองได้)
+                    </p>
                   </div>
 
                   {isEng ? (
@@ -657,27 +1012,93 @@ export function CertificateStudioClient({ request }: Props) {
                           className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900"
                         />
                       </div>
+
+                      {/* ชื่อผู้ลงนาม อังกฤษ */}
                       <div>
-                        <label className="mb-1 block text-xs font-semibold text-slate-700">
-                          ชื่อผู้ลงนาม (ภาษาอังกฤษ)
-                        </label>
+                        <div className="mb-1 flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">
+                            ชื่อผู้ลงนาม (ภาษาอังกฤษ)
+                          </label>
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                updateField("signerNameEn", e.target.value);
+                              }
+                            }}
+                            defaultValue=""
+                            className="text-[11px] rounded border border-slate-200 bg-white px-1.5 py-0.5 text-slate-600 focus:outline-none"
+                          >
+                            <option value="">เลือกชื่อด่วน...</option>
+                            {SIGNER_NAME_PRESETS_EN.map((name) => (
+                              <option key={name} value={name}>
+                                {name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                         <input
                           type="text"
+                          list="signer-names-en"
                           value={meta.signerNameEn || ""}
                           onChange={(e) => updateField("signerNameEn", e.target.value)}
-                          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900"
+                          placeholder="เช่น (Asst. Prof. Phrakhru Sirirattanabundit, Ph.D.)"
+                          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-900 focus:border-indigo-500 focus:outline-none"
                         />
+                        <datalist id="signer-names-en">
+                          {SIGNER_NAME_PRESETS_EN.map((name) => (
+                            <option key={name} value={name} />
+                          ))}
+                        </datalist>
                       </div>
+
+                      {/* ตำแหน่งผู้ลงนาม อังกฤษ */}
                       <div>
-                        <label className="mb-1 block text-xs font-semibold text-slate-700">
-                          ตำแหน่งผู้ลงนาม (ภาษาอังกฤษ)
-                        </label>
+                        <div className="mb-1 flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">
+                            ตำแหน่งผู้ลงนาม (ภาษาอังกฤษ)
+                          </label>
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                updateField("signerTitleEn", e.target.value);
+                              }
+                            }}
+                            defaultValue=""
+                            className="text-[11px] rounded border border-slate-200 bg-white px-1.5 py-0.5 text-slate-600 focus:outline-none"
+                          >
+                            <option value="">เลือกตำแหน่งด่วน...</option>
+                            {SIGNER_TITLE_PRESETS_EN.map((title) => (
+                              <option key={title} value={title}>
+                                {title}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                         <input
                           type="text"
+                          list="signer-titles-en"
                           value={meta.signerTitleEn || ""}
                           onChange={(e) => updateField("signerTitleEn", e.target.value)}
-                          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900"
+                          placeholder="เช่น Vice Dean, Faculty of Buddhism"
+                          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
                         />
+                        <datalist id="signer-titles-en">
+                          {SIGNER_TITLE_PRESETS_EN.map((title) => (
+                            <option key={title} value={title} />
+                          ))}
+                        </datalist>
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {SIGNER_TITLE_PRESETS_EN.slice(0, 4).map((title) => (
+                            <button
+                              key={title}
+                              type="button"
+                              onClick={() => updateField("signerTitleEn", title)}
+                              className="rounded bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 px-2 py-0.5 text-[10px] text-slate-600 transition"
+                            >
+                              {title.replace(", Faculty of Buddhism", "")}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </>
                   ) : (
@@ -694,27 +1115,93 @@ export function CertificateStudioClient({ request }: Props) {
                           className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900"
                         />
                       </div>
+
+                      {/* ชื่อผู้ลงนาม ไทย */}
                       <div>
-                        <label className="mb-1 block text-xs font-semibold text-slate-700">
-                          ชื่อผู้ลงนาม (ภาษาไทย)
-                        </label>
+                        <div className="mb-1 flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">
+                            ชื่อผู้ลงนาม (ภาษาไทย)
+                          </label>
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                updateField("signerNameTh", e.target.value);
+                              }
+                            }}
+                            defaultValue=""
+                            className="text-[11px] rounded border border-slate-200 bg-white px-1.5 py-0.5 text-slate-600 focus:outline-none"
+                          >
+                            <option value="">เลือกชื่อด่วน...</option>
+                            {SIGNER_NAME_PRESETS_TH.map((name) => (
+                              <option key={name} value={name}>
+                                {name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                         <input
                           type="text"
+                          list="signer-names-th"
                           value={meta.signerNameTh || ""}
                           onChange={(e) => updateField("signerNameTh", e.target.value)}
-                          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900"
+                          placeholder="เช่น (พระครูสิริรัตนบัณฑิต, ผศ.ดร.)"
+                          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-900 focus:border-indigo-500 focus:outline-none"
                         />
+                        <datalist id="signer-names-th">
+                          {SIGNER_NAME_PRESETS_TH.map((name) => (
+                            <option key={name} value={name} />
+                          ))}
+                        </datalist>
                       </div>
+
+                      {/* ตำแหน่งผู้ลงนาม ไทย */}
                       <div>
-                        <label className="mb-1 block text-xs font-semibold text-slate-700">
-                          ตำแหน่งผู้ลงนาม (ภาษาไทย)
-                        </label>
+                        <div className="mb-1 flex items-center justify-between">
+                          <label className="text-xs font-semibold text-slate-700">
+                            ตำแหน่งผู้ลงนาม (ภาษาไทย)
+                          </label>
+                          <select
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                updateField("signerTitleTh", e.target.value);
+                              }
+                            }}
+                            defaultValue=""
+                            className="text-[11px] rounded border border-slate-200 bg-white px-1.5 py-0.5 text-slate-600 focus:outline-none"
+                          >
+                            <option value="">เลือกตำแหน่งด่วน...</option>
+                            {SIGNER_TITLE_PRESETS_TH.map((title) => (
+                              <option key={title} value={title}>
+                                {title}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                         <input
                           type="text"
+                          list="signer-titles-th"
                           value={meta.signerTitleTh || ""}
                           onChange={(e) => updateField("signerTitleTh", e.target.value)}
-                          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900"
+                          placeholder="เช่น รักษาการแทนรองคณบดีฝ่ายวิชาการ คณะพุทธศาสตร์"
+                          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs text-slate-900 focus:border-indigo-500 focus:outline-none"
                         />
+                        <datalist id="signer-titles-th">
+                          {SIGNER_TITLE_PRESETS_TH.map((title) => (
+                            <option key={title} value={title} />
+                          ))}
+                        </datalist>
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {SIGNER_TITLE_PRESETS_TH.slice(0, 4).map((title) => (
+                            <button
+                              key={title}
+                              type="button"
+                              onClick={() => updateField("signerTitleTh", title)}
+                              className="rounded bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 px-2 py-0.5 text-[10px] text-slate-600 transition"
+                            >
+                              {title.replace(" คณะพุทธศาสตร์", "")}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </>
                   )}
@@ -1132,7 +1619,7 @@ export function CertificateStudioClient({ request }: Props) {
                 transform: `scale(${zoomPercent / 100})`,
               }}
             >
-              <CertificateA4Document metadata={meta} />
+              <CertificateA4Document metadata={meta} requestId={request.id} />
             </div>
           </div>
         </div>

@@ -3034,17 +3034,74 @@ export async function getCourseGrades(
     };
   });
 
+  // คำนวณข้อมูลระดับหลักสูตร, ภาคภาษา, คณะ, ชั้นปี, สาขาวิชา และช่วงวันเรียนสำหรับหัวกระดาษรายงาน
+  const distinctDegrees = Array.from(
+    new Set(course.enrollments.map((e: any) => e.student?.degree).filter(Boolean))
+  );
+  const degree = distinctDegrees.length > 0 ? distinctDegrees.join(", ") : "ระดับปริญญาตรี";
+
+  const distinctFaculties = Array.from(
+    new Set(course.enrollments.map((e: any) => e.student?.faculty).filter(Boolean))
+  );
+  const faculty = distinctFaculties.length > 0 ? distinctFaculties.join(", ") : "คณะพุทธศาสตร์";
+
+  const distinctCurriculums = Array.from(
+    new Set(course.enrollments.map((e: any) => e.student?.curriculumName).filter(Boolean))
+  );
+  const isInter = distinctCurriculums.some(
+    (c: any) =>
+      typeof c === "string" &&
+      (c.toLowerCase().includes("inter") || c.includes("นานาชาติ") || c.toLowerCase().includes("english"))
+  );
+  const programLanguage = isInter ? "หลักสูตรภาคภาษาอังกฤษ (นานาชาติ)" : "หลักสูตรภาคภาษาไทย";
+
+  const distinctYears = Array.from(
+    new Set(course.enrollments.map((e: any) => e.student?.yearLevel).filter(Boolean))
+  ).sort((a: any, b: any) => Number(a) - Number(b));
+  const yearLevel =
+    distinctYears.length > 0
+      ? distinctYears.map((y) => `ชั้นปีที่ ${y}`).join(", ")
+      : "ชั้นปีที่ 1";
+
+  const distinctMajors = Array.from(
+    new Set(
+      course.enrollments
+        .map((e: any) => e.student?.major || e.student?.department)
+        .filter(Boolean)
+    )
+  );
+  const major = distinctMajors.length > 0 ? distinctMajors.join(", ") : "สาขาวิชาพระพุทธศาสนา";
+
+  const validSessions = (course.sessions || []).filter((s: any) => s.date);
+  const sortedSessions = [...validSessions].sort(
+    (a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+  const startDate = sortedSessions.length > 0 && sortedSessions[0]?.date ? new Date(sortedSessions[0].date).toISOString() : null;
+  const endDate =
+    sortedSessions.length > 0 && sortedSessions[sortedSessions.length - 1]?.date
+      ? new Date(sortedSessions[sortedSessions.length - 1].date).toISOString()
+      : null;
+
   return {
     course: {
       id: course.id,
       courseCode: course.courseCode,
       courseName: course.courseName,
+      courseNameEn: course.courseNameEn || "",
       credits: course.credits,
+      section: course.section || "1",
       term: course.term,
       academicYear: course.academicYear,
       semester: course.semester,
       room: course.room || "-",
       primaryTeacher: course.primaryTeacher?.name || "-",
+      degree,
+      programLanguage,
+      faculty,
+      yearLevel,
+      major,
+      startDate,
+      endDate,
     },
     gradingConfig,
     students,
@@ -3178,32 +3235,121 @@ export async function updateCourseGradingConfig(
  * ดึงข้อมูลนิสิตทั้งหมดในระบบสำหรับหน้าทะเบียนนิสิตกลาง (Student Directory)
  */
 export async function getAllStudentsDirectory(tenantId: string) {
-  const students = await db.student.findMany({
-    where: { tenantId },
-    include: {
-      enrollments: {
-        where: { status: { not: EnrollmentStatus.DROPPED } },
-        include: {
-          course: {
-            select: {
-              id: true,
-              courseCode: true,
-              courseName: true,
-              courseNameEn: true,
-              academicYear: true,
-              semester: true,
+  const [students, eventRegistrations] = await Promise.all([
+    db.student.findMany({
+      where: { tenantId },
+      include: {
+        enrollments: {
+          where: { status: { not: EnrollmentStatus.DROPPED } },
+          include: {
+            course: {
+              select: {
+                id: true,
+                courseCode: true,
+                courseName: true,
+                courseNameEn: true,
+                academicYear: true,
+                semester: true,
+                credits: true,
+                targetSessions: true,
+              },
+            },
+            records: {
+              select: {
+                id: true,
+                status: true,
+              },
             },
           },
         },
       },
-    },
-    orderBy: [
-      { yearLevel: "asc" },
-      { studentCode: "asc" },
-    ],
-  });
+      orderBy: [
+        { yearLevel: "asc" },
+        { studentCode: "asc" },
+      ],
+    }),
+    db.eventRegistration.findMany({
+      where: { tenantId },
+      select: {
+        studentCode: true,
+        status: true,
+        event: {
+          select: {
+            id: true,
+            title: true,
+            startDate: true,
+          },
+        },
+      },
+    }),
+  ]);
 
-  return students;
+  const eventMap = new Map<string, typeof eventRegistrations>();
+  for (const reg of eventRegistrations) {
+    const list = eventMap.get(reg.studentCode) || [];
+    list.push(reg);
+    eventMap.set(reg.studentCode, list);
+  }
+
+  return students.map((s) => {
+    const studentEvents = eventMap.get(s.studentCode) || [];
+    const eventAttendedCount = studentEvents.filter((e) => e.status === "ATTENDED").length;
+    const eventTotalCount = studentEvents.length;
+    const eventPercentage =
+      eventTotalCount > 0 ? Math.round((eventAttendedCount / eventTotalCount) * 100) : 100;
+
+    let overallAttendedSessions = 0;
+    let overallTotalSessions = 0;
+
+    const enrichedEnrollments = s.enrollments.map((en) => {
+      const records = en.records || [];
+      const present = records.filter((r) => r.status === "PRESENT").length;
+      const late = records.filter((r) => r.status === "LATE").length;
+      const excused = records.filter((r) => r.status === "EXCUSED").length;
+      const absent = records.filter((r) => r.status === "ABSENT").length;
+      const totalConducted = records.length;
+      const attended = present + late + excused;
+
+      overallAttendedSessions += attended;
+      overallTotalSessions += totalConducted;
+
+      const percentage =
+        totalConducted > 0 ? Math.round((attended / totalConducted) * 100) : 100;
+
+      return {
+        ...en,
+        stats: {
+          present,
+          late,
+          excused,
+          absent,
+          totalConducted,
+          percentage,
+        },
+      };
+    });
+
+    const overallAttendanceRate =
+      overallTotalSessions > 0
+        ? Math.round((overallAttendedSessions / overallTotalSessions) * 100)
+        : 100;
+
+    return {
+      ...s,
+      enrollments: enrichedEnrollments,
+      eventRegistrations: studentEvents,
+      activityStats: {
+        total: eventTotalCount,
+        attended: eventAttendedCount,
+        percentage: eventPercentage,
+      },
+      attendanceStats: {
+        totalSessions: overallTotalSessions,
+        attendedSessions: overallAttendedSessions,
+        percentage: overallAttendanceRate,
+      },
+    };
+  });
 }
 
 export async function createOrUpdateStudent(
@@ -3224,6 +3370,10 @@ export async function createOrUpdateStudent(
     studyStatus?: string | null;
     email?: string | null;
     phoneNumber?: string | null;
+    gender?: string | null;
+    nationality?: string | null;
+    country?: string | null;
+    address?: string | null;
   }
 ) {
   if (data.id) {
@@ -3243,6 +3393,10 @@ export async function createOrUpdateStudent(
         studyStatus: data.studyStatus || "ปกติ",
         email: data.email || `${data.studentCode}@mcu.ac.th`,
         phoneNumber: data.phoneNumber,
+        gender: data.gender,
+        nationality: data.nationality,
+        country: data.country,
+        address: data.address,
       },
     });
 
@@ -3274,6 +3428,10 @@ export async function createOrUpdateStudent(
       studyStatus: data.studyStatus || "ปกติ",
       email: data.email || `${data.studentCode}@mcu.ac.th`,
       phoneNumber: data.phoneNumber,
+      gender: data.gender,
+      nationality: data.nationality,
+      country: data.country,
+      address: data.address,
     },
   });
 
@@ -3402,4 +3560,78 @@ export async function batchImportStudents(
 
   return { success: true, createdCount, updatedCount };
 }
+
+/**
+ * สรุปภาพรวมสถิตินิสิตและงานวิชาการสำหรับผู้บริหาร (Executive Academic Overview)
+ */
+export async function getExecutiveAcademicStats(tenantId: string) {
+  const [
+    totalStudents,
+    studentsByYear,
+    totalCourses,
+    students,
+  ] = await Promise.all([
+    db.student.count({ where: { tenantId } }),
+    db.student.groupBy({
+      by: ["yearLevel"],
+      where: { tenantId },
+      _count: { id: true },
+    }),
+    db.course.count({ where: { tenantId } }),
+    db.student.findMany({
+      where: { tenantId },
+      select: {
+        id: true,
+        curriculumName: true,
+        degree: true,
+        department: true,
+        major: true,
+      },
+    }),
+  ]);
+
+  const yearMap: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  let otherYears = 0;
+  studentsByYear.forEach((g) => {
+    if (g.yearLevel >= 1 && g.yearLevel <= 4) {
+      yearMap[g.yearLevel] = g._count.id;
+    } else {
+      otherYears += g._count.id;
+    }
+  });
+
+  let englishCount = 0;
+  let graduateCount = 0;
+  let thaiCount = 0;
+
+  students.forEach((s) => {
+    const c = (s.curriculumName || "").toLowerCase();
+    const deg = (s.degree || "").toLowerCase();
+    if (deg.includes("โท") || deg.includes("เอก")) {
+      graduateCount++;
+    } else if (c.includes("อังกฤษ") || c.includes("english") || c.includes("inter")) {
+      englishCount++;
+    } else {
+      thaiCount++;
+    }
+  });
+
+  return {
+    totalStudents,
+    totalCourses,
+    yearDistribution: {
+      year1: yearMap[1] || 0,
+      year2: yearMap[2] || 0,
+      year3: yearMap[3] || 0,
+      year4: yearMap[4] || 0,
+      otherYears,
+    },
+    programDistribution: {
+      thai: thaiCount,
+      english: englishCount,
+      graduate: graduateCount,
+    },
+  };
+}
+
 

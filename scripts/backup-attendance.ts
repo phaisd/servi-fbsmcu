@@ -26,6 +26,7 @@ async function runBackup() {
     attendanceAuditLogs,
     certificateTypes,
     certificateRequests,
+    adminDocuments,
   ] = await Promise.all([
     prisma.tenant.findMany(),
     prisma.course.findMany(),
@@ -37,11 +38,12 @@ async function runBackup() {
     prisma.attendanceAuditLog.findMany(),
     prisma.certificateType.findMany(),
     prisma.certificateRequest.findMany(),
+    prisma.adminDocument.findMany(),
   ]);
 
   const backupData = {
     exportedAt: new Date().toISOString(),
-    version: "2.1-AttendanceAndCertificates",
+    version: "2.2-CompleteBackup",
     counts: {
       tenants: tenants.length,
       courses: courses.length,
@@ -53,6 +55,7 @@ async function runBackup() {
       attendanceAuditLogs: attendanceAuditLogs.length,
       certificateTypes: certificateTypes.length,
       certificateRequests: certificateRequests.length,
+      adminDocuments: adminDocuments.length,
     },
     data: {
       tenants,
@@ -65,6 +68,7 @@ async function runBackup() {
       attendanceAuditLogs,
       certificateTypes,
       certificateRequests,
+      adminDocuments,
     },
   };
 

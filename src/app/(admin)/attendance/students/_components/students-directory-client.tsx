@@ -25,6 +25,11 @@ import {
   Check,
   AlertCircle,
   X,
+  BarChart3,
+  Table2,
+  Activity,
+  Calendar,
+  Award,
 } from "lucide-react";
 import {
   LiyonCard,
@@ -135,6 +140,9 @@ interface StudentItem {
   department?: string | null;
   major?: string | null;
   gender?: string | null;
+  nationality?: string | null;
+  country?: string | null;
+  address?: string | null;
   studyStatus?: string | null;
   faculty?: string | null;
   email?: string | null;
@@ -149,8 +157,37 @@ interface StudentItem {
       courseNameEn?: string | null;
       academicYear: string;
       semester: number;
+      credits?: number | null;
+      targetSessions?: number | null;
+    };
+    stats?: {
+      present: number;
+      late: number;
+      excused: number;
+      absent: number;
+      totalConducted: number;
+      percentage: number;
     };
   }[];
+  eventRegistrations?: {
+    studentCode: string;
+    status: string;
+    event: {
+      id: string;
+      title: string;
+      startDate: any;
+    };
+  }[];
+  activityStats?: {
+    total: number;
+    attended: number;
+    percentage: number;
+  };
+  attendanceStats?: {
+    totalSessions: number;
+    attendedSessions: number;
+    percentage: number;
+  };
 }
 
 interface StudentsDirectoryClientProps {
@@ -164,11 +201,28 @@ export function StudentsDirectoryClient({
   isSuperAdmin,
 }: StudentsDirectoryClientProps) {
   const [students, setStudents] = React.useState<StudentItem[]>(initialStudents);
+
+  // View Mode: DIRECTORY vs COHORT_MATRIX
+  const [viewMode, setViewMode] = React.useState<"DIRECTORY" | "COHORT_MATRIX">("DIRECTORY");
+
+  // Cohort Matrix Filters & Drill-down Modal
+  const [cohortAdmissionYear, setCohortAdmissionYear] = React.useState<string>("ALL");
+  const [cohortDegreeFilter, setCohortDegreeFilter] = React.useState<string>("ALL");
+  const [cohortProgramFilter, setCohortProgramFilter] = React.useState<string>("ALL");
+  const [drillDownGroup, setDrillDownGroup] = React.useState<{
+    title: string;
+    curriculum: string;
+    yearLevel?: number | string;
+    students: StudentItem[];
+  } | null>(null);
+  const [drillDownSearch, setDrillDownSearch] = React.useState("");
+
   const [search, setSearch] = React.useState("");
   const [degreeFilter, setDegreeFilter] = React.useState<string>("ALL");
   const [languageFilter, setLanguageFilter] = React.useState<string>("ALL");
   const [yearFilter, setYearFilter] = React.useState<number | "ALL">("ALL");
   const [deptFilter, setDeptFilter] = React.useState<string>("ALL");
+  const [countryFilter, setCountryFilter] = React.useState<string>("ALL");
 
   // Pagination
   const [currentPage, setCurrentPage] = React.useState(1);
@@ -191,6 +245,10 @@ export function StudentsDirectoryClient({
     studyStatus: "ปกติ",
     email: "",
     phoneNumber: "",
+    gender: "",
+    nationality: "",
+    country: "",
+    address: "",
   });
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
@@ -241,6 +299,17 @@ export function StudentsDirectoryClient({
     });
   }, [students, languageFilter]);
 
+  // Dynamic Countries list based on students
+  const availableCountries = React.useMemo(() => {
+    const set = new Set<string>();
+    students.forEach((s) => {
+      if (s.country && s.country.trim()) {
+        set.add(s.country.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "th"));
+  }, [students]);
+
   // Statistics
   const stats = React.useMemo(() => {
     const total = students.length;
@@ -250,6 +319,177 @@ export function StudentsDirectoryClient({
     const totalEnrollments = students.reduce((acc, s) => acc + (s.enrollments?.length || 0), 0);
     return { total, thaiProgram, englishProgram, graduate, totalEnrollments };
   }, [students]);
+
+  // Helper: extract BE admission year from student code (e.g. 6801001 -> 2568, 2568001 -> 2568, TEMP-68... -> 2568)
+  const getStudentAdmissionYear = React.useCallback((code?: string | null): string | null => {
+    if (!code) return null;
+    const clean = code.trim();
+    const m4 = clean.match(/^25(\d{2})/);
+    if (m4) return `25${m4[1]}`;
+    const m2 = clean.match(/(?:^|TEMP-?)(\d{2})/i);
+    if (m2 && parseInt(m2[1], 10) >= 40 && parseInt(m2[1], 10) <= 99) {
+      return `25${m2[1]}`;
+    }
+    return null;
+  }, []);
+
+  // Unique cohort admission years
+  const cohortAdmissionYearsList = React.useMemo(() => {
+    const yearsMap = new Map<string, number>();
+    students.forEach((s) => {
+      const yr = getStudentAdmissionYear(s.studentCode);
+      if (yr) {
+        yearsMap.set(yr, (yearsMap.get(yr) || 0) + 1);
+      } else {
+        yearsMap.set("OTHER", (yearsMap.get("OTHER") || 0) + 1);
+      }
+    });
+
+    return Array.from(yearsMap.entries())
+      .filter(([yr]) => yr !== "OTHER")
+      .sort((a, b) => b[0].localeCompare(a[0]));
+  }, [students, getStudentAdmissionYear]);
+
+  // Filtered students for Cohort Matrix
+  const cohortFilteredStudents = React.useMemo(() => {
+    return students.filter((s) => {
+      // Filter by Admission Year
+      if (cohortAdmissionYear !== "ALL") {
+        const studentYr = getStudentAdmissionYear(s.studentCode);
+        if (cohortAdmissionYear === "OLDER") {
+          if (studentYr && ["2569", "2568", "2567", "2566"].includes(studentYr)) return false;
+        } else if (studentYr !== cohortAdmissionYear) {
+          return false;
+        }
+      }
+
+      // Filter by Degree
+      if (cohortDegreeFilter !== "ALL") {
+        const d = (s.degree || "").toLowerCase();
+        if (cohortDegreeFilter === "BACHELOR" && !d.includes("ตรี")) return false;
+        if (cohortDegreeFilter === "MASTER" && !d.includes("โท")) return false;
+        if (cohortDegreeFilter === "DOCTORATE" && !d.includes("เอก")) return false;
+      }
+
+      // Filter by Program
+      if (cohortProgramFilter !== "ALL") {
+        const p = getStudentProgramType(s);
+        if (cohortProgramFilter !== p) return false;
+      }
+
+      return true;
+    });
+  }, [students, cohortAdmissionYear, cohortDegreeFilter, cohortProgramFilter]);
+
+  // Cohort Matrix Rows (Grouped by Curriculum)
+  const cohortMatrixRows = React.useMemo(() => {
+    interface MatrixRow {
+      curriculumName: string;
+      department: string;
+      programType: "ENGLISH" | "THAI" | "GRADUATE";
+      year1: StudentItem[];
+      year2: StudentItem[];
+      year3: StudentItem[];
+      year4: StudentItem[];
+      otherYears: StudentItem[];
+      total: StudentItem[];
+    }
+
+    const rowMap = new Map<string, MatrixRow>();
+
+    const canonicalOrder = [
+      "พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา (หลักสูตรภาษาอังกฤษ)",
+      "พุทธศาสตรบัณฑิต สาขาวิชาศาสนาและปรัชญา (หลักสูตรภาษาอังกฤษ)",
+      "พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา",
+      "พุทธศาสตรบัณฑิต สาขาวิชาศาสนาและปรัชญา",
+      "พุทธศาสตรบัณฑิต สาขาวิชาวิปัสสนาภาวนา",
+      "พุทธศาสตรบัณฑิต สาขาวิชาบาลีสันสกฤต",
+    ];
+
+    canonicalOrder.forEach((cName) => {
+      let dept = "ภาควิชาพระพุทธศาสนา";
+      if (cName.includes("ปรัชญา")) dept = "ภาควิชาศาสนาและปรัชญา";
+      else if (cName.includes("บาลี")) dept = "ภาควิชาบาลีสันสกฤต";
+
+      rowMap.set(cName, {
+        curriculumName: cName,
+        department: dept,
+        programType: cName.includes("ภาษาอังกฤษ") ? "ENGLISH" : "THAI",
+        year1: [],
+        year2: [],
+        year3: [],
+        year4: [],
+        otherYears: [],
+        total: [],
+      });
+    });
+
+    cohortFilteredStudents.forEach((s) => {
+      const rawCName = s.curriculumName?.trim() || "ไม่ระบุหลักสูตร";
+      let key = rawCName;
+
+      for (const c of canonicalOrder) {
+        if (rawCName.toLowerCase().includes(c.toLowerCase()) || rawCName === c) {
+          key = c;
+          break;
+        }
+      }
+
+      if (!rowMap.has(key)) {
+        rowMap.set(key, {
+          curriculumName: key,
+          department: s.department || "คณะพุทธศาสตร์",
+          programType: getStudentProgramType(s),
+          year1: [],
+          year2: [],
+          year3: [],
+          year4: [],
+          otherYears: [],
+          total: [],
+        });
+      }
+
+      const row = rowMap.get(key)!;
+      row.total.push(s);
+
+      if (s.yearLevel === 1) row.year1.push(s);
+      else if (s.yearLevel === 2) row.year2.push(s);
+      else if (s.yearLevel === 3) row.year3.push(s);
+      else if (s.yearLevel === 4) row.year4.push(s);
+      else row.otherYears.push(s);
+    });
+
+    return Array.from(rowMap.values()).sort((a, b) => {
+      const idxA = canonicalOrder.indexOf(a.curriculumName);
+      const idxB = canonicalOrder.indexOf(b.curriculumName);
+      if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+      if (idxA !== -1) return -1;
+      if (idxB !== -1) return 1;
+      return b.total.length - a.total.length;
+    });
+  }, [cohortFilteredStudents]);
+
+  // Totals for Cohort Matrix
+  const cohortMatrixTotals = React.useMemo(() => {
+    let year1 = 0;
+    let year2 = 0;
+    let year3 = 0;
+    let year4 = 0;
+    let otherYears = 0;
+    let grandTotal = 0;
+
+    cohortMatrixRows.forEach((r) => {
+      year1 += r.year1.length;
+      year2 += r.year2.length;
+      year3 += r.year3.length;
+      year4 += r.year4.length;
+      otherYears += r.otherYears.length;
+      grandTotal += r.total.length;
+    });
+
+    return { year1, year2, year3, year4, otherYears, grandTotal };
+  }, [cohortMatrixRows]);
+
 
   // Filtered List
   const filteredStudents = React.useMemo(() => {
@@ -263,6 +503,9 @@ export function StudentsDirectoryClient({
         (s.curriculumName && s.curriculumName.toLowerCase().includes(q)) ||
         (s.department && s.department.toLowerCase().includes(q)) ||
         (s.major && s.major.toLowerCase().includes(q)) ||
+        (s.country && s.country.toLowerCase().includes(q)) ||
+        (s.nationality && s.nationality.toLowerCase().includes(q)) ||
+        (s.address && s.address.toLowerCase().includes(q)) ||
         getStudentMajorDisplay(s).toLowerCase().includes(q);
 
       const matchDegree =
@@ -283,9 +526,11 @@ export function StudentsDirectoryClient({
       const disp = getStudentMajorDisplay(s);
       const matchDept = deptFilter === "ALL" || disp === deptFilter;
 
-      return matchSearch && matchDegree && matchLanguage && matchYear && matchDept;
+      const matchCountry = countryFilter === "ALL" || (s.country || "").trim() === countryFilter;
+
+      return matchSearch && matchDegree && matchLanguage && matchYear && matchDept && matchCountry;
     });
-  }, [students, search, degreeFilter, languageFilter, yearFilter, deptFilter]);
+  }, [students, search, degreeFilter, languageFilter, yearFilter, deptFilter, countryFilter]);
 
   // Pagination slice
   const totalPages = Math.ceil(filteredStudents.length / pageSize) || 1;
@@ -294,10 +539,62 @@ export function StudentsDirectoryClient({
     return filteredStudents.slice(start, start + pageSize);
   }, [filteredStudents, currentPage]);
 
+  // Group student enrollments by term (semester/academicYear) for Student Profile Card
+  const studentTermBreakdown = React.useMemo(() => {
+    if (!viewingCoursesStudent) return [];
+    const termMap = new Map<
+      string,
+      {
+        termKey: string;
+        semester: number;
+        academicYear: string;
+        courses: typeof viewingCoursesStudent.enrollments;
+        totalConducted: number;
+        totalAttended: number;
+        percentage: number;
+      }
+    >();
+
+    viewingCoursesStudent.enrollments.forEach((en) => {
+      const sem = en.course.semester || 1;
+      const yr = en.course.academicYear || "2568";
+      const termKey = `ภาค ${sem}/${yr}`;
+      if (!termMap.has(termKey)) {
+        termMap.set(termKey, {
+          termKey,
+          semester: sem,
+          academicYear: yr,
+          courses: [],
+          totalConducted: 0,
+          totalAttended: 0,
+          percentage: 100,
+        });
+      }
+      const termData = termMap.get(termKey)!;
+      termData.courses.push(en);
+      const conducted = en.stats?.totalConducted || 0;
+      const attended =
+        (en.stats?.present || 0) + (en.stats?.late || 0) + (en.stats?.excused || 0);
+      termData.totalConducted += conducted;
+      termData.totalAttended += attended;
+    });
+
+    return Array.from(termMap.values())
+      .map((t) => ({
+        ...t,
+        percentage:
+          t.totalConducted > 0 ? Math.round((t.totalAttended / t.totalConducted) * 100) : 100,
+      }))
+      .sort((a, b) => {
+        if (a.academicYear !== b.academicYear) return b.academicYear.localeCompare(a.academicYear);
+        return b.semester - a.semester;
+      });
+  }, [viewingCoursesStudent]);
+
   // Reset page when filter changes
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [search, degreeFilter, languageFilter, yearFilter, deptFilter]);
+  }, [search, degreeFilter, languageFilter, yearFilter, deptFilter, countryFilter]);
 
   // Reset deptFilter if no longer available in the current language filter
   React.useEffect(() => {
@@ -322,6 +619,10 @@ export function StudentsDirectoryClient({
       studyStatus: "ปกติ",
       email: "",
       phoneNumber: "",
+      gender: "",
+      nationality: "",
+      country: "",
+      address: "",
     });
     setIsModalOpen(true);
   };
@@ -342,6 +643,10 @@ export function StudentsDirectoryClient({
       studyStatus: student.studyStatus || "ปกติ",
       email: student.email || (student.studentCode ? `${student.studentCode}@mcu.ac.th` : ""),
       phoneNumber: student.phoneNumber || "",
+      gender: student.gender || "",
+      nationality: student.nationality || "",
+      country: student.country || "",
+      address: student.address || "",
     });
     setIsModalOpen(true);
   };
@@ -373,6 +678,10 @@ export function StudentsDirectoryClient({
         studyStatus: formData.studyStatus,
         email: studentEmail,
         phoneNumber: formData.phoneNumber.trim() || null,
+        gender: formData.gender.trim() || null,
+        nationality: formData.nationality.trim() || null,
+        country: formData.country.trim() || null,
+        address: formData.address.trim() || null,
       });
 
       if (res.success && res.student) {
@@ -549,7 +858,7 @@ export function StudentsDirectoryClient({
         if (!code || !code.match(/\d/)) continue;
 
         let firstName = tokens[headerMap["firstName"]] || "";
-        let lastName = tokens[headerMap["lastName"]] || "";
+        const lastName = tokens[headerMap["lastName"]] || "";
         let title = headerMap["title"] !== undefined ? tokens[headerMap["title"]] : "";
 
         // If no separate title column, see if firstName has title
@@ -628,7 +937,7 @@ export function StudentsDirectoryClient({
         let curriculumName = "";
         let department = "";
         let faculty = "คณะพุทธศาสตร์";
-        let studyStatus = "ปกติ";
+        const studyStatus = "ปกติ";
         let email = "";
         let phoneNumber = "";
 
@@ -847,19 +1156,526 @@ export function StudentsDirectoryClient({
         </div>
       </div>
 
-      {/* ── STATS CARDS ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <LiyonCard className="p-4 border-l-4 border-l-primary bg-card/80">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-muted-foreground font-medium">นิสิตทั้งหมดในระบบ</p>
-              <p className="text-2xl font-bold text-foreground mt-1">{stats.total} รูป/คน</p>
+      {/* ── VIEW MODE SWITCHER TABS ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+        <div className="inline-flex p-1 rounded-2xl bg-muted/80 border border-border shadow-inner">
+          <button
+            type="button"
+            onClick={() => setViewMode("DIRECTORY")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              viewMode === "DIRECTORY"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+            }`}
+          >
+            <Table2 className="w-4 h-4" />
+            <span>ทะเบียนประวัตินิสิต (Directory)</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                viewMode === "DIRECTORY"
+                  ? "bg-primary-foreground/20 text-primary-foreground"
+                  : "bg-background text-muted-foreground"
+              }`}
+            >
+              {students.length} คน
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setViewMode("COHORT_MATRIX")}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+              viewMode === "COHORT_MATRIX"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/50"
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span>สรุปสถิตินิสิตแยกชั้นปีและหลักสูตร (Cohort Matrix)</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                viewMode === "COHORT_MATRIX"
+                  ? "bg-primary-foreground/20 text-primary-foreground"
+                  : "bg-background text-muted-foreground"
+              }`}
+            >
+              ปี 1 - 4
+            </span>
+          </button>
+        </div>
+
+        <div className="text-xs text-muted-foreground hidden lg:flex items-center gap-2 bg-muted/40 px-3 py-1.5 rounded-xl border border-border/50">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span>คลิกตัวเลขในตารางเพื่อดูรายชื่อนิสิต • คลิกชื่อนิสิตเพื่อดูบัตรประวัติและสถิติรายเทอม</span>
+        </div>
+      </div>
+
+      {viewMode === "COHORT_MATRIX" ? (
+        <div className="space-y-5">
+          {/* ── COHORT FILTERS BAR ── */}
+          <div className="p-4 rounded-2xl bg-card border border-border shadow-xs space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-bold text-foreground text-sm flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4 text-primary" />
+                  เมทริกซ์สถิติจำนวนนิสิตแยกตามชั้นปีและหลักสูตร
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  วิเคราะห์จำนวนนิสิตแยกชั้นปี (ปี 1, 2, 3, 4) ตามหลักสูตรและปีการศึกษาที่เข้าศึกษา (คลิกตัวเลขเพื่อดูรายชื่อ)
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Cohort Year Filter */}
+                <div className="flex items-center gap-1.5 bg-muted/50 border border-border px-3 py-1.5 rounded-xl text-xs">
+                  <Calendar className="w-3.5 h-3.5 text-primary" />
+                  <span className="font-semibold text-muted-foreground">ปีที่เข้าศึกษา:</span>
+                  <select
+                    value={cohortAdmissionYear}
+                    onChange={(e) => setCohortAdmissionYear(e.target.value)}
+                    className="bg-transparent font-bold text-primary focus:outline-none cursor-pointer"
+                  >
+                    <option value="ALL">ทุกปีการศึกษาที่เข้าศึกษา (รวมทุกรุ่น)</option>
+                    {cohortAdmissionYearsList.map(([yr, count]) => (
+                      <option key={yr} value={yr}>
+                        ปี {yr} (รหัส {yr.slice(2)}xxxx) - {count} รูป/คน
+                      </option>
+                    ))}
+                    <option value="OLDER">ก่อนปี 2566 (รหัสตกค้าง/เทียบโอน)</option>
+                  </select>
+                </div>
+
+                {/* Degree Filter */}
+                <select
+                  value={cohortDegreeFilter}
+                  onChange={(e) => setCohortDegreeFilter(e.target.value)}
+                  className="px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs font-medium focus:outline-none cursor-pointer"
+                >
+                  <option value="ALL">🎓 ทุกระดับการศึกษา</option>
+                  <option value="BACHELOR">ปริญญาตรี (ทั้งหมด)</option>
+                  <option value="MASTER">ปริญญาโท</option>
+                  <option value="DOCTORATE">ปริญญาเอก</option>
+                </select>
+
+                {/* Program / Language Filter */}
+                <select
+                  value={cohortProgramFilter}
+                  onChange={(e) => setCohortProgramFilter(e.target.value)}
+                  className="px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs font-medium focus:outline-none cursor-pointer"
+                >
+                  <option value="ALL">🌐 ทุกหลักสูตรภาษา</option>
+                  <option value="ENGLISH">🇬🇧 ภาคภาษาอังกฤษ (Inter)</option>
+                  <option value="THAI">🇹🇭 ภาคภาษาไทย</option>
+                  <option value="GRADUATE">🎓 บัณฑิตศึกษา</option>
+                </select>
+              </div>
             </div>
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-              <Users className="w-5 h-5" />
+
+            {/* Quick Cohort Admission Year Pills */}
+            <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-border/60">
+              <span className="text-2xs font-bold text-muted-foreground mr-1 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-primary" />
+                ปีการศึกษาที่เข้าศึกษา (รุ่น พ.ศ.):
+              </span>
+              <button
+                type="button"
+                onClick={() => setCohortAdmissionYear("ALL")}
+                className={`px-2.5 py-1 rounded-lg text-2xs font-bold transition cursor-pointer ${
+                  cohortAdmissionYear === "ALL"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                รวมทุกรุ่น (ทุกปี พ.ศ.)
+              </button>
+              {cohortAdmissionYearsList.map(([yr, count]) => (
+                <button
+                  key={yr}
+                  type="button"
+                  onClick={() => setCohortAdmissionYear(yr)}
+                  className={`px-2.5 py-1 rounded-lg text-2xs font-bold transition cursor-pointer ${
+                    cohortAdmissionYear === yr
+                      ? "bg-primary text-primary-foreground shadow-xs"
+                      : "bg-muted/70 hover:bg-muted text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  รุ่นปี {yr} ({count} คน)
+                </button>
+              ))}
+              {cohortAdmissionYear !== "ALL" && (
+                <button
+                  type="button"
+                  onClick={() => setCohortAdmissionYear("ALL")}
+                  className="text-2xs text-primary font-semibold hover:underline ml-auto"
+                >
+                  ล้างตัวกรองปี
+                </button>
+              )}
             </div>
           </div>
-        </LiyonCard>
+
+          {/* ── COHORT KPI CARDS ── */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <LiyonCard className="p-3.5 border-l-4 border-l-primary bg-card/90">
+              <p className="text-2xs text-muted-foreground font-semibold">รวมนิสิตในกลุ่มนี้</p>
+              <p className="text-2xl font-bold text-foreground mt-0.5">
+                {cohortMatrixTotals.grandTotal} <span className="text-xs font-normal text-muted-foreground">รูป/คน</span>
+              </p>
+            </LiyonCard>
+            <LiyonCard className="p-3.5 border-l-4 border-l-emerald-500 bg-card/90">
+              <p className="text-2xs text-muted-foreground font-semibold">ชั้นปี 1 (First Year)</p>
+              <p className="text-2xl font-bold text-foreground mt-0.5">
+                {cohortMatrixTotals.year1} <span className="text-xs font-normal text-muted-foreground">รูป/คน</span>
+              </p>
+            </LiyonCard>
+            <LiyonCard className="p-3.5 border-l-4 border-l-blue-500 bg-card/90">
+              <p className="text-2xs text-muted-foreground font-semibold">ชั้นปี 2 (Second Year)</p>
+              <p className="text-2xl font-bold text-foreground mt-0.5">
+                {cohortMatrixTotals.year2} <span className="text-xs font-normal text-muted-foreground">รูป/คน</span>
+              </p>
+            </LiyonCard>
+            <LiyonCard className="p-3.5 border-l-4 border-l-amber-500 bg-card/90">
+              <p className="text-2xs text-muted-foreground font-semibold">ชั้นปี 3 (Third Year)</p>
+              <p className="text-2xl font-bold text-foreground mt-0.5">
+                {cohortMatrixTotals.year3} <span className="text-xs font-normal text-muted-foreground">รูป/คน</span>
+              </p>
+            </LiyonCard>
+            <LiyonCard className="p-3.5 border-l-4 border-l-purple-500 bg-card/90">
+              <p className="text-2xs text-muted-foreground font-semibold">ชั้นปี 4 (Fourth Year)</p>
+              <p className="text-2xl font-bold text-foreground mt-0.5">
+                {cohortMatrixTotals.year4} <span className="text-xs font-normal text-muted-foreground">รูป/คน</span>
+              </p>
+            </LiyonCard>
+          </div>
+
+          {/* ── COHORT MATRIX TABLE ── */}
+          <div className="rounded-2xl bg-card border border-border shadow-xs overflow-hidden">
+            <div className="p-3.5 bg-muted/40 border-b border-border flex items-center justify-between text-xs">
+              <span className="font-semibold text-foreground flex items-center gap-1.5">
+                <Table2 className="w-4 h-4 text-primary" />
+                ตารางสรุปจำนวนนิสิตแยกตามหลักสูตรและชั้นปี (คลิกที่ตัวเลขเพื่อดูรายชื่อนิสิต)
+              </span>
+              <span className="text-2xs text-muted-foreground">
+                แสดงผล {cohortMatrixRows.length} หลักสูตร
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/70 text-2xs font-bold text-muted-foreground uppercase border-b border-border">
+                  <tr>
+                    <th className="py-3 px-3.5 w-10 text-center">#</th>
+                    <th className="py-3 px-4 min-w-[260px]">หลักสูตร / สาขาวิชา</th>
+                    <th className="py-3 px-3 min-w-[140px]">ภาควิชา</th>
+                    <th className="py-3 px-3 text-center">ภาคภาษา</th>
+                    <th className="py-3 px-3 text-center bg-emerald-500/5 text-emerald-800 dark:text-emerald-300">
+                      ปี 1
+                    </th>
+                    <th className="py-3 px-3 text-center bg-blue-500/5 text-blue-800 dark:text-blue-300">
+                      ปี 2
+                    </th>
+                    <th className="py-3 px-3 text-center bg-amber-500/5 text-amber-800 dark:text-amber-300">
+                      ปี 3
+                    </th>
+                    <th className="py-3 px-3 text-center bg-purple-500/5 text-purple-800 dark:text-purple-300">
+                      ปี 4
+                    </th>
+                    {cohortMatrixTotals.otherYears > 0 && (
+                      <th className="py-3 px-3 text-center">อื่นๆ/บัณฑิต</th>
+                    )}
+                    <th className="py-3 px-4 text-center font-bold bg-muted/90 text-foreground">
+                      รวมทั้งหมด
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {cohortMatrixRows.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-muted/40 transition-colors">
+                      <td className="py-3 px-3.5 text-center text-muted-foreground font-medium">
+                        {idx + 1}
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-foreground">
+                        {row.curriculumName}
+                      </td>
+                      <td className="py-3 px-3 text-muted-foreground">
+                        {row.department}
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        {row.programType === "ENGLISH" ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                            🇬🇧 English
+                          </span>
+                        ) : row.programType === "GRADUATE" ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20">
+                            🎓 บัณฑิต
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20">
+                            🇹🇭 ไทย
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Year 1 */}
+                      <td className="py-3 px-3 text-center bg-emerald-500/5">
+                        {row.year1.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDrillDownGroup({
+                                title: `${row.curriculumName} - ชั้นปี 1`,
+                                curriculum: row.curriculumName,
+                                yearLevel: 1,
+                                students: row.year1,
+                              })
+                            }
+                            className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-800 dark:text-emerald-200 font-bold font-mono transition cursor-pointer shadow-2xs"
+                            title="คลิกเพื่อดูรายชื่อนิสิตชั้นปี 1"
+                          >
+                            {row.year1.length}
+                          </button>
+                        ) : (
+                          <span className="text-muted-foreground/40 font-mono">-</span>
+                        )}
+                      </td>
+
+                      {/* Year 2 */}
+                      <td className="py-3 px-3 text-center bg-blue-500/5">
+                        {row.year2.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDrillDownGroup({
+                                title: `${row.curriculumName} - ชั้นปี 2`,
+                                curriculum: row.curriculumName,
+                                yearLevel: 2,
+                                students: row.year2,
+                              })
+                            }
+                            className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 text-blue-800 dark:text-blue-200 font-bold font-mono transition cursor-pointer shadow-2xs"
+                            title="คลิกเพื่อดูรายชื่อนิสิตชั้นปี 2"
+                          >
+                            {row.year2.length}
+                          </button>
+                        ) : (
+                          <span className="text-muted-foreground/40 font-mono">-</span>
+                        )}
+                      </td>
+
+                      {/* Year 3 */}
+                      <td className="py-3 px-3 text-center bg-amber-500/5">
+                        {row.year3.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDrillDownGroup({
+                                title: `${row.curriculumName} - ชั้นปี 3`,
+                                curriculum: row.curriculumName,
+                                yearLevel: 3,
+                                students: row.year3,
+                              })
+                            }
+                            className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-200 font-bold font-mono transition cursor-pointer shadow-2xs"
+                            title="คลิกเพื่อดูรายชื่อนิสิตชั้นปี 3"
+                          >
+                            {row.year3.length}
+                          </button>
+                        ) : (
+                          <span className="text-muted-foreground/40 font-mono">-</span>
+                        )}
+                      </td>
+
+                      {/* Year 4 */}
+                      <td className="py-3 px-3 text-center bg-purple-500/5">
+                        {row.year4.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDrillDownGroup({
+                                title: `${row.curriculumName} - ชั้นปี 4`,
+                                curriculum: row.curriculumName,
+                                yearLevel: 4,
+                                students: row.year4,
+                              })
+                            }
+                            className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-800 dark:text-purple-200 font-bold font-mono transition cursor-pointer shadow-2xs"
+                            title="คลิกเพื่อดูรายชื่อนิสิตชั้นปี 4"
+                          >
+                            {row.year4.length}
+                          </button>
+                        ) : (
+                          <span className="text-muted-foreground/40 font-mono">-</span>
+                        )}
+                      </td>
+
+                      {cohortMatrixTotals.otherYears > 0 && (
+                        <td className="py-3 px-3 text-center">
+                          {row.otherYears.length > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDrillDownGroup({
+                                  title: `${row.curriculumName} - ชั้นปีอื่นๆ/บัณฑิต`,
+                                  curriculum: row.curriculumName,
+                                  yearLevel: "อื่นๆ",
+                                  students: row.otherYears,
+                                })
+                              }
+                              className="inline-flex items-center justify-center min-w-[32px] px-2 py-1 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-bold font-mono transition cursor-pointer"
+                            >
+                              {row.otherYears.length}
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground/40 font-mono">-</span>
+                          )}
+                        </td>
+                      )}
+
+                      {/* Row Total */}
+                      <td className="py-3 px-4 text-center bg-muted/30">
+                        {row.total.length > 0 ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDrillDownGroup({
+                                title: `${row.curriculumName} (รวมทุกชั้นปี)`,
+                                curriculum: row.curriculumName,
+                                students: row.total,
+                              })
+                            }
+                            className="inline-flex items-center justify-center min-w-[36px] px-2.5 py-1 rounded-xl bg-primary text-primary-foreground font-bold font-mono text-xs transition cursor-pointer hover:bg-primary/90 shadow-xs"
+                            title="คลิกเพื่อดูรายชื่อนิสิตทั้งหมดในหลักสูตรนี้"
+                          >
+                            {row.total.length}
+                          </button>
+                        ) : (
+                          <span className="text-muted-foreground/40 font-mono">0</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+
+                {/* Grand Total Footer */}
+                <tfoot className="bg-muted/90 font-bold border-t-2 border-border text-foreground">
+                  <tr>
+                    <td colSpan={4} className="py-3.5 px-4 text-right">
+                      รวมทั้งสิ้น (Grand Total):
+                    </td>
+                    <td className="py-3.5 px-3 text-center bg-emerald-500/10 text-emerald-800 dark:text-emerald-200">
+                      {cohortMatrixTotals.year1 > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allY1 = cohortFilteredStudents.filter((s) => s.yearLevel === 1);
+                            setDrillDownGroup({
+                              title: "นิสิตชั้นปี 1 (รวมทุกหลักสูตร)",
+                              curriculum: "ทุกหลักสูตร",
+                              yearLevel: 1,
+                              students: allY1,
+                            });
+                          }}
+                          className="font-mono text-sm underline cursor-pointer"
+                        >
+                          {cohortMatrixTotals.year1}
+                        </button>
+                      ) : (
+                        "0"
+                      )}
+                    </td>
+                    <td className="py-3.5 px-3 text-center bg-blue-500/10 text-blue-800 dark:text-blue-200">
+                      {cohortMatrixTotals.year2 > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allY2 = cohortFilteredStudents.filter((s) => s.yearLevel === 2);
+                            setDrillDownGroup({
+                              title: "นิสิตชั้นปี 2 (รวมทุกหลักสูตร)",
+                              curriculum: "ทุกหลักสูตร",
+                              yearLevel: 2,
+                              students: allY2,
+                            });
+                          }}
+                          className="font-mono text-sm underline cursor-pointer"
+                        >
+                          {cohortMatrixTotals.year2}
+                        </button>
+                      ) : (
+                        "0"
+                      )}
+                    </td>
+                    <td className="py-3.5 px-3 text-center bg-amber-500/10 text-amber-800 dark:text-amber-200">
+                      {cohortMatrixTotals.year3 > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allY3 = cohortFilteredStudents.filter((s) => s.yearLevel === 3);
+                            setDrillDownGroup({
+                              title: "นิสิตชั้นปี 3 (รวมทุกหลักสูตร)",
+                              curriculum: "ทุกหลักสูตร",
+                              yearLevel: 3,
+                              students: allY3,
+                            });
+                          }}
+                          className="font-mono text-sm underline cursor-pointer"
+                        >
+                          {cohortMatrixTotals.year3}
+                        </button>
+                      ) : (
+                        "0"
+                      )}
+                    </td>
+                    <td className="py-3.5 px-3 text-center bg-purple-500/10 text-purple-800 dark:text-purple-200">
+                      {cohortMatrixTotals.year4 > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allY4 = cohortFilteredStudents.filter((s) => s.yearLevel === 4);
+                            setDrillDownGroup({
+                              title: "นิสิตชั้นปี 4 (รวมทุกหลักสูตร)",
+                              curriculum: "ทุกหลักสูตร",
+                              yearLevel: 4,
+                              students: allY4,
+                            });
+                          }}
+                          className="font-mono text-sm underline cursor-pointer"
+                        >
+                          {cohortMatrixTotals.year4}
+                        </button>
+                      ) : (
+                        "0"
+                      )}
+                    </td>
+                    {cohortMatrixTotals.otherYears > 0 && (
+                      <td className="py-3.5 px-3 text-center font-mono">
+                        {cohortMatrixTotals.otherYears}
+                      </td>
+                    )}
+                    <td className="py-3.5 px-4 text-center font-mono text-sm bg-primary/15 text-primary">
+                      {cohortMatrixTotals.grandTotal} รูป/คน
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* ── DIRECTORY CONTENT ── */
+        <div className="space-y-6">
+          {/* ── STATS CARDS ── */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <LiyonCard className="p-4 border-l-4 border-l-primary bg-card/80">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium">นิสิตทั้งหมดในระบบ</p>
+                  <p className="text-2xl font-bold text-foreground mt-1">{stats.total} รูป/คน</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                  <Users className="w-5 h-5" />
+                </div>
+              </div>
+            </LiyonCard>
 
         <LiyonCard className="p-4 border-l-4 border-l-sky-500 bg-card/80">
           <div className="flex items-center justify-between">
@@ -966,6 +1782,22 @@ export function StudentsDirectoryClient({
                 </option>
               ))}
             </select>
+
+            {/* Country / Nationality Filter */}
+            {availableCountries.length > 0 && (
+              <select
+                value={countryFilter}
+                onChange={(e) => setCountryFilter(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 max-w-[180px]"
+              >
+                <option value="ALL">🌍 ทุกประเทศ/สัญชาติ</option>
+                {availableCountries.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
@@ -978,7 +1810,8 @@ export function StudentsDirectoryClient({
             degreeFilter !== "ALL" ||
             languageFilter !== "ALL" ||
             yearFilter !== "ALL" ||
-            deptFilter !== "ALL") && (
+            deptFilter !== "ALL" ||
+            countryFilter !== "ALL") && (
             <button
               type="button"
               onClick={() => {
@@ -987,6 +1820,7 @@ export function StudentsDirectoryClient({
                 setLanguageFilter("ALL");
                 setYearFilter("ALL");
                 setDeptFilter("ALL");
+                setCountryFilter("ALL");
               }}
               className="text-primary hover:underline cursor-pointer"
             >
@@ -1045,23 +1879,60 @@ export function StudentsDirectoryClient({
                       </td>
 
                       <td className="py-3 px-4">
-                        <div className="font-medium text-foreground">
-                          {student.title ? `${student.title} ` : ""}
-                          {student.firstName} {student.lastName}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => setViewingCoursesStudent(student)}
+                            className="font-semibold text-foreground hover:text-primary hover:underline text-left cursor-pointer transition flex items-center gap-1 group/sname"
+                            title="คลิกเพื่อดูบัตรประวัตินิสิตและผลการเรียน"
+                          >
+                            <span>
+                              {student.title ? `${student.title} ` : ""}
+                              {student.firstName} {student.lastName}
+                            </span>
+                            <span className="text-2xs text-muted-foreground group-hover/sname:text-primary opacity-0 group-hover/sname:opacity-100 transition">
+                              ↗
+                            </span>
+                          </button>
+                          {student.country && (
+                            <span
+                              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-2xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20"
+                              title={`สัญชาติ: ${student.nationality || student.country}`}
+                            >
+                              🌍 {student.country}
+                            </span>
+                          )}
+                          {student.gender && (
+                            <span className="text-2xs text-muted-foreground/80 font-normal">
+                              ({student.gender === "MALE" || student.gender === "ชาย" ? "ชาย" : student.gender === "FEMALE" || student.gender === "หญิง" ? "หญิง" : student.gender})
+                            </span>
+                          )}
                         </div>
-                        {(student.email || student.phoneNumber) && (
-                          <div className="flex items-center gap-2 text-2xs text-muted-foreground mt-0.5">
-                            {student.phoneNumber && (
-                              <span className="flex items-center gap-0.5">
-                                <Phone className="w-2.5 h-2.5" />
-                                {student.phoneNumber}
-                              </span>
+                        {(student.email || student.phoneNumber || student.address) && (
+                          <div className="flex flex-col gap-0.5 text-2xs text-muted-foreground mt-0.5">
+                            {(student.email || student.phoneNumber) && (
+                              <div className="flex items-center gap-2">
+                                {student.phoneNumber && (
+                                  <span className="flex items-center gap-0.5">
+                                    <Phone className="w-2.5 h-2.5" />
+                                    {student.phoneNumber}
+                                  </span>
+                                )}
+                                {student.email && (
+                                  <span className="flex items-center gap-0.5">
+                                    <Mail className="w-2.5 h-2.5" />
+                                    {student.email}
+                                  </span>
+                                )}
+                              </div>
                             )}
-                            {student.email && (
-                              <span className="flex items-center gap-0.5">
-                                <Mail className="w-2.5 h-2.5" />
-                                {student.email}
-                              </span>
+                            {student.address && (
+                              <div
+                                className="truncate max-w-[260px] text-muted-foreground/75"
+                                title={student.address}
+                              >
+                                📍 {student.address}
+                              </div>
                             )}
                           </div>
                         )}
@@ -1146,15 +2017,32 @@ export function StudentsDirectoryClient({
 
                       <td className="py-3 px-4 text-center">
                         {enrolledCount > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => setViewingCoursesStudent(student)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition cursor-pointer"
-                            title="คลิกเพื่อดูรายชื่อวิชาที่ลงทะเบียน"
-                          >
-                            <BookOpen className="w-3 h-3" />
-                            {enrolledCount} วิชา
-                          </button>
+                          <div className="flex flex-col items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setViewingCoursesStudent(student)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 transition cursor-pointer"
+                              title="คลิกเพื่อดูรายละเอียดรายวิชาและสถิติเวลาเรียน"
+                            >
+                              <BookOpen className="w-3 h-3" />
+                              {enrolledCount} วิชา
+                            </button>
+                            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                              <span
+                                className="font-semibold text-emerald-700 dark:text-emerald-400"
+                                title="เปอร์เซ็นต์การเข้าเรียนรวม"
+                              >
+                                {student.attendanceStats?.percentage ?? 100}% เรียน
+                              </span>
+                              <span>•</span>
+                              <span
+                                className="font-semibold text-blue-700 dark:text-blue-400"
+                                title="การเข้าร่วมกิจกรรม"
+                              >
+                                {student.activityStats?.percentage ?? 100}% กิจกรรม
+                              </span>
+                            </div>
+                          </div>
                         ) : (
                           <span className="text-2xs text-muted-foreground/60 italic">
                             ยังไม่มีรายวิชา
@@ -1255,10 +2143,231 @@ export function StudentsDirectoryClient({
           </div>
         </div>
       </div>
+    </div>
+  )}
 
-      {/* ── ADD / EDIT MODAL ── */}
-      {/* ── ADD / EDIT STUDENT MODAL ── */}
-      {isModalOpen && (
+  {/* ── COHORT DRILL-DOWN STUDENT NAMES MODAL ── */}
+  {drillDownGroup && (
+    <LiyonDialog
+      open={Boolean(drillDownGroup)}
+      onOpenChange={() => {
+        setDrillDownGroup(null);
+        setDrillDownSearch("");
+      }}
+    >
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5">
+        <div className="bg-card w-full max-w-4xl rounded-2xl border border-border shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 flex flex-col max-h-[85vh]">
+          {/* Header */}
+          <div className="p-4 border-b border-border flex items-center justify-between shrink-0 bg-muted/20">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                <Users className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-bold text-foreground text-sm sm:text-base">
+                  {drillDownGroup.title}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  พบทั้งหมด {drillDownGroup.students.length} รูป/คน
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const csvHeader = [
+                    "ลำดับ",
+                    "รหัสนิสิต",
+                    "คำนำหน้า",
+                    "ชื่อ",
+                    "นามสกุล/ฉายา",
+                    "ระดับ",
+                    "ชั้นปี",
+                    "หลักสูตร",
+                    "สัญชาติ",
+                    "ประเทศ",
+                    "วิชาที่ลงทะเบียน",
+                    "% เข้าเรียน",
+                    "% กิจกรรม",
+                  ];
+                  const csvRows = drillDownGroup.students.map((s, i) => [
+                    i + 1,
+                    `="${s.studentCode}"`,
+                    `"${s.title || ""}"`,
+                    `"${s.firstName}"`,
+                    `"${s.lastName}"`,
+                    `"${s.degree || "ปริญญาตรี"}"`,
+                    s.yearLevel,
+                    `"${s.curriculumName || ""}"`,
+                    `"${s.nationality || ""}"`,
+                    `"${s.country || ""}"`,
+                    s.enrollments?.length || 0,
+                    `${s.attendanceStats?.percentage ?? 100}%`,
+                    `${s.activityStats?.percentage ?? 100}%`,
+                  ]);
+                  const csv =
+                    "\uFEFF" +
+                    [csvHeader.join(","), ...csvRows.map((r) => r.join(","))].join("\n");
+                  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `cohort_students_${drillDownGroup.yearLevel || "all"}.csv`;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                  toast.success("ส่งออกรายชื่อนิสิตกลุ่มนี้เป็น CSV เรียบร้อยแล้ว");
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-foreground transition cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                ส่งออก CSV
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setDrillDownGroup(null);
+                  setDrillDownSearch("");
+                }}
+                className="w-8 h-8 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Search in drill-down */}
+          <div className="p-3 border-b border-border bg-muted/10 shrink-0">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                value={drillDownSearch}
+                onChange={(e) => setDrillDownSearch(e.target.value)}
+                placeholder="ค้นหาชื่อ, รหัสนิสิต, หรือสัญชาติในกลุ่มนี้..."
+                className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+          </div>
+
+          {/* Table Body */}
+          <div className="overflow-y-auto flex-1 p-0">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted text-2xs font-bold text-muted-foreground sticky top-0 border-b border-border">
+                <tr>
+                  <th className="py-2.5 px-3 text-center w-10">ลำดับ</th>
+                  <th className="py-2.5 px-3">รหัสนิสิต</th>
+                  <th className="py-2.5 px-3">ชื่อ - นามสกุล</th>
+                  <th className="py-2.5 px-3">สัญชาติ / ประเทศ</th>
+                  <th className="py-2.5 px-3 text-center">วิชาที่ลง</th>
+                  <th className="py-2.5 px-3 text-center">% เข้าเรียน</th>
+                  <th className="py-2.5 px-3 text-center">% กิจกรรม</th>
+                  <th className="py-2.5 px-3 text-right">การจัดการ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {drillDownGroup.students
+                  .filter((s) => {
+                    const q = drillDownSearch.trim().toLowerCase();
+                    if (!q) return true;
+                    return (
+                      s.studentCode.toLowerCase().includes(q) ||
+                      s.firstName.toLowerCase().includes(q) ||
+                      s.lastName.toLowerCase().includes(q) ||
+                      (s.country && s.country.toLowerCase().includes(q)) ||
+                      (s.nationality && s.nationality.toLowerCase().includes(q))
+                    );
+                  })
+                  .map((st, i) => (
+                    <tr key={st.id} className="hover:bg-muted/40 transition-colors">
+                      <td className="py-2 px-3 text-center text-muted-foreground font-mono">
+                        {i + 1}
+                      </td>
+                      <td className="py-2 px-3">
+                        <span className="font-mono font-semibold px-2 py-0.5 rounded bg-muted text-foreground">
+                          {st.studentCode}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 font-medium text-foreground">
+                        <button
+                          type="button"
+                          onClick={() => setViewingCoursesStudent(st)}
+                          className="font-semibold text-foreground hover:text-primary hover:underline text-left cursor-pointer transition flex items-center gap-1 group/dname"
+                          title="คลิกเพื่อดูบัตรประวัตินิสิตและผลการเรียน"
+                        >
+                          <span>
+                            {st.title ? `${st.title} ` : ""}
+                            {st.firstName} {st.lastName}
+                          </span>
+                          <span className="text-2xs text-muted-foreground group-hover/dname:text-primary opacity-0 group-hover/dname:opacity-100 transition">
+                            ↗
+                          </span>
+                        </button>
+                      </td>
+                      <td className="py-2 px-3 text-muted-foreground">
+                        {st.country ? `🌍 ${st.country}` : "-"}
+                      </td>
+                      <td className="py-2 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setViewingCoursesStudent(st);
+                          }}
+                          className="font-bold text-primary hover:underline cursor-pointer"
+                        >
+                          {st.enrollments?.length || 0} วิชา
+                        </button>
+                      </td>
+                      <td className="py-2 px-3 text-center">
+                        <span className="font-bold text-emerald-600">
+                          {st.attendanceStats?.percentage ?? 100}%
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-center">
+                        <span className="font-bold text-blue-600">
+                          {st.activityStats?.percentage ?? 100}%
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleOpenEdit(st);
+                          }}
+                          className="px-2 py-1 rounded-lg hover:bg-muted text-primary text-xs font-semibold cursor-pointer"
+                        >
+                          แก้ไข
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Footer */}
+          <div className="p-3 border-t border-border flex justify-end shrink-0 bg-muted/20">
+            <button
+              type="button"
+              onClick={() => {
+                setDrillDownGroup(null);
+                setDrillDownSearch("");
+              }}
+              className="px-4 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold cursor-pointer"
+            >
+              ปิด
+            </button>
+          </div>
+        </div>
+      </div>
+    </LiyonDialog>
+  )}
+
+  {/* ── ADD / EDIT MODAL ── */}
+  {/* ── ADD / EDIT STUDENT MODAL ── */}
+  {isModalOpen && (
         <LiyonDialog open={isModalOpen} onOpenChange={setIsModalOpen}>
           <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5">
             <div className="bg-card w-full max-w-2xl rounded-2xl border border-border shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 flex flex-col max-h-[92vh]">
@@ -1650,6 +2759,74 @@ export function StudentsDirectoryClient({
                       </div>
                     </div>
                   </div>
+
+                  {/* ── SECTION 4: ข้อมูลสัญชาติและที่อยู่ (ตาม PDPA) ── */}
+                  <div className="bg-muted/30 dark:bg-muted/10 border border-border/70 rounded-2xl p-4 space-y-3.5">
+                    <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+                      <div className="w-5 h-5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                        <Users className="w-3.5 h-3.5" />
+                      </div>
+                      <span>ข้อมูลสัญชาติ ประเทศ และที่อยู่ (ซิงค์จากคำร้องขอหนังสือรับรอง)</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                          เพศ (Gender)
+                        </label>
+                        <select
+                          value={formData.gender}
+                          onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                          className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        >
+                          <option value="">-- ไม่ระบุ --</option>
+                          <option value="MALE">ชาย (Male)</option>
+                          <option value="FEMALE">หญิง (Female)</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                          สัญชาติ (Nationality)
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.nationality}
+                          onChange={(e) => setFormData({ ...formData, nationality: e.target.value })}
+                          placeholder="เช่น พม่า, เวียดนาม, ไทย"
+                          className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        >
+                        </input>
+                      </div>
+
+                      <div>
+                        <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                          ประเทศ (Country of Origin)
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.country}
+                          onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                          placeholder="เช่น Myanmar, Vietnam, Thailand"
+                          className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        >
+                        </input>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                        ที่อยู่ในประเทศไทย (Address in Thailand)
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={formData.address}
+                        onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                        placeholder="ระบุที่พักหรือวัดที่จำพรรษาในประเทศไทย..."
+                        className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
+                      />
+                    </div>
+                  </div>
                 </LiyonDialogBody>
 
                 {/* Modal Footer */}
@@ -1681,24 +2858,48 @@ export function StudentsDirectoryClient({
         </LiyonDialog>
       )}
 
-      {/* ── VIEW ENROLLED COURSES MODAL ── */}
+      {/* ── VIEW ENROLLED COURSES / STUDENT PROFILE MODAL ── */}
       {viewingCoursesStudent && (
         <LiyonDialog
           open={Boolean(viewingCoursesStudent)}
           onOpenChange={() => setViewingCoursesStudent(null)}
         >
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div className="bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-              <div className="p-4 border-b border-border flex items-center justify-between">
-                <div>
-                  <h3 className="font-bold text-foreground text-sm">
-                    รายวิชาที่ลงทะเบียน: {viewingCoursesStudent.firstName}{" "}
-                    {viewingCoursesStudent.lastName}
-                  </h3>
-                  <p className="text-2xs text-muted-foreground font-mono">
-                    รหัสนิสิต: {viewingCoursesStudent.studentCode}
-                  </p>
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5">
+            <div className="bg-card w-full max-w-3xl rounded-2xl border border-border shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh]">
+              {/* Header */}
+              <div className="p-4 sm:p-5 border-b border-border flex items-start justify-between shrink-0 bg-muted/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20">
+                    <GraduationCap className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="px-2 py-0.5 rounded-md font-mono text-xs font-bold bg-primary text-primary-foreground shadow-2xs">
+                        {viewingCoursesStudent.studentCode}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full text-2xs font-semibold bg-primary/10 text-primary">
+                        {viewingCoursesStudent.degree || "ปริญญาตรี"} ชั้นปี {viewingCoursesStudent.yearLevel}
+                      </span>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-2xs font-semibold ${
+                          viewingCoursesStudent.studyStatus === "ปกติ" || !viewingCoursesStudent.studyStatus
+                            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                            : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                        }`}
+                      >
+                        สถานะ: {viewingCoursesStudent.studyStatus || "ปกติ"}
+                      </span>
+                    </div>
+                    <h3 className="font-bold text-foreground text-base sm:text-lg mt-1">
+                      {viewingCoursesStudent.title ? `${viewingCoursesStudent.title} ` : ""}
+                      {viewingCoursesStudent.firstName} {viewingCoursesStudent.lastName}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      {viewingCoursesStudent.curriculumName || "คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย"}
+                    </p>
+                  </div>
                 </div>
+
                 <button
                   type="button"
                   onClick={() => setViewingCoursesStudent(null)}
@@ -1708,35 +2909,342 @@ export function StudentsDirectoryClient({
                 </button>
               </div>
 
-              <LiyonDialogBody className="p-4 space-y-2 max-h-[60vh] overflow-y-auto">
-                {viewingCoursesStudent.enrollments.map((en, i) => (
-                  <div
-                    key={en.course.id}
-                    className="p-3 rounded-xl border border-border/70 bg-muted/30 space-y-1 text-xs"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono font-bold text-primary">
-                        {en.course.courseCode}
-                      </span>
-                      <span className="text-2xs text-muted-foreground">
-                        {en.course.semester}/{en.course.academicYear}
+              <LiyonDialogBody className="p-4 sm:p-5 space-y-5 overflow-y-auto flex-1">
+                {/* ── SECTION 1: ข้อมูลประวัตินิสิตและสังกัด ── */}
+                <div className="rounded-2xl border border-border/80 bg-muted/20 p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-border/50 pb-2">
+                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <UserCheck className="w-4 h-4 text-primary" />
+                      ข้อมูลประวัตินิสิตและสังกัด (Student Information)
+                    </span>
+                    <span className="text-2xs text-muted-foreground">
+                      {getStudentProgramType(viewingCoursesStudent) === "ENGLISH"
+                        ? "🇬🇧 ภาคภาษาอังกฤษ (International Program)"
+                        : getStudentProgramType(viewingCoursesStudent) === "GRADUATE"
+                        ? "🎓 บัณฑิตศึกษา (Graduate Studies)"
+                        : "🇹🇭 ภาคภาษาไทย (Thai Program)"}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <span className="text-2xs text-muted-foreground font-semibold block">สาขาวิชา/ภาควิชา</span>
+                      <span className="font-medium text-foreground">{getStudentMajorDisplay(viewingCoursesStudent)}</span>
+                    </div>
+                    <div>
+                      <span className="text-2xs text-muted-foreground font-semibold block">คณะวิชา</span>
+                      <span className="font-medium text-foreground">{viewingCoursesStudent.faculty || "คณะพุทธศาสตร์"}</span>
+                    </div>
+                    <div>
+                      <span className="text-2xs text-muted-foreground font-semibold block">เพศ (Gender)</span>
+                      <span className="font-medium text-foreground">
+                        {viewingCoursesStudent.gender === "MALE" || viewingCoursesStudent.gender === "ชาย"
+                          ? "ชาย (Male)"
+                          : viewingCoursesStudent.gender === "FEMALE" || viewingCoursesStudent.gender === "หญิง"
+                          ? "หญิง (Female)"
+                          : viewingCoursesStudent.gender || "ไม่ระบุ"}
                       </span>
                     </div>
-                    <div className="font-medium text-foreground">{en.course.courseName}</div>
-                    {en.course.courseNameEn && (
-                      <div className="text-2xs text-muted-foreground">
-                        {en.course.courseNameEn}
-                      </div>
-                    )}
+                    <div>
+                      <span className="text-2xs text-muted-foreground font-semibold block">สัญชาติ / ประเทศ</span>
+                      <span className="font-medium text-foreground">
+                        {viewingCoursesStudent.country ? `🌍 ${viewingCoursesStudent.country}` : "-"}{" "}
+                        {viewingCoursesStudent.nationality && `(${viewingCoursesStudent.nationality})`}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-2xs text-muted-foreground font-semibold block">อีเมลมหาวิทยาลัย</span>
+                      <span className="font-medium text-foreground font-mono truncate block" title={viewingCoursesStudent.email || ""}>
+                        {viewingCoursesStudent.email || (viewingCoursesStudent.studentCode ? `${viewingCoursesStudent.studentCode}@mcu.ac.th` : "-")}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-2xs text-muted-foreground font-semibold block">เบอร์โทรศัพท์</span>
+                      <span className="font-medium text-foreground">{viewingCoursesStudent.phoneNumber || "-"}</span>
+                    </div>
                   </div>
-                ))}
+
+                  {viewingCoursesStudent.address && (
+                    <div className="text-xs pt-1 border-t border-border/40">
+                      <span className="text-2xs text-muted-foreground font-semibold block">ที่อยู่หรือวัดที่จำพรรษาในประเทศไทย:</span>
+                      <span className="text-foreground">{viewingCoursesStudent.address}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* ── SECTION 2: สถิติภาพรวม (KPI CARDS) ── */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Attendance Card */}
+                  <div className="p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-2xs font-semibold text-emerald-900 dark:text-emerald-300 flex items-center gap-1">
+                        <Activity className="w-3.5 h-3.5 text-emerald-600" />
+                        % เวลาเรียนรวมทุกวิชา
+                      </span>
+                      <span className="text-base font-bold font-mono text-emerald-700 dark:text-emerald-300">
+                        {viewingCoursesStudent.attendanceStats?.percentage ?? 100}%
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {viewingCoursesStudent.attendanceStats && viewingCoursesStudent.attendanceStats.totalSessions > 0
+                        ? `เข้าเรียน ${viewingCoursesStudent.attendanceStats.attendedSessions} จาก ${viewingCoursesStudent.attendanceStats.totalSessions} คาบที่เช็กชื่อ`
+                        : "เวลาเรียนเต็ม 100%"}
+                    </p>
+                    <div className="w-full bg-emerald-200/50 dark:bg-emerald-950 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="bg-emerald-500 h-full rounded-full transition-all"
+                        style={{ width: `${Math.min(100, viewingCoursesStudent.attendanceStats?.percentage ?? 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Activity Card */}
+                  <div className="p-3.5 rounded-xl border border-blue-500/20 bg-blue-500/5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-2xs font-semibold text-blue-900 dark:text-blue-300 flex items-center gap-1">
+                        <Award className="w-3.5 h-3.5 text-blue-600" />
+                        % เข้าร่วมกิจกรรม
+                      </span>
+                      <span className="text-base font-bold font-mono text-blue-700 dark:text-blue-300">
+                        {viewingCoursesStudent.activityStats?.percentage ?? 100}%
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {viewingCoursesStudent.activityStats && viewingCoursesStudent.activityStats.total > 0
+                        ? `เข้าร่วม ${viewingCoursesStudent.activityStats.attended} / ${viewingCoursesStudent.activityStats.total} กิจกรรม`
+                        : "ยังไม่มีกิจกรรม"}
+                    </p>
+                    <div className="w-full bg-blue-200/50 dark:bg-blue-950 rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="bg-blue-500 h-full rounded-full transition-all"
+                        style={{ width: `${Math.min(100, viewingCoursesStudent.activityStats?.percentage ?? 100)}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Enrolled Courses Count Card */}
+                  <div className="p-3.5 rounded-xl border border-primary/20 bg-primary/5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-2xs font-semibold text-primary flex items-center gap-1">
+                        <BookOpen className="w-3.5 h-3.5" />
+                        วิชาที่ลงทะเบียน
+                      </span>
+                      <span className="text-base font-bold font-mono text-primary">
+                        {viewingCoursesStudent.enrollments.length} วิชา
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      {studentTermBreakdown.length > 0
+                        ? `กระจายอยู่ใน ${studentTermBreakdown.length} ภาคการศึกษา`
+                        : "ยังไม่มีรายวิชา"}
+                    </p>
+                    <div className="w-full bg-primary/20 rounded-full h-1.5 overflow-hidden">
+                      <div className="bg-primary h-full rounded-full w-full" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── SECTION 3: สรุป % การเข้าเรียนรายภาคการศึกษา (TERM BREAKDOWN) ── */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-xs font-bold text-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-primary" />
+                      สรุปเวลาเรียนแยกรายภาคการศึกษา (Attendance Rate per Term)
+                    </span>
+                    <span className="text-2xs text-muted-foreground">
+                      เกณฑ์มีสิทธิ์สอบ &ge; 80% ของเวลาเรียนทั้งหมด
+                    </span>
+                  </div>
+
+                  {studentTermBreakdown.length === 0 ? (
+                    <div className="p-4 rounded-xl border border-dashed border-border text-center text-xs text-muted-foreground">
+                      ยังไม่มีประวัติการลงทะเบียนรายภาคการศึกษา
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {studentTermBreakdown.map((term) => {
+                        const isEligible = term.percentage >= 80;
+                        return (
+                          <div
+                            key={term.termKey}
+                            className={`p-3.5 rounded-xl border transition-all ${
+                              isEligible
+                                ? "border-emerald-500/20 bg-emerald-500/5 hover:border-emerald-500/40"
+                                : "border-rose-500/20 bg-rose-500/5 hover:border-rose-500/40"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-bold text-xs text-foreground flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-primary" />
+                                {term.termKey}
+                              </span>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-2xs font-bold ${
+                                  isEligible
+                                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20"
+                                    : "bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/20"
+                                }`}
+                              >
+                                {isEligible ? "✓ มีสิทธิ์สอบ" : "⚠️ เสี่ยงหมดสิทธิ์"} ({term.percentage}%)
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between text-2xs text-muted-foreground mt-2">
+                              <span>ลงทะเบียน {term.courses.length} วิชา</span>
+                              <span>
+                                เข้าเรียน {term.totalAttended} / {term.totalConducted} คาบ
+                              </span>
+                            </div>
+
+                            <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden mt-1.5">
+                              <div
+                                className={`h-full rounded-full transition-all ${
+                                  isEligible ? "bg-emerald-500" : "bg-rose-500"
+                                }`}
+                                style={{ width: `${Math.min(100, term.percentage)}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── SECTION 4: รายละเอียดรายวิชาที่ลงทะเบียนเรียน ── */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-xs font-bold text-foreground">
+                    <span className="flex items-center gap-1.5">
+                      <BookOpen className="w-4 h-4 text-primary" />
+                      รายวิชาที่ลงทะเบียนและสถิติเวลาเรียนรายวิชา ({viewingCoursesStudent.enrollments.length} วิชา)
+                    </span>
+                  </div>
+
+                  {viewingCoursesStudent.enrollments.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-muted-foreground border border-dashed border-border rounded-xl">
+                      ยังไม่มีข้อมูลการลงทะเบียนเรียนในระบบ
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {viewingCoursesStudent.enrollments.map((en) => {
+                        const stats = en.stats;
+                        const hasRecords = stats && stats.totalConducted > 0;
+                        const attended = stats ? stats.present + stats.late + stats.excused : 0;
+                        const percent = hasRecords ? stats.percentage : 100;
+                        const isEligible = percent >= 80;
+
+                        return (
+                          <div
+                            key={en.course.id}
+                            className="p-3.5 rounded-xl border border-border/80 bg-card hover:border-primary/40 transition-colors space-y-2 text-xs"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-primary">
+                                    {en.course.courseCode}
+                                  </span>
+                                  <span className="text-2xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-semibold">
+                                    ภาค {en.course.semester}/{en.course.academicYear}
+                                  </span>
+                                  {en.course.credits && (
+                                    <span className="text-2xs text-muted-foreground">
+                                      ({en.course.credits} หน่วยกิต)
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="font-semibold text-foreground mt-0.5">
+                                  {en.course.courseName}
+                                </div>
+                                {en.course.courseNameEn && (
+                                  <div className="text-2xs text-muted-foreground">
+                                    {en.course.courseNameEn}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Attendance Pill */}
+                              <div className="text-right shrink-0">
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-2xs font-bold ${
+                                    isEligible
+                                      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20"
+                                      : "bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/20"
+                                  }`}
+                                >
+                                  {isEligible ? "✓ มีสิทธิ์สอบ" : "⚠️ เสี่ยงหมดสิทธิ์"} ({percent}%)
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Sessions breakdown */}
+                            <div className="flex items-center justify-between text-2xs text-muted-foreground border-t border-border/50 pt-2">
+                              <span>
+                                {hasRecords
+                                  ? `เข้าเรียน: ${attended} / ${stats.totalConducted} คาบ (ขาด ${stats.absent}, ลา ${stats.excused}, สาย ${stats.late})`
+                                  : "ยังไม่มีการบันทึกการเช็กชื่อในรายวิชานี้"}
+                              </span>
+                              <span className="font-mono font-medium">
+                                เป้าหมาย {en.course.targetSessions || 16} คาบ
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* ── SECTION 5: กิจกรรมและโครงการที่ลงทะเบียน ── */}
+                {viewingCoursesStudent.eventRegistrations && viewingCoursesStudent.eventRegistrations.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-border">
+                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                      <Award className="w-4 h-4 text-blue-600" />
+                      กิจกรรมและโครงการที่ลงทะเบียน ({viewingCoursesStudent.eventRegistrations.length} รายการ)
+                    </span>
+                    <div className="space-y-1.5">
+                      {viewingCoursesStudent.eventRegistrations.map((reg, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between p-2.5 rounded-lg border border-border/60 bg-muted/20 text-xs"
+                        >
+                          <div>
+                            <span className="font-medium text-foreground">{reg.event.title}</span>
+                          </div>
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-2xs font-semibold ${
+                              reg.status === "ATTENDED"
+                                ? "bg-emerald-500/10 text-emerald-700"
+                                : "bg-amber-500/10 text-amber-700"
+                            }`}
+                          >
+                            {reg.status === "ATTENDED" ? "✓ เข้าร่วมแล้ว" : "ลงทะเบียนแล้ว"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </LiyonDialogBody>
 
-              <LiyonDialogFooter className="p-3 border-t border-border flex justify-end">
+              <LiyonDialogFooter className="p-4 border-t border-border flex items-center justify-between bg-muted/20">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = viewingCoursesStudent;
+                    setViewingCoursesStudent(null);
+                    handleOpenEdit(target);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-primary cursor-pointer transition"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  แก้ไขข้อมูลนิสิต
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setViewingCoursesStudent(null)}
-                  className="px-4 py-1.5 rounded-lg border border-border bg-muted hover:bg-muted/80 text-xs font-medium cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition cursor-pointer"
                 >
                   ปิด
                 </button>

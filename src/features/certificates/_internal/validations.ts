@@ -32,6 +32,13 @@ export const CERTIFICATE_PURPOSES = [
     defaultTemplate: "THAI_CERT" as CertificateTemplateType,
   },
   {
+    value: "Letter of Acceptance (หนังสือตอบรับเข้าศึกษา/ขอวีซ่า)",
+    labelTh: "หนังสือตอบรับเข้าศึกษาสำหรับนิสิตใหม่ (Letter of Acceptance for New Student)",
+    labelEn: "Letter of Acceptance / Admission Offer Letter for Visa",
+    purposePhraseTh: "สำหรับเป็นหลักฐานการมีสิทธิ์เข้าศึกษาและยื่นขอวีซ่าเข้าประเทศไทย (Non-Immigrant ED Visa)",
+    defaultTemplate: "ENG_CERT" as CertificateTemplateType,
+  },
+  {
     value: "Visa to Thailand",
     labelTh: "ขอวีซ่าเข้าประเทศไทย (Visa to Thailand)",
     labelEn: "Visa to Thailand",
@@ -91,6 +98,9 @@ export const CERTIFICATE_PURPOSES = [
 
 export const certificateMetadataSchema = z.object({
   seqNo: z.number().optional(),
+  applicantType: z.enum(["CURRENT_STUDENT", "NEW_STUDENT"]).optional().default("CURRENT_STUDENT"),
+  applicationNo: z.string().trim().optional().default(""),
+  admissionProofUrl: z.string().trim().optional().default(""),
   studentCode: z.string().trim().default(""),
   fullName: z.string().trim().default(""),
   age: z.string().trim().optional().default(""),
@@ -122,7 +132,7 @@ export const certificateMetadataSchema = z.object({
 
   // ข้อมูลการออกเอกสารสำหรับ Admin
   docTemplate: z.enum(CERTIFICATE_TEMPLATE_TYPES).optional(),
-  docNo: z.string().trim().optional().default("8002 / 710"),
+  docNo: z.string().trim().optional().default(""),
   issueDateTh: z.string().trim().optional().default(""),
   issueDateEn: z.string().trim().optional().default(""),
   academicYearEn: z.string().trim().optional().default("2026"),
@@ -142,6 +152,11 @@ export const certificateMetadataSchema = z.object({
   lineHeight: z.number().min(1.1).max(3.0).optional().default(1.85),
   marginTopMm: z.number().min(10).max(60).optional().default(24),
   marginSideMm: z.number().min(10).max(50).optional().default(25),
+  footerFontSizePt: z.number().min(6).max(24).optional().default(10.5),
+  footerLayout: z.enum(["TWO_COLUMNS", "STACKED"]).optional().default("TWO_COLUMNS"),
+  footerLeftText: z.string().optional().default(""),
+  portalVerifyUrl: z.string().trim().optional().default(""),
+  fontFamily: z.string().trim().optional().default("Sarabun"),
 });
 
 export type CertificateRequestMetadata = z.infer<typeof certificateMetadataSchema>;
@@ -202,3 +217,93 @@ export const createCertificateTypeSchema = z.object({
 });
 
 export const updateCertificateTypeSchema = createCertificateTypeSchema.partial();
+
+export interface SignerPreset {
+  id: string;
+  label: string;
+  nameTh: string;
+  titleTh: string;
+  nameEn: string;
+  titleEn: string;
+}
+
+export const SIGNER_PRESETS: SignerPreset[] = [
+  {
+    id: "sirirattanabundit-acting",
+    label: "พระครูสิริรัตนบัณฑิต, ผศ.ดร. (รักษาการแทนรองคณบดีฝ่ายวิชาการ)",
+    nameTh: "(พระครูสิริรัตนบัณฑิต, ผศ.ดร.)",
+    titleTh: "รักษาการแทนรองคณบดีฝ่ายวิชาการ คณะพุทธศาสตร์",
+    nameEn: "(Asst. Prof. Phrakhru Sirirattanabundit, Ph.D.)",
+    titleEn: "Acting Vice Dean for Academic Affairs, Faculty of Buddhism",
+  },
+  {
+    id: "sirirattanabundit-vice-dean",
+    label: "พระครูสิริรัตนบัณฑิต, ผศ.ดร. (รองคณบดีฝ่ายวิชาการ)",
+    nameTh: "(พระครูสิริรัตนบัณฑิต, ผศ.ดร.)",
+    titleTh: "รองคณบดีฝ่ายวิชาการ คณะพุทธศาสตร์",
+    nameEn: "(Asst. Prof. Phrakhru Sirirattanabundit, Ph.D.)",
+    titleEn: "Vice Dean for Academic Affairs, Faculty of Buddhism",
+  },
+  {
+    id: "dean-faculty-of-buddhism",
+    label: "คณบดีคณะพุทธศาสตร์ (Dean, Faculty of Buddhism)",
+    nameTh: "(......................................................)",
+    titleTh: "คณบดีคณะพุทธศาสตร์",
+    nameEn: "(......................................................)",
+    titleEn: "Dean, Faculty of Buddhism",
+  },
+  {
+    id: "acting-dean-faculty-of-buddhism",
+    label: "รักษาการแทนคณบดีคณะพุทธศาสตร์ (Acting Dean)",
+    nameTh: "(......................................................)",
+    titleTh: "รักษาการแทนคณบดีคณะพุทธศาสตร์",
+    nameEn: "(......................................................)",
+    titleEn: "Acting Dean, Faculty of Buddhism",
+  },
+  {
+    id: "vice-dean-admin",
+    label: "รองคณบดีฝ่ายบริหาร คณะพุทธศาสตร์ (Vice Dean for Administration)",
+    nameTh: "(......................................................)",
+    titleTh: "รองคณบดีฝ่ายบริหาร คณะพุทธศาสตร์",
+    nameEn: "(......................................................)",
+    titleEn: "Vice Dean for Administration, Faculty of Buddhism",
+  },
+];
+
+export const SIGNER_NAME_PRESETS_TH = [
+  "(พระครูสิริรัตนบัณฑิต, ผศ.ดร.)",
+  "(พระมหาหรรษา ธมฺมหาโส, ศ.ดร.)",
+  "(พระสุวรรณเมธาภรณ์, ผศ.)",
+  "(พระมหาบุญเลิศ อินฺทปญฺโญ, ศ.ดร.)",
+  "(พระมหาราชัน จิตฺตปาโล, ดร.)",
+];
+
+export const SIGNER_NAME_PRESETS_EN = [
+  "(Asst. Prof. Phrakhru Sirirattanabundit, Ph.D.)",
+  "(Prof. Dr. Phramaha Hansa Dhammahaso, Ph.D.)",
+  "(Asst. Prof. Phra Suwanmethaphorn)",
+  "(Prof. Dr. Phramaha Boonlert Indapanno)",
+  "(Dr. Phramaha Rajan Cittapalo)",
+];
+
+export const SIGNER_TITLE_PRESETS_TH = [
+  "รักษาการแทนรองคณบดีฝ่ายวิชาการ คณะพุทธศาสตร์",
+  "รองคณบดีฝ่ายวิชาการ คณะพุทธศาสตร์",
+  "คณบดีคณะพุทธศาสตร์",
+  "รักษาการแทนคณบดีคณะพุทธศาสตร์",
+  "รองคณบดีฝ่ายบริหาร คณะพุทธศาสตร์",
+  "ผู้ช่วยคณบดีฝ่ายวิชาการ คณะพุทธศาสตร์",
+  "ผู้อำนวยการสำนักงานคณบดี คณะพุทธศาสตร์",
+  "ปฏิบัติการแทนคณบดีคณะพุทธศาสตร์",
+];
+
+export const SIGNER_TITLE_PRESETS_EN = [
+  "Acting Vice Dean for Academic Affairs, Faculty of Buddhism",
+  "Vice Dean for Academic Affairs, Faculty of Buddhism",
+  "Vice Dean, Faculty of Buddhism",
+  "Dean, Faculty of Buddhism",
+  "Acting Dean, Faculty of Buddhism",
+  "Vice Dean for Administration, Faculty of Buddhism",
+  "Assistant Dean, Faculty of Buddhism",
+  "For Dean, Faculty of Buddhism",
+];
