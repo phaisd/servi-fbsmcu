@@ -317,6 +317,94 @@ export async function getPersonnelListForCertificate(tenantId: string) {
   }));
 }
 
+export interface StaffUserForCertificate {
+  id: string;
+  name: string;
+  email: string;
+  positionTh: string;
+  roleCode: string;
+  roleNameTh: string;
+}
+
+/**
+ * ดึงรายชื่อผู้ใช้งานที่มีบทบาทเป็น "เจ้าหน้าที่" หรือ "ผู้ดูแลระบบ" (STAFF, CURRICULUM_OFFICER, ADMIN, SUPER_ADMIN)
+ * สำหรับเลือกเป็นเจ้าหน้าที่ผู้ออกเอกสาร / ผู้พิมพ์หนังสือรับรอง
+ */
+export async function getStaffUsersForCertificate(tenantId: string): Promise<StaffUserForCertificate[]> {
+  const userTenants = await db.userTenant.findMany({
+    where: {
+      tenantId,
+      isActive: true,
+      user: { isActive: true },
+      userRoles: {
+        some: {
+          role: {
+            code: {
+              in: ["STAFF", "CURRICULUM_OFFICER", "ADMIN", "SUPER_ADMIN"],
+            },
+          },
+        },
+      },
+    },
+    include: {
+      user: true,
+      userRoles: {
+        include: {
+          role: true,
+        },
+      },
+    },
+    orderBy: {
+      user: {
+        name: "asc",
+      },
+    },
+  });
+
+  // ค้นหาข้อมูลตำแหน่งทางการในทำเนียบบุคลากรเพิ่มเติมถ้ามี
+  const allPersonnel = await db.personnel.findMany({
+    where: { tenantId },
+    select: { firstNameTh: true, lastNameTh: true, positionTh: true, email: true },
+  });
+
+  return userTenants.map((ut) => {
+    const roles = ut.userRoles.map((ur) => ur.role);
+    const staffRole =
+      roles.find((r) => r.code === "STAFF") ||
+      roles.find((r) => r.code === "CURRICULUM_OFFICER") ||
+      roles.find((r) => r.code === "ADMIN") ||
+      roles[0];
+
+    const matchedPerson = allPersonnel.find(
+      (p) =>
+        (p.email && ut.user.email && p.email.toLowerCase() === ut.user.email.toLowerCase()) ||
+        `${p.firstNameTh} ${p.lastNameTh}`.trim() === ut.user.name.trim()
+    );
+
+    let positionTh = matchedPerson?.positionTh || "";
+    if (!positionTh) {
+      if (staffRole?.code === "STAFF") {
+        positionTh = ut.user.name.includes("บริหาร") ? "เจ้าหน้าที่บริหารงานทั่วไป" : "เจ้าหน้าที่บริการการศึกษา";
+      } else if (staffRole?.code === "CURRICULUM_OFFICER") {
+        positionTh = "เจ้าหน้าที่บริการการศึกษาและหลักสูตร";
+      } else if (staffRole?.code === "ADMIN" || staffRole?.code === "SUPER_ADMIN") {
+        positionTh = "ผู้ดูแลระบบ คณะพุทธศาสตร์";
+      } else {
+        positionTh = staffRole?.nameTh || "เจ้าหน้าที่";
+      }
+    }
+
+    return {
+      id: ut.user.id,
+      name: ut.user.name,
+      email: ut.user.email,
+      positionTh,
+      roleCode: staffRole?.code || "STAFF",
+      roleNameTh: staffRole?.nameTh || "เจ้าหน้าที่",
+    };
+  });
+}
+
 /**
  * ดึงข้อมูลเจาะลึกของบุคลากรรายบุคคลพร้อมวิชาที่สอน เพื่อกรอกในใบรับรองอัตโนมัติ
  */

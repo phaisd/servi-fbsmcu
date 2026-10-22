@@ -27,5 +27,7 @@ export {
   syncAllCertificatesToStudentDirectory,
   getPersonnelListForCertificate,
   lookupPersonnelDetailForCertificate,
+  getStaffUsersForCertificate,
+  type StaffUserForCertificate,
 } from "./_internal/services";
 

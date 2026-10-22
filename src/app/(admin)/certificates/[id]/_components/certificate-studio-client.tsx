@@ -60,24 +60,24 @@ interface SerializedCertificateRequest {
   metadata: CertificateRequestMetadata;
 }
 
-export interface PersonnelItem {
+export interface StaffUserItem {
   id: string;
-  fullNameTh: string;
-  fullNameEn?: string;
+  name: string;
+  email: string;
   positionTh: string;
-  positionEn?: string;
-  type?: string;
-  departmentNameTh?: string;
-  email?: string;
-  phoneNumber?: string;
+  roleCode?: string;
+  roleNameTh?: string;
 }
+
+export type PersonnelItem = StaffUserItem;
 
 interface Props {
   request: SerializedCertificateRequest;
   certificateTypes: { id: string; name: string }[];
   suggestedNextDocNo?: string;
   currentUser?: { id: string; name: string; email: string };
-  personnelList?: PersonnelItem[];
+  staffUsers?: StaffUserItem[];
+  personnelList?: StaffUserItem[];
 }
 
 const TEMPLATE_CARDS: {
@@ -126,9 +126,11 @@ export function CertificateStudioClient({
   request,
   suggestedNextDocNo = "8002 / 716",
   currentUser,
+  staffUsers = [],
   personnelList = [],
 }: Props) {
   const router = useRouter();
+  const staffList = staffUsers.length > 0 ? staffUsers : personnelList;
   const [isPending, startTransition] = useTransition();
   const [suggestedDocNo, setSuggestedDocNo] = useState<string>(suggestedNextDocNo);
   const [meta, setMeta] = useState<CertificateRequestMetadata>(() => {
@@ -137,8 +139,8 @@ export function CertificateStudioClient({
     const defaultOfficerName = initial.officerName || currentUser?.name || "นายดวงดี โอฐสู";
     let defaultOfficerPosition = initial.officerPosition;
     if (!defaultOfficerPosition && currentUser?.name) {
-      const match = personnelList.find(
-        (p) => p.fullNameTh.includes(currentUser.name) || (p.email && p.email === currentUser.email)
+      const match = staffList.find(
+        (p) => (p.name && p.name.includes(currentUser.name)) || (p.email && p.email === currentUser.email)
       );
       if (match) defaultOfficerPosition = match.positionTh;
     }
@@ -1537,9 +1539,9 @@ export function CertificateStudioClient({
                           type="button"
                           onClick={() => {
                             updateField("officerName", currentUser.name);
-                            const matched = personnelList.find(
+                            const matched = staffList.find(
                               (p) =>
-                                p.fullNameTh.includes(currentUser.name) ||
+                                (p.name && p.name.includes(currentUser.name)) ||
                                 (p.email && p.email === currentUser.email)
                             );
                             if (matched) {
@@ -1558,28 +1560,28 @@ export function CertificateStudioClient({
                       )}
                     </div>
 
-                    {/* Dropdown selector from Personnel directory */}
-                    {personnelList.length > 0 && (
+                    {/* Dropdown selector from Staff Users */}
+                    {staffList.length > 0 && (
                       <div className="space-y-1">
                         <label className="block text-[11px] font-medium text-slate-600">
-                          หรือเลือกจากทำเนียบบุคลากร/เจ้าหน้าที่:
+                          หรือเลือกจากผู้ใช้งาน (บทบาทเจ้าหน้าที่):
                         </label>
                         <select
                           onChange={(e) => {
-                            const person = personnelList.find((p) => p.id === e.target.value);
+                            const person = staffList.find((p) => p.id === e.target.value);
                             if (person) {
-                              updateField("officerName", person.fullNameTh);
+                              updateField("officerName", person.name);
                               updateField("officerPosition", person.positionTh);
-                              showToast(`เลือกเจ้าหน้าที่ "${person.fullNameTh}" เรียบร้อย`);
+                              showToast(`เลือกเจ้าหน้าที่ "${person.name}" เรียบร้อย`);
                             }
                           }}
                           defaultValue=""
                           className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800"
                         >
-                          <option value="">-- เลือกเจ้าหน้าที่เพื่อดึงชื่อและตำแหน่งอัตโนมัติ --</option>
-                          {personnelList.map((p) => (
+                          <option value="">-- เลือกผู้ใช้บทบาทเจ้าหน้าที่ เพื่อดึงชื่อและตำแหน่งอัตโนมัติ --</option>
+                          {staffList.map((p) => (
                             <option key={p.id} value={p.id}>
-                              {p.fullNameTh} — {p.positionTh} ({p.departmentNameTh || "สำนักงานคณบดี"})
+                              {p.name} — {p.positionTh} ({p.roleNameTh || "เจ้าหน้าที่"})
                             </option>
                           ))}
                         </select>
