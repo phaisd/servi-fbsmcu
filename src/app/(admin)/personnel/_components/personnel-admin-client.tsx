@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Users,
@@ -8,8 +9,6 @@ import {
   Building,
   Search,
   ExternalLink,
-  GraduationCap,
-  Sparkles,
   Phone,
   Mail,
 } from "lucide-react";
@@ -194,9 +193,12 @@ export function PersonnelAdminClient({ initialItems }: { initialItems: Personnel
                         <div className="flex items-start gap-3">
                           <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0 text-sm overflow-hidden border border-primary/20">
                             {item.imageUrl ? (
-                              <img
+                              <Image
                                 src={item.imageUrl}
                                 alt={item.firstNameTh}
+                                width={40}
+                                height={40}
+                                unoptimized
                                 className="w-full h-full object-cover"
                               />
                             ) : (

@@ -4,9 +4,24 @@ import { useEffect, useRef, useState, useId } from "react";
 import { useTheme } from "next-themes";
 import { Loader2, Code2, Eye } from "lucide-react";
 
+interface TinyMceEditor {
+  getContent: () => string;
+  setContent: (content: string) => void;
+  remove: () => void;
+  mode: {
+    set: (mode: string) => void;
+  };
+  on: (events: string, callback: () => void) => void;
+}
+
+interface TinyMceStatic {
+  init: (config: Record<string, unknown>) => void;
+  get: (id: string) => TinyMceEditor | null;
+}
+
 declare global {
   interface Window {
-    tinymce?: any;
+    tinymce?: TinyMceStatic;
   }
 }
 
@@ -57,7 +72,7 @@ export function TinyEditor({
   const autoId = useId().replace(/:/g, "_");
   const editorId = propId || `tiny_editor_${autoId}`;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const editorRef = useRef<any>(null);
+  const editorRef = useRef<TinyMceEditor | null>(null);
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
 
@@ -124,7 +139,7 @@ export function TinyEditor({
             table { border-collapse: collapse; width: 100%; margin-bottom: 1rem; }
             table td, table th { border: 1px solid ${isDark ? "#334155" : "#cbd5e1"}; padding: 6px 10px; }
           `,
-          setup: (editor: any) => {
+          setup: (editor: TinyMceEditor) => {
             editorRef.current = editor;
 
             editor.on("init", () => {
@@ -163,6 +178,7 @@ export function TinyEditor({
       }
     };
     // Re-initialize if dark mode changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorId, isDark]);
 
   // Sync external value changes (e.g. from Gemini AI translate or reset)

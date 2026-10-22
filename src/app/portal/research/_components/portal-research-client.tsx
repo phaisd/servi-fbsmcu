@@ -6,16 +6,11 @@ import {
   BookOpen,
   Search,
   ExternalLink,
-  GraduationCap,
   Sparkles,
   FileText,
   Award,
-  Layers,
-  Calendar,
   User,
-  ArrowRight,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 interface ResearchPubItem {
   id: string;
@@ -46,7 +41,7 @@ interface Props {
   locale: string;
 }
 
-export function PortalResearchClient({ publications, locale }: Props) {
+export function PortalResearchClient({ publications, locale: _locale }: Props) {
   const [search, setSearch] = useState("");
   const [selectedType, setSelectedType] = useState<string>("ALL");
   const [selectedAuthor, setSelectedAuthor] = useState<string>("ALL");

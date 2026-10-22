@@ -13,8 +13,6 @@ import {
   Search,
   Users,
   Building,
-  GraduationCap,
-  Sparkles,
 } from "lucide-react";
 import {
   LiyonCard,
@@ -130,7 +128,7 @@ export function ResearchAdminClient({ initialPublications, personnelList, canMan
     setFormIssn(item.issn || "");
     setFormTier(item.tier || "");
     setFormUrl(item.url || "");
-    setFormType((item.type as any) || "RESEARCH");
+    setFormType((item.type as "RESEARCH" | "ACADEMIC" | "DISSERTATION") || "RESEARCH");
     setDialogOpen(true);
   };
 
@@ -476,7 +474,7 @@ export function ResearchAdminClient({ initialPublications, personnelList, canMan
                 <LiyonSelect
                   id="pub-type"
                   value={formType}
-                  onChange={(e) => setFormType(e.target.value as any)}
+                  onChange={(e) => setFormType(e.target.value as "RESEARCH" | "ACADEMIC" | "DISSERTATION")}
                 >
                   <option value="RESEARCH">บทความวิจัย (Research Article)</option>
                   <option value="ACADEMIC">บทความวิชาการ (Academic Article)</option>

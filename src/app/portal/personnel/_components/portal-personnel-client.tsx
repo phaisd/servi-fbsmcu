@@ -12,11 +12,7 @@ import {
   GraduationCap,
   BookOpen,
   ExternalLink,
-  Award,
   Search,
-  Sparkles,
-  ChevronRight,
-  Share2,
 } from "lucide-react";
 import {
   LiyonDialog,
