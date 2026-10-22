@@ -1,7 +1,12 @@
 import { notFound } from "next/navigation";
 import { requirePermission } from "@/features/identity/server";
 import { CERTIFICATES_P, parseCertificateNote, inferDefaultTemplate } from "@/features/certificates";
-import { getCertificateRequestById, getCertificateTypes, getNextCertificateDocNo } from "@/features/certificates/server";
+import {
+  getCertificateRequestById,
+  getCertificateTypes,
+  getNextCertificateDocNo,
+  getPersonnelListForCertificate,
+} from "@/features/certificates/server";
 import { CertificateStudioClient } from "./_components/certificate-studio-client";
 
 export const dynamic = "force-dynamic";
@@ -14,9 +19,10 @@ export default async function CertificateStudioPage({
   const { id } = await params;
   const ctx = await requirePermission(CERTIFICATES_P.requestView);
 
-  const [request, types] = await Promise.all([
+  const [request, types, personnelList] = await Promise.all([
     getCertificateRequestById(ctx.tenantId, id),
     getCertificateTypes(ctx.tenantId),
+    getPersonnelListForCertificate(ctx.tenantId).catch(() => []),
   ]);
 
   if (!request) {
@@ -57,6 +63,12 @@ export default async function CertificateStudioPage({
       request={serializedRequest}
       certificateTypes={types.map((t) => ({ id: t.id, name: t.name }))}
       suggestedNextDocNo={nextDocNo}
+      currentUser={{
+        id: ctx.userId,
+        name: ctx.userName,
+        email: ctx.email,
+      }}
+      personnelList={personnelList}
     />
   );
 }

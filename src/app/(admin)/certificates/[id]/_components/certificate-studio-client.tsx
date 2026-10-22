@@ -60,10 +60,24 @@ interface SerializedCertificateRequest {
   metadata: CertificateRequestMetadata;
 }
 
+export interface PersonnelItem {
+  id: string;
+  fullNameTh: string;
+  fullNameEn?: string;
+  positionTh: string;
+  positionEn?: string;
+  type?: string;
+  departmentNameTh?: string;
+  email?: string;
+  phoneNumber?: string;
+}
+
 interface Props {
   request: SerializedCertificateRequest;
   certificateTypes: { id: string; name: string }[];
   suggestedNextDocNo?: string;
+  currentUser?: { id: string; name: string; email: string };
+  personnelList?: PersonnelItem[];
 }
 
 const TEMPLATE_CARDS: {
@@ -108,13 +122,26 @@ const TEMPLATE_CARDS: {
   },
 ];
 
-export function CertificateStudioClient({ request, suggestedNextDocNo = "8002 / 716" }: Props) {
+export function CertificateStudioClient({
+  request,
+  suggestedNextDocNo = "8002 / 716",
+  currentUser,
+  personnelList = [],
+}: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [suggestedDocNo, setSuggestedDocNo] = useState<string>(suggestedNextDocNo);
   const [meta, setMeta] = useState<CertificateRequestMetadata>(() => {
     const initial = request.metadata;
     const tpl = initial.docTemplate || "THAI_CERT";
+    const defaultOfficerName = initial.officerName || currentUser?.name || "นายดวงดี โอฐสู";
+    let defaultOfficerPosition = initial.officerPosition;
+    if (!defaultOfficerPosition && currentUser?.name) {
+      const match = personnelList.find(
+        (p) => p.fullNameTh.includes(currentUser.name) || (p.email && p.email === currentUser.email)
+      );
+      if (match) defaultOfficerPosition = match.positionTh;
+    }
     return {
       ...initial,
       docTemplate: tpl,
@@ -129,6 +156,8 @@ export function CertificateStudioClient({ request, suggestedNextDocNo = "8002 / 
       marginSideMm: initial.marginSideMm ?? 25,
       showSignatureGraphic: initial.showSignatureGraphic ?? true,
       showPhotoBox: initial.showPhotoBox ?? true,
+      officerName: defaultOfficerName,
+      officerPosition: defaultOfficerPosition || "นักวิชาการศึกษา / เจ้าหน้าที่บริการการศึกษา",
     };
   });
 
@@ -1497,34 +1526,90 @@ export function CertificateStudioClient({ request, suggestedNextDocNo = "8002 / 
                   )}
 
                   {/* Officer / Issuer Info */}
-                  <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
-                    <div className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
-                      <UserCheck className="w-3.5 h-3.5 text-amber-700" />
-                      <span>เจ้าหน้าที่ผู้ออกเอกสาร / ผู้พิมพ์ (Officer / Issuer)</span>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 space-y-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                      <div className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                        <UserCheck className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                        <span>เจ้าหน้าที่ผู้ออกเอกสาร / ผู้พิมพ์ (Officer / Issuer)</span>
+                      </div>
+                      {currentUser?.name && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateField("officerName", currentUser.name);
+                            const matched = personnelList.find(
+                              (p) =>
+                                p.fullNameTh.includes(currentUser.name) ||
+                                (p.email && p.email === currentUser.email)
+                            );
+                            if (matched) {
+                              updateField("officerPosition", matched.positionTh);
+                            } else if (!meta.officerPosition) {
+                              updateField("officerPosition", "เจ้าหน้าที่บริการการศึกษา");
+                            }
+                            showToast(`ดึงชื่อผู้เข้าระบบ "${currentUser.name}" เรียบร้อย`);
+                          }}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-900 bg-amber-100/90 hover:bg-amber-200 border border-amber-300 rounded-lg px-2.5 py-1 transition self-start sm:self-auto cursor-pointer"
+                          title="คลิกเพื่อนำชื่อผู้ใช้งานที่กำลังล็อกอินอยู่มากรอกลงในช่องนี้ทันที"
+                        >
+                          <Sparkles className="w-3 h-3 text-amber-600" />
+                          <span>⚡ ใช้ชื่อฉัน ({currentUser.name})</span>
+                        </button>
+                      )}
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+
+                    {/* Dropdown selector from Personnel directory */}
+                    {personnelList.length > 0 && (
+                      <div className="space-y-1">
+                        <label className="block text-[11px] font-medium text-slate-600">
+                          หรือเลือกจากทำเนียบบุคลากร/เจ้าหน้าที่:
+                        </label>
+                        <select
+                          onChange={(e) => {
+                            const person = personnelList.find((p) => p.id === e.target.value);
+                            if (person) {
+                              updateField("officerName", person.fullNameTh);
+                              updateField("officerPosition", person.positionTh);
+                              showToast(`เลือกเจ้าหน้าที่ "${person.fullNameTh}" เรียบร้อย`);
+                            }
+                          }}
+                          defaultValue=""
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-800"
+                        >
+                          <option value="">-- เลือกเจ้าหน้าที่เพื่อดึงชื่อและตำแหน่งอัตโนมัติ --</option>
+                          {personnelList.map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.fullNameTh} — {p.positionTh} ({p.departmentNameTh || "สำนักงานคณบดี"})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Direct inputs for Name & Position */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
                       <div>
                         <label className="mb-1 block text-[11px] font-semibold text-slate-700">
-                          ชื่อเจ้าหน้าที่ผู้ออกเอกสาร/พิมพ์
+                          ชื่อเจ้าหน้าที่ผู้ออกเอกสาร/พิมพ์ *
                         </label>
                         <input
                           type="text"
                           value={meta.officerName ?? "นายดวงดี โอฐสู"}
                           onChange={(e) => updateField("officerName", e.target.value)}
                           placeholder="เช่น นายดวงดี โอฐสู"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900"
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-900"
                         />
                       </div>
                       <div>
                         <label className="mb-1 block text-[11px] font-semibold text-slate-700">
-                          ตำแหน่งเจ้าหน้าที่
+                          ตำแหน่งเจ้าหน้าที่ *
                         </label>
                         <input
                           type="text"
                           value={meta.officerPosition ?? "นักวิชาการศึกษา / เจ้าหน้าที่บริการการศึกษา"}
                           onChange={(e) => updateField("officerPosition", e.target.value)}
                           placeholder="เช่น นักวิชาการศึกษา / เจ้าหน้าที่บริการการศึกษา"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900"
+                          className="w-full rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-900"
                         />
                       </div>
                     </div>
