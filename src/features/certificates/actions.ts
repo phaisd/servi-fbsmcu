@@ -1,6 +1,7 @@
+"use server";
+
 import { validateUploadFile } from "@/shared/lib/security/file-validation";
 import crypto from "node:crypto";
-"use server";
 
 import { revalidatePath } from "next/cache";
 import { auth, requireSession, requirePermission } from "@/features/identity/server";

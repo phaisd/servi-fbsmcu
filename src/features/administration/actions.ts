@@ -1,6 +1,7 @@
+"use server";
+
 import { generateFacultySarPackageData } from "./_internal/sar-export-service";
 import { validateUploadFile } from "@/shared/lib/security/file-validation";
-"use server";
 
 import fs from "fs/promises";
 import path from "path";
