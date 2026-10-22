@@ -27,6 +27,7 @@ import {
   RotateCcw,
   Save,
   UserCheck,
+  UserPlus,
 } from "lucide-react";
 import type { MeetingBooking, MeetingRoom, User, BookingStatus } from "@/generated/prisma";
 import {
@@ -39,6 +40,7 @@ import {
   reviewOfficialBookingAction,
   approveOrRejectOfficialBookingAction,
   updateOfficialBookingApproverAction,
+  saveExecutivePersonnelAction,
   deleteMeetingBookingAction,
 } from "@/features/meetings/actions";
 
@@ -48,6 +50,7 @@ export interface PersonnelItem {
   id: string;
   fullNameTh: string;
   positionTh: string;
+  type?: string;
   departmentNameTh: string;
   email: string;
   phoneNumber: string;
@@ -90,6 +93,7 @@ const APPROVER_POSITION_PRESETS = [
 export function BookingsClient({ initialItems, personnelList = [], formSettings }: Props) {
   const router = useRouter();
   const [items, setItems] = useState<BookingWithRelations[]>(initialItems);
+  const [personnel, setPersonnel] = useState<PersonnelItem[]>(personnelList);
   const [isPending, startTransition] = useTransition();
   const [toast, setToast] = useState<string | null>(null);
 
@@ -117,10 +121,47 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
   const [approverSignName, setApproverSignName] = useState("พระครูปลัดสมเกียรติ กิตฺติญาโณ");
   const [approverPosition, setApproverPosition] = useState("เลขานุการสำนักงานคณบดีคณะพุทธศาสตร์");
   const [approvalNote, setApprovalNote] = useState("");
+  const [saveAsExecutive, setSaveAsExecutive] = useState(false);
+  const [isSavingNewExecutive, setIsSavingNewExecutive] = useState(false);
+
+  // Group personnel into Executives vs Faculty & Staff
+  const executives = personnel.filter(
+    (p) => p.type === "EXECUTIVE" || p.positionTh?.includes("คณบดี") || p.positionTh?.includes("เลขา")
+  );
+  const academicsAndStaff = personnel.filter((p) => !executives.some((e) => e.id === p.id));
 
   const notify = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
+  };
+
+  // Quick save new executive into Personnel directory
+  const handleQuickSaveExecutive = async (name: string, position: string) => {
+    if (!name.trim()) {
+      notify("กรุณาระบุชื่อผู้อนุมัติก่อนบันทึกเข้าทำเนียบ");
+      return;
+    }
+    setIsSavingNewExecutive(true);
+    try {
+      const res = await saveExecutivePersonnelAction({
+        fullNameTh: name.trim(),
+        positionTh: position.trim() || "ผู้บริหาร คณะพุทธศาสตร์",
+      });
+      setPersonnel((prev) => {
+        const idx = prev.findIndex((p) => p.id === res.id || p.fullNameTh === res.fullNameTh);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = res;
+          return updated;
+        }
+        return [res, ...prev];
+      });
+      notify(`บันทึก "${res.fullNameTh}" เข้าสู่ทำเนียบคณะผู้บริหารเรียบร้อยแล้ว`);
+    } catch (err: unknown) {
+      notify((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการบันทึกข้อมูลผู้บริหาร");
+    } finally {
+      setIsSavingNewExecutive(false);
+    }
   };
 
   // Open Preview Modal with live customizer
@@ -203,8 +244,26 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
           approverSignName,
           approverPosition,
           note: approvalNote,
+          saveAsExecutive,
         });
         setItems((prev) => prev.map((item) => (item.id === res.id ? (res as BookingWithRelations) : item)));
+        if (saveAsExecutive && approverSignName.trim()) {
+          const nameTrimmed = approverSignName.trim();
+          if (!personnel.some((p) => p.fullNameTh === nameTrimmed)) {
+            setPersonnel((prev) => [
+              {
+                id: `exec_${Date.now()}`,
+                fullNameTh: nameTrimmed,
+                positionTh: approverPosition.trim() || "ผู้บริหาร คณะพุทธศาสตร์",
+                type: "EXECUTIVE",
+                departmentNameTh: "สำนักงานคณบดี คณะพุทธศาสตร์",
+                email: "",
+                phoneNumber: "",
+              },
+              ...prev,
+            ]);
+          }
+        }
         setApprovalBooking(null);
         notify(
           approvalDecision === "APPROVED"
@@ -642,31 +701,48 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
                   </button>
                 </div>
 
-                {/* Personnel directory picker */}
-                {personnelList.length > 0 && (
+                {/* Personnel directory picker with optgroups */}
+                {personnel.length > 0 && (
                   <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                     <label className="text-[11px] text-slate-600 shrink-0 font-medium">
-                      เลือกจากทำเนียบบุคลากรในคณะ:
+                      เลือกจากทำเนียบบุคลากร:
                     </label>
                     <select
                       onChange={(e) => {
-                        const person = personnelList.find((pl) => pl.id === e.target.value);
+                        const person = personnel.find((pl) => pl.id === e.target.value);
                         if (person) {
                           setPreviewApproverName(person.fullNameTh);
-                          if (!previewApproverPosition.includes("ปฏิบัติหน้าที่แทน") && !previewApproverPosition.includes("รักษาการ")) {
-                            setPreviewApproverPosition(`${person.positionTh} ปฏิบัติหน้าที่แทนเลขานุการสำนักงานคณบดีคณะพุทธศาสตร์`);
+                          if (person.type === "EXECUTIVE" || person.positionTh.includes("คณบดี") || person.positionTh.includes("เลขา")) {
+                            setPreviewApproverPosition(person.positionTh);
+                          } else {
+                            if (!previewApproverPosition.includes("ปฏิบัติหน้าที่แทน") && !previewApproverPosition.includes("รักษาการ")) {
+                              setPreviewApproverPosition(`${person.positionTh} ปฏิบัติหน้าที่แทนเลขานุการสำนักงานคณบดีคณะพุทธศาสตร์`);
+                            }
                           }
                         }
                       }}
                       defaultValue=""
                       className="rounded-xl border border-slate-300 px-3 py-1.5 text-xs text-slate-700 bg-white flex-1 max-w-lg"
                     >
-                      <option value="">-- เลือกอาจารย์ / เจ้าหน้าที่ เพื่อดึงชื่อและตำแหน่ง --</option>
-                      {personnelList.map((pl) => (
-                        <option key={pl.id} value={pl.id}>
-                          {pl.fullNameTh} ({pl.positionTh})
-                        </option>
-                      ))}
+                      <option value="">-- เลือกผู้บริหาร / คณาจารย์ / เจ้าหน้าที่ เพื่อดึงชื่อและตำแหน่ง --</option>
+                      {executives.length > 0 && (
+                        <optgroup label="👑 คณะผู้บริหาร (Executives)">
+                          {executives.map((pl) => (
+                            <option key={pl.id} value={pl.id}>
+                              {pl.fullNameTh} — {pl.positionTh}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {academicsAndStaff.length > 0 && (
+                        <optgroup label="👨‍🏫 คณาจารย์และเจ้าหน้าที่ (Faculty & Staff)">
+                          {academicsAndStaff.map((pl) => (
+                            <option key={pl.id} value={pl.id}>
+                              {pl.fullNameTh} — {pl.positionTh}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                   </div>
                 )}
@@ -697,6 +773,19 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
                       className="w-full rounded-xl border border-slate-300 px-3.5 py-1.5 text-xs bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
                     />
                   </div>
+                </div>
+
+                <div className="flex items-center justify-end pt-1">
+                  <button
+                    type="button"
+                    disabled={isSavingNewExecutive || !previewApproverName.trim()}
+                    onClick={() => handleQuickSaveExecutive(previewApproverName, previewApproverPosition)}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1 transition disabled:opacity-50"
+                    title="บันทึกชื่อและตำแหน่งที่ระบุนี้ลงในทำเนียบคณะผู้บริหาร เพื่อใช้ในครั้งต่อไป"
+                  >
+                    {isSavingNewExecutive ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
+                    <span>+ บันทึกเข้าทำเนียบผู้บริหารเพื่อใช้ครั้งต่อไป</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -943,31 +1032,48 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
                   </button>
                 </div>
 
-                {/* Personnel directory picker */}
-                {personnelList.length > 0 && (
+                {/* Personnel directory picker with optgroups */}
+                {personnel.length > 0 && (
                   <div>
                     <label className="block text-[11px] text-slate-600 font-medium mb-1">
-                      เลือกจากทำเนียบบุคลากร (อาจารย์/เจ้าหน้าที่) เพื่อดึงชื่อและตำแหน่ง:
+                      เลือกจากทำเนียบบุคลากร (ผู้บริหาร / อาจารย์ / เจ้าหน้าที่):
                     </label>
                     <select
                       onChange={(e) => {
-                        const person = personnelList.find((pl) => pl.id === e.target.value);
+                        const person = personnel.find((pl) => pl.id === e.target.value);
                         if (person) {
                           setApproverSignName(person.fullNameTh);
-                          if (!approverPosition.includes("ปฏิบัติหน้าที่แทน") && !approverPosition.includes("รักษาการ")) {
-                            setApproverPosition(`${person.positionTh} ปฏิบัติหน้าที่แทนเลขานุการสำนักงานคณบดีคณะพุทธศาสตร์`);
+                          if (person.type === "EXECUTIVE" || person.positionTh.includes("คณบดี") || person.positionTh.includes("เลขา")) {
+                            setApproverPosition(person.positionTh);
+                          } else {
+                            if (!approverPosition.includes("ปฏิบัติหน้าที่แทน") && !approverPosition.includes("รักษาการ")) {
+                              setApproverPosition(`${person.positionTh} ปฏิบัติหน้าที่แทนเลขานุการสำนักงานคณบดีคณะพุทธศาสตร์`);
+                            }
                           }
                         }
                       }}
                       defaultValue=""
                       className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-xs text-slate-700 bg-white"
                     >
-                      <option value="">-- เลือกอาจารย์ / เจ้าหน้าที่ --</option>
-                      {personnelList.map((pl) => (
-                        <option key={pl.id} value={pl.id}>
-                          {pl.fullNameTh} ({pl.positionTh})
-                        </option>
-                      ))}
+                      <option value="">-- เลือกเพื่อกรอกชื่อและตำแหน่งอัตโนมัติ --</option>
+                      {executives.length > 0 && (
+                        <optgroup label="👑 คณะผู้บริหาร (Executives)">
+                          {executives.map((pl) => (
+                            <option key={pl.id} value={pl.id}>
+                              {pl.fullNameTh} — {pl.positionTh}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {academicsAndStaff.length > 0 && (
+                        <optgroup label="👨‍🏫 คณาจารย์และเจ้าหน้าที่ (Faculty & Staff)">
+                          {academicsAndStaff.map((pl) => (
+                            <option key={pl.id} value={pl.id}>
+                              {pl.fullNameTh} — {pl.positionTh}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                   </div>
                 )}
@@ -1000,6 +1106,28 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
                       className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs bg-white"
                     />
                   </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-200/80 mt-1">
+                  <label className="flex items-center gap-2 cursor-pointer text-[11px] text-slate-700 font-medium select-none">
+                    <input
+                      type="checkbox"
+                      checked={saveAsExecutive}
+                      onChange={(e) => setSaveAsExecutive(e.target.checked)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>บันทึกชื่อนี้เข้าทำเนียบผู้บริหาร เพื่อใช้ในครั้งต่อไปอัตโนมัติ</span>
+                  </label>
+                  <button
+                    type="button"
+                    disabled={isSavingNewExecutive || !approverSignName.trim()}
+                    onClick={() => handleQuickSaveExecutive(approverSignName, approverPosition)}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 hover:text-indigo-900 bg-white hover:bg-indigo-50 border border-indigo-200 rounded-lg px-2.5 py-1 transition disabled:opacity-50"
+                    title="เพิ่มชื่อและตำแหน่งที่ระบุนี้ลงในทำเนียบผู้บริหารทันที"
+                  >
+                    {isSavingNewExecutive ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
+                    <span>+ บันทึกเข้าทำเนียบทันที</span>
+                  </button>
                 </div>
 
                 <p className="text-[10.5px] text-slate-500">

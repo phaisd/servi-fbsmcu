@@ -169,13 +169,51 @@ async function main() {
         data: {
           tenantId: core.tenantId,
           departmentId: dept1.id,
+          firstNameTh: "พระครูปลัดสมเกียรติ",
+          lastNameTh: "กิตฺติญาโณ",
+          positionTh: "เลขานุการสำนักงานคณบดีคณะพุทธศาสตร์",
+          type: "EXECUTIVE",
+          email: "somkiat@app.local",
+          phoneNumber: "02-123-4560",
+          orderIndex: 1,
+        }
+      });
+
+      await prisma.personnel.create({
+        data: {
+          tenantId: core.tenantId,
+          departmentId: dept1.id,
           firstNameTh: "พระมหาบุญชู",
-          lastNameTh: "ญาณวิโรจน์",
+          lastNameTh: "ญาณวิโรจน์, ผศ.ดร.",
           positionTh: "คณบดีคณะพุทธศาสตร์",
           type: "EXECUTIVE",
           email: "boonchoo@app.local",
           phoneNumber: "02-123-4567",
-          orderIndex: 1,
+          orderIndex: 2,
+        }
+      });
+
+      await prisma.personnel.create({
+        data: {
+          tenantId: core.tenantId,
+          departmentId: dept1.id,
+          firstNameTh: "พระมหาชุติภัทร",
+          lastNameTh: "โชติปญฺโญ, ดร.",
+          positionTh: "รองคณบดีฝ่ายบริหาร คณะพุทธศาสตร์",
+          type: "EXECUTIVE",
+          orderIndex: 3,
+        }
+      });
+
+      await prisma.personnel.create({
+        data: {
+          tenantId: core.tenantId,
+          departmentId: dept1.id,
+          firstNameTh: "พระครูสุตพุทธานุวัตร",
+          lastNameTh: "ผศ.ดร.",
+          positionTh: "รองคณบดีฝ่ายวิชาการ คณะพุทธศาสตร์",
+          type: "EXECUTIVE",
+          orderIndex: 4,
         }
       });
 
@@ -188,7 +226,7 @@ async function main() {
           positionTh: "อาจารย์ประจำภาควิชา",
           type: "ACADEMIC",
           email: "somchai@app.local",
-          orderIndex: 2,
+          orderIndex: 5,
         }
       });
 
@@ -201,7 +239,7 @@ async function main() {
           positionTh: "อาจารย์ประจำภาควิชา",
           type: "ACADEMIC",
           email: "somying@app.local",
-          orderIndex: 1,
+          orderIndex: 6,
         }
       });
     }

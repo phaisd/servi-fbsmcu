@@ -114,6 +114,7 @@ export async function approveOrRejectOfficialBookingAction(
     approverSignName?: string;
     approverPosition?: string;
     note?: string;
+    saveAsExecutive?: boolean;
   }
 ) {
   const session = await requireSession();
@@ -124,9 +125,100 @@ export async function approveOrRejectOfficialBookingAction(
     bookingId,
     data
   );
+
+  if (data.saveAsExecutive && data.approverSignName?.trim()) {
+    try {
+      const trimmedName = data.approverSignName.trim();
+      const parts = trimmedName.split(/\s+/);
+      const firstNameTh = parts[0] || "";
+      const lastNameTh = parts.slice(1).join(" ") || "";
+      const existing = await db.personnel.findFirst({
+        where: { tenantId: session.tenantId, firstNameTh, ...(lastNameTh ? { lastNameTh } : {}) },
+      });
+      if (!existing) {
+        await db.personnel.create({
+          data: {
+            tenantId: session.tenantId,
+            firstNameTh,
+            lastNameTh,
+            positionTh: data.approverPosition?.trim() || "ผู้บริหาร คณะพุทธศาสตร์",
+            type: "EXECUTIVE",
+            isActive: true,
+          },
+        });
+      }
+    } catch {
+      // non-critical error
+    }
+  }
+
   revalidatePath("/meetings/bookings");
   revalidatePath("/portal/meetings");
   return res;
+}
+
+export async function saveExecutivePersonnelAction(data: {
+  fullNameTh: string;
+  positionTh: string;
+}) {
+  const session = await requireSession();
+  await requirePermission(MEETINGS_P.manage);
+  const tenantId = session.tenantId;
+
+  const trimmedName = data.fullNameTh.trim();
+  const trimmedPosition = data.positionTh.trim();
+  if (!trimmedName) throw new Error("กรุณาระบุชื่อ-นามสกุลผู้อนุมัติ");
+
+  const parts = trimmedName.split(/\s+/);
+  const firstNameTh = parts[0] || "";
+  const lastNameTh = parts.slice(1).join(" ") || "";
+
+  const existing = await db.personnel.findFirst({
+    where: {
+      tenantId,
+      firstNameTh,
+      ...(lastNameTh ? { lastNameTh } : {}),
+    },
+  });
+
+  let saved;
+  if (existing) {
+    saved = await db.personnel.update({
+      where: { id: existing.id },
+      data: {
+        positionTh: trimmedPosition || existing.positionTh,
+        type: "EXECUTIVE",
+        isActive: true,
+      },
+      include: { department: true },
+    });
+  } else {
+    saved = await db.personnel.create({
+      data: {
+        tenantId,
+        firstNameTh,
+        lastNameTh,
+        positionTh: trimmedPosition || "ผู้บริหาร คณะพุทธศาสตร์",
+        type: "EXECUTIVE",
+        isActive: true,
+        orderIndex: 0,
+      },
+      include: { department: true },
+    });
+  }
+
+  revalidatePath("/meetings/bookings");
+  revalidatePath("/portal/personnel");
+
+  return {
+    id: saved.id,
+    fullNameTh: `${saved.firstNameTh} ${saved.lastNameTh}`.trim(),
+    positionTh: saved.positionTh,
+    type: saved.type,
+    departmentNameTh: saved.department?.nameTh || "สำนักงานคณบดี คณะพุทธศาสตร์",
+    email: saved.email || "",
+    phoneNumber: saved.phoneNumber || "",
+  };
 }
 
 export async function updateOfficialBookingApproverAction(
