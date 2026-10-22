@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Calendar,
@@ -28,6 +28,11 @@ import {
   Save,
   UserCheck,
   UserPlus,
+  FileSpreadsheet,
+  Download,
+  ZoomIn,
+  ZoomOut,
+  CalendarDays,
 } from "lucide-react";
 import type { MeetingBooking, MeetingRoom, User, BookingStatus } from "@/generated/prisma";
 import {
@@ -106,10 +111,35 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
   const [previewApproverName, setPreviewApproverName] = useState("พระครูปลัดสมเกียรติ กิตฺติญาโณ");
   const [previewApproverPosition, setPreviewApproverPosition] = useState("เลขานุการสำนักงานคณบดีคณะพุทธศาสตร์");
   const [showPreviewCustomizer, setShowPreviewCustomizer] = useState(false);
+  const [previewZoom, setPreviewZoom] = useState<number>(0.85); // Default 85% so full A4 fits nicely
   const [isSavingApprover, setIsSavingApprover] = useState(false);
 
   const [reviewBooking, setReviewBooking] = useState<BookingWithRelations | null>(null);
   const [approvalBooking, setApprovalBooking] = useState<BookingWithRelations | null>(null);
+
+  // Buddhist Year calculation & state
+  const getBuddhistYear = (d: Date | string) => {
+    try {
+      const dt = new Date(d);
+      if (isNaN(dt.getTime())) return new Date().getFullYear() + 543;
+      return dt.getFullYear() + 543;
+    } catch {
+      return new Date().getFullYear() + 543;
+    }
+  };
+
+  const currentBYear = new Date().getFullYear() + 543;
+
+  const availableYears = useMemo(() => {
+    const set = new Set<number>();
+    set.add(currentBYear);
+    for (const item of items) {
+      set.add(getBuddhistYear(item.startTime));
+    }
+    return Array.from(set).sort((a, b) => b - a);
+  }, [items, currentBYear]);
+
+  const [selectedYear, setSelectedYear] = useState<number | "ALL">("ALL");
 
   // Review form state (Officer)
   const [officerNote, setOfficerNote] = useState("");
@@ -171,6 +201,7 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
     setPreviewApproverName(meta.approverSignName || "พระครูปลัดสมเกียรติ กิตฺติญาโณ");
     setPreviewApproverPosition(meta.approverPosition || "เลขานุการสำนักงานคณบดีคณะพุทธศาสตร์");
     setShowPreviewCustomizer(false);
+    setPreviewZoom(0.85); // Reset to 85% fit
   };
 
   // Save Approver Info from Preview Modal
@@ -292,28 +323,267 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
     });
   };
 
-  // Filtered items
-  const filteredItems = items.filter((item) => {
+  // Filtered items by Buddhist Year, Status, and Search Query
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      const meta = parseBookingRemark(item.remark);
+
+      if (selectedYear !== "ALL") {
+        const itemYear = getBuddhistYear(item.startTime);
+        if (itemYear !== selectedYear) return false;
+      }
+
+      const matchesStatus =
+        statusFilter === "ALL" ? true : item.status === statusFilter;
+
+      const q = searchQuery.toLowerCase().trim();
+      if (!q) return matchesStatus;
+
+      const matchesSearch =
+        item.title.toLowerCase().includes(q) ||
+        item.room.name.toLowerCase().includes(q) ||
+        (meta.requesterName || "").toLowerCase().includes(q) ||
+        (meta.requesterDepartment || "").toLowerCase().includes(q) ||
+        (meta.approverSignName || "").toLowerCase().includes(q) ||
+        (item.requester.name || "").toLowerCase().includes(q);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [items, selectedYear, statusFilter, searchQuery]);
+
+  // Year items for statistics
+  const yearItems = useMemo(() => {
+    if (selectedYear === "ALL") return items;
+    return items.filter((item) => getBuddhistYear(item.startTime) === selectedYear);
+  }, [items, selectedYear]);
+
+  const yearTotalCount = yearItems.length;
+  const yearPendingCount = yearItems.filter((i) => i.status === "PENDING").length;
+  const yearApprovedCount = yearItems.filter((i) => i.status === "APPROVED").length;
+  const yearRejectedCount = yearItems.filter((i) => i.status === "REJECTED").length;
+
+  const yearTotalAttendees = yearItems.reduce((acc, item) => {
     const meta = parseBookingRemark(item.remark);
-    const matchesStatus =
-      statusFilter === "ALL" ? true : item.status === statusFilter;
+    return acc + (Number(meta.attendeeCount) || 1);
+  }, 0);
 
-    const q = searchQuery.toLowerCase().trim();
-    if (!q) return matchesStatus;
-
-    const matchesSearch =
-      item.title.toLowerCase().includes(q) ||
-      item.room.name.toLowerCase().includes(q) ||
-      (meta.requesterName || "").toLowerCase().includes(q) ||
-      (meta.requesterDepartment || "").toLowerCase().includes(q) ||
-      (item.requester.name || "").toLowerCase().includes(q);
-
-    return matchesStatus && matchesSearch;
-  });
-
+  // Overall counts
   const pendingCount = items.filter((i) => i.status === "PENDING").length;
   const approvedCount = items.filter((i) => i.status === "APPROVED").length;
   const rejectedCount = items.filter((i) => i.status === "REJECTED").length;
+
+  // Generate dataset for Export
+  const generateExportData = () => {
+    const exportItems = selectedYear === "ALL"
+      ? items
+      : items.filter((item) => getBuddhistYear(item.startTime) === selectedYear);
+
+    const headers = [
+      "ลำดับ",
+      "ปี พ.ศ.",
+      "รหัสคำขอ",
+      "สถานะคำขอ",
+      "วันที่ยื่นคำขอ",
+      "วันที่เริ่มต้น",
+      "เวลาเริ่มต้น",
+      "วันที่สิ้นสุด",
+      "เวลาสิ้นสุด",
+      "ห้องประชุม",
+      "เรื่อง / วาระการประชุม",
+      "วัตถุประสงค์",
+      "จำนวนผู้เข้าใช้ (รูป/คน)",
+      "อุปกรณ์ที่ขอใช้",
+      "ผู้ขอใช้ห้อง",
+      "ตำแหน่ง",
+      "หน่วยงาน / สังกัด",
+      "อีเมล",
+      "เบอร์โทรศัพท์",
+      "ผู้ประสานงาน",
+      "อีเมลผู้ประสานงาน",
+      "ความเห็นเจ้าหน้าที่",
+      "ผลตรวจห้องว่าง",
+      "เจ้าหน้าที่ผู้ตรวจ",
+      "ผู้อนุมัติ / ผู้ปฏิบัติหน้าที่แทน",
+      "ตำแหน่งผู้อนุมัติ",
+      "วันที่อนุมัติ",
+      "หมายเหตุ / คำสั่งการ",
+    ];
+
+    const rows = exportItems.map((item, idx) => {
+      const meta = parseBookingRemark(item.remark);
+      const start = new Date(item.startTime);
+      const end = new Date(item.endTime);
+      const bYear = getBuddhistYear(item.startTime);
+
+      const statusTh =
+        item.status === "APPROVED"
+          ? "อนุมัติแล้ว"
+          : item.status === "PENDING"
+          ? "รอพิจารณา"
+          : "ไม่อนุมัติ";
+
+      const purposeTh =
+        meta.purposeType === "MEETING"
+          ? "ประชุม (Meeting)"
+          : meta.purposeType === "TRAINING"
+          ? "อบรม (Training)"
+          : meta.purposeType === "SEMINAR"
+          ? "สัมมนา (Seminar)"
+          : meta.purposeOther || "อื่นๆ";
+
+      const eqList = Object.entries(meta.equipments || {})
+        .filter(([, v]) => Boolean(v))
+        .map(([k, v]) => {
+          if (k === "computer") return "คอมพิวเตอร์";
+          if (k === "ledDisplay") return "จอ LED";
+          if (k === "soundSystem") return "เครื่องขยายเสียง";
+          if (k === "zoomOnline") return "Zoom Online";
+          if (k === "other" && typeof v === "string" && v) return `อื่นๆ (${v})`;
+          return k;
+        })
+        .join(", ") || "-";
+
+      const availTh =
+        meta.isRoomAvailable === true
+          ? "ห้องว่าง"
+          : meta.isRoomAvailable === false
+          ? "ห้องไม่ว่าง"
+          : "ยังไม่ระบุ";
+
+      return [
+        idx + 1,
+        bYear,
+        item.id,
+        statusTh,
+        meta.requestDate || new Intl.DateTimeFormat("th-TH", { dateStyle: "short" }).format(start),
+        new Intl.DateTimeFormat("th-TH", { dateStyle: "short" }).format(start),
+        meta.startTimeStr || new Intl.DateTimeFormat("th-TH", { timeStyle: "short" }).format(start),
+        new Intl.DateTimeFormat("th-TH", { dateStyle: "short" }).format(end),
+        meta.endTimeStr || new Intl.DateTimeFormat("th-TH", { timeStyle: "short" }).format(end),
+        item.room.name,
+        item.title,
+        purposeTh,
+        meta.attendeeCount || 1,
+        eqList,
+        meta.requesterName || item.requester.name,
+        meta.requesterPosition || "-",
+        meta.requesterDepartment || "-",
+        meta.requesterEmail || item.requester.email || "-",
+        meta.requesterPhone || "-",
+        meta.coordinatorName || "-",
+        meta.coordinatorEmail || "-",
+        meta.officerNote || "-",
+        availTh,
+        meta.officerSignName || "-",
+        meta.approverSignName || "-",
+        meta.approverPosition || "-",
+        meta.approverDate || "-",
+        meta.notes || "-",
+      ];
+    });
+
+    return { headers, rows, count: exportItems.length };
+  };
+
+  // Export CSV Handler
+  const handleExportCsv = () => {
+    const { headers, rows, count } = generateExportData();
+    if (count === 0) {
+      notify("ไม่พบข้อมูลคำขอใช้ห้องประชุมสำหรับการส่งออก");
+      return;
+    }
+
+    const escapeCsv = (val: unknown) => {
+      const s = String(val ?? "").replace(/"/g, '""');
+      return `"${s}"`;
+    };
+
+    const csvContent =
+      "\uFEFF" +
+      [headers.map(escapeCsv).join(","), ...rows.map((row) => row.map(escapeCsv).join(","))].join("\r\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const yearLabel = selectedYear === "ALL" ? "ทุกปี" : `ปี_พศ_${selectedYear}`;
+    link.href = url;
+    link.setAttribute("download", `รายงานสรุปการใช้ห้องประชุม_${yearLabel}_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    notify(`ส่งออกไฟล์ CSV (${yearLabel}) จำนวน ${count} รายการ สำเร็จ`);
+  };
+
+  // Export Excel Handler
+  const handleExportExcel = () => {
+    const { headers, rows, count } = generateExportData();
+    if (count === 0) {
+      notify("ไม่พบข้อมูลคำขอใช้ห้องประชุมสำหรับการส่งออก");
+      return;
+    }
+
+    const yearLabel = selectedYear === "ALL" ? "ทุกปี พ.ศ." : `ประจำปี พ.ศ. ${selectedYear}`;
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8"/>
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>สรุปการใช้ห้องประชุม</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          th { background-color: #0f172a; color: #ffffff; font-weight: bold; font-family: Tahoma, sans-serif; font-size: 11pt; padding: 7px; border: 1px solid #334155; }
+          td { font-family: Tahoma, sans-serif; font-size: 10pt; padding: 6px; border: 1px solid #cbd5e1; }
+          .title { font-size: 14pt; font-weight: bold; color: #c2410c; }
+          .meta { font-size: 10pt; color: #475569; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr><td colspan="${headers.length}" class="title">รายงานสรุปคำขอใช้ห้องประชุม คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย (${yearLabel})</td></tr>
+          <tr><td colspan="${headers.length}" class="meta">ข้อมูล ณ วันที่: ${new Date().toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })} | จำนวนคำขอทั้งหมด: ${count} รายการ</td></tr>
+          <tr></tr>
+          <thead>
+            <tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr>
+          </thead>
+          <tbody>
+            ${rows
+              .map(
+                (r) =>
+                  `<tr>${r
+                    .map((cell) => `<td>${cell !== null && cell !== undefined ? String(cell) : ""}</td>`)
+                    .join("")}</tr>`
+              )
+              .join("")}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob(["\uFEFF" + html], { type: "application/vnd.ms-excel;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const fileYear = selectedYear === "ALL" ? "ทุกปี" : `ปี_พศ_${selectedYear}`;
+    link.href = url;
+    link.setAttribute("download", `รายงานสรุปการใช้ห้องประชุม_${fileYear}_${new Date().toISOString().slice(0, 10)}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    notify(`ส่งออกไฟล์ Excel (.xls) (${yearLabel}) จำนวน ${count} รายการ สำเร็จ`);
+  };
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -352,6 +622,73 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
         </div>
       </div>
 
+      {/* Buddhist Year Filter & Export Toolbar */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white p-4 rounded-3xl border border-slate-200 shadow-xs">
+        {/* Year Selector Tabs */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-800 mr-1.5">
+            <CalendarDays className="h-4 w-4 text-orange-600" />
+            <span>สรุปในรอบปี พ.ศ.:</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedYear("ALL")}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+              selectedYear === "ALL"
+                ? "bg-slate-900 text-white shadow-xs"
+                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+            }`}
+          >
+            <span>ทุกปี พ.ศ.</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${selectedYear === "ALL" ? "bg-slate-800 text-slate-200" : "bg-slate-200 text-slate-700 font-semibold"}`}>
+              {items.length}
+            </span>
+          </button>
+          {availableYears.map((yr) => {
+            const count = items.filter((i) => getBuddhistYear(i.startTime) === yr).length;
+            return (
+              <button
+                key={yr}
+                type="button"
+                onClick={() => setSelectedYear(yr)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                  selectedYear === yr
+                    ? "bg-orange-600 text-white shadow-xs ring-2 ring-orange-500/20"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                <span>พ.ศ. {yr}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${selectedYear === yr ? "bg-orange-700 text-white" : "bg-slate-200 text-slate-700 font-semibold"}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Export Buttons */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white px-3.5 py-2 text-xs font-bold shadow-xs hover:shadow-md transition active:scale-95"
+            title="ส่งออกรายงานสรุปสำหรับเปิดในโปรแกรม Microsoft Excel (.xls)"
+          >
+            <FileSpreadsheet className="h-4 w-4 text-emerald-200" />
+            <span>ส่งออก Excel</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleExportCsv}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 hover:border-slate-400 bg-white hover:bg-slate-50 text-slate-700 px-3.5 py-2 text-xs font-bold shadow-2xs hover:shadow-xs transition active:scale-95"
+            title="ส่งออกไฟล์ข้อมูลสรุปเป็นรูปแบบ CSV (.csv) UTF-8 รองรับภาษาไทย"
+          >
+            <Download className="h-4 w-4 text-slate-500" />
+            <span>ส่งออก CSV</span>
+          </button>
+        </div>
+      </div>
+
       {/* Stats Counter Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <button
@@ -361,8 +698,11 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
             statusFilter === "ALL" ? "border-slate-800 bg-slate-900 text-white shadow-md" : "border-slate-200 bg-white hover:bg-slate-50"
           }`}
         >
-          <div className="text-xs font-semibold opacity-75">คำขอทั้งหมด</div>
-          <div className="text-2xl font-black mt-1">{items.length}</div>
+          <div className="text-xs font-semibold opacity-75">
+            คำขอทั้งหมด {selectedYear !== "ALL" && `(พ.ศ. ${selectedYear})`}
+          </div>
+          <div className="text-2xl font-black mt-1">{yearTotalCount}</div>
+          <div className="text-[11px] opacity-70 mt-1">ผู้เข้าใช้ {yearTotalAttendees.toLocaleString()} รูป/คน</div>
         </button>
 
         <button
@@ -373,7 +713,10 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
           }`}
         >
           <div className="text-xs font-semibold opacity-85">รอตรวจสอบ/อนุมัติ</div>
-          <div className="text-2xl font-black mt-1">{pendingCount}</div>
+          <div className="text-2xl font-black mt-1">{yearPendingCount}</div>
+          <div className="text-[11px] opacity-75 mt-1">
+            {yearTotalCount > 0 ? `${Math.round((yearPendingCount / yearTotalCount) * 100)}% ของคำขอ` : "-"}
+          </div>
         </button>
 
         <button
@@ -384,7 +727,10 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
           }`}
         >
           <div className="text-xs font-semibold opacity-85">อนุมัติแล้ว</div>
-          <div className="text-2xl font-black mt-1">{approvedCount}</div>
+          <div className="text-2xl font-black mt-1">{yearApprovedCount}</div>
+          <div className="text-[11px] opacity-75 mt-1">
+            {yearTotalCount > 0 ? `${Math.round((yearApprovedCount / yearTotalCount) * 100)}% ของคำขอ` : "-"}
+          </div>
         </button>
 
         <button
@@ -395,7 +741,10 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
           }`}
         >
           <div className="text-xs font-semibold opacity-85">ไม่อนุมัติ / ยกเลิก</div>
-          <div className="text-2xl font-black mt-1">{rejectedCount}</div>
+          <div className="text-2xl font-black mt-1">{yearRejectedCount}</div>
+          <div className="text-[11px] opacity-75 mt-1">
+            {yearTotalCount > 0 ? `${Math.round((yearRejectedCount / yearTotalCount) * 100)}% ของคำขอ` : "-"}
+          </div>
         </button>
       </div>
 
@@ -419,10 +768,10 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
             onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 w-full sm:w-auto"
           >
-            <option value="ALL">สถานะทั้งหมด ({items.length})</option>
-            <option value="PENDING">รอพิจารณา ({pendingCount})</option>
-            <option value="APPROVED">อนุมัติแล้ว ({approvedCount})</option>
-            <option value="REJECTED">ไม่อนุมัติ ({rejectedCount})</option>
+            <option value="ALL">สถานะทั้งหมด ({yearItems.length})</option>
+            <option value="PENDING">รอพิจารณา ({yearPendingCount})</option>
+            <option value="APPROVED">อนุมัติแล้ว ({yearApprovedCount})</option>
+            <option value="REJECTED">ไม่อนุมัติ ({yearRejectedCount})</option>
           </select>
         </div>
       </div>
@@ -606,16 +955,54 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
 
       {/* MODAL 1: A4 DOCUMENT PREVIEW & PRINT */}
       {previewBooking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="relative w-full max-w-4xl bg-slate-100 rounded-3xl shadow-2xl overflow-hidden my-8">
-            <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md">
+          <div className="relative w-full max-w-5xl h-[96vh] flex flex-col bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border border-slate-700">
+            {/* STICKY HEADER - ALWAYS VISIBLE */}
+            <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-3 bg-slate-900 border-b border-slate-800 text-white z-30">
               <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-amber-400" />
+                <FileText className="h-4 w-4 text-amber-400 shrink-0" />
                 <span className="text-sm font-bold truncate max-w-xs sm:max-w-md">
                   ใบขอใช้ห้องประชุมประจำคณะพุทธศาสตร์ — {previewBooking.title}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Zoom controls */}
+                <div className="hidden sm:flex items-center gap-1 bg-slate-800 rounded-xl px-2 py-1 text-xs border border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewZoom((z) => Math.max(0.5, Number((z - 0.1).toFixed(2))))}
+                    className="p-1 hover:bg-slate-700 rounded text-slate-300"
+                    title="ย่อขนาด"
+                  >
+                    <ZoomOut className="h-3.5 w-3.5" />
+                  </button>
+                  <span className="text-[11px] font-mono w-10 text-center font-bold text-amber-300">
+                    {Math.round(previewZoom * 100)}%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewZoom((z) => Math.min(1.4, Number((z + 0.1).toFixed(2))))}
+                    className="p-1 hover:bg-slate-700 rounded text-slate-300"
+                    title="ขยายขนาด"
+                  >
+                    <ZoomIn className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewZoom(0.85)}
+                    className="px-1.5 py-0.5 hover:bg-slate-700 rounded text-[10px] text-slate-300"
+                  >
+                    พอดีจอ
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewZoom(1.0)}
+                    className="px-1.5 py-0.5 hover:bg-slate-700 rounded text-[10px] text-slate-300"
+                  >
+                    100%
+                  </button>
+                </div>
+                {/* Customize approver button */}
                 <button
                   type="button"
                   onClick={() => setShowPreviewCustomizer((v) => !v)}
@@ -627,16 +1014,18 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
                   title="แก้ไข/เพิ่มเติม ชื่อและตำแหน่งผู้อนุมัติหรือผู้ปฏิบัติหน้าที่แทน"
                 >
                   <PenTool className="h-3.5 w-3.5" />
-                  <span>{showPreviewCustomizer ? "ซ่อนแถบตั้งค่า" : "✏️ ปรับแต่งผู้อนุมัติ"}</span>
+                  <span className="hidden sm:inline">{showPreviewCustomizer ? "ซ่อนแถบตั้งค่า" : "✏️ ปรับแต่งผู้อนุมัติ"}</span>
                 </button>
+                {/* Print button */}
                 <button
                   type="button"
                   onClick={() => window.print()}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-orange-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-orange-500 transition shadow-sm"
                 >
                   <Printer className="h-3.5 w-3.5" />
-                  <span>สั่งพิมพ์ (Print)</span>
+                  <span>สั่งพิมพ์ (Print A4)</span>
                 </button>
+                {/* Close button */}
                 <button
                   type="button"
                   onClick={() => setPreviewBooking(null)}
@@ -649,7 +1038,7 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
 
             {/* Live Customizer Toolbar */}
             {showPreviewCustomizer && (
-              <div className="bg-amber-50/95 border-b border-amber-200 p-4 space-y-3 print:hidden animate-in fade-in">
+              <div className="bg-amber-50/95 border-b border-amber-200 p-4 space-y-3 print:hidden animate-in fade-in shrink-0 max-h-[35vh] overflow-y-auto">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
                     <UserCheck className="h-4 w-4 text-amber-700 shrink-0" />
@@ -790,8 +1179,16 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
               </div>
             )}
 
-            <div className="p-4 sm:p-8 overflow-x-auto flex justify-center bg-slate-200/80">
-              <div className="scale-90 sm:scale-100 origin-top">
+            {/* A4 Preview Body */}
+            <div className="flex-1 overflow-auto p-4 sm:p-8 flex justify-center bg-slate-300/80 print:p-0 print:m-0 print:bg-white print:overflow-visible">
+              <div
+                style={{
+                  transform: `scale(${previewZoom})`,
+                  transformOrigin: "top center",
+                  transition: "transform 0.15s ease",
+                }}
+                className="print:transform-none"
+              >
                 <MeetingBookingA4Document
                   metadata={{
                     ...parseBookingRemark(previewBooking.remark),
