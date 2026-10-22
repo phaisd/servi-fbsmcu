@@ -1,6 +1,6 @@
-import { TinyEditor } from "@/shared/components/tiny-editor";
 "use client";
 
+import { TinyEditor } from "@/shared/components/tiny-editor";
 import { useState, useTransition } from "react";
 import {
   Plus,
