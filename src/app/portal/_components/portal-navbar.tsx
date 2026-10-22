@@ -88,8 +88,8 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
           },
           {
             label: locale === "th" ? "หลักสูตรการศึกษา" : "Curriculums",
-            href: "/programs",
-            active: pathname.startsWith("/programs"),
+            href: "/portal/programs",
+            active: pathname.startsWith("/portal/programs"),
           },
           {
             label: locale === "th" ? "ทำเนียบบุคลากร" : "Personnel",
@@ -110,11 +110,11 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
 
   const defaultServiceItems = [
     { label: locale === "th" ? "เวลาเรียน & ลงทะเบียนวิชา" : "Class Attendance & Enroll", href: "/portal/attendance" },
-    { label: locale === "th" ? "หลักสูตรการศึกษา" : "Curriculums", href: "/programs" },
-    { label: locale === "th" ? "ตารางเรียน / ตารางสอน" : "Class Timetables", href: "/timetables" },
+    { label: locale === "th" ? "หลักสูตรการศึกษา" : "Curriculums", href: "/portal/programs" },
+    { label: locale === "th" ? "ตารางเรียน / ตารางสอน" : "Class Timetables", href: "/portal/timetables" },
     { label: locale === "th" ? "ข่าวประชาสัมพันธ์" : "Announcements", href: "/portal/news" },
     { label: locale === "th" ? "ทำเนียบบุคลากร" : "Personnel Directory", href: "/portal/personnel" },
-    { label: locale === "th" ? "เอกสารดาวน์โหลด" : "Download Documents", href: "/documents" },
+    { label: locale === "th" ? "เอกสารดาวน์โหลด" : "Download Documents", href: "/portal/documents" },
     { label: locale === "th" ? "จองห้องประชุม" : "Meeting Rooms", href: "/portal/meetings" },
     { label: locale === "th" ? "ขอหนังสือรับรอง" : "Certificate Requests", href: "/portal/certificates" },
     { label: locale === "th" ? "กิจกรรมนิสิต" : "Student Events", href: "/portal/events" },
