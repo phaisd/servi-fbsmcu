@@ -46,6 +46,7 @@ import {
   getAdminDocumentsAction,
   uploadAdminDocumentFileAction,
   importAdminDocumentsAction,
+  getFacultySarPackageAction,
 } from "@/features/administration/actions";
 
 interface Props {
@@ -283,6 +284,33 @@ export function AdministrationClient({ initialItems, canManage }: Props) {
         toast.error(res.error?.message || "ลบเอกสารไม่สำเร็จ");
       }
     });
+  };
+
+  const [isExportingSar, setIsExportingSar] = useState(false);
+
+  const handleExportSarPackage = async () => {
+    setIsExportingSar(true);
+    try {
+      const res = await getFacultySarPackageAction();
+      if (!res.ok) {
+        toast.error(res.error.message || "ไม่สามารถดึงข้อมูลรายงาน SAR ได้");
+        return;
+      }
+      const blob = new Blob([res.data.csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `MCU_Buddhism_Faculty_SAR_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast.success("ส่งออกรายงานข้อมูลสังเคราะห์ SAR / ประกันคุณภาพการศึกษา เรียบร้อยแล้ว (เปิดใน Excel ได้ทันที)");
+    } catch {
+      toast.error("เกิดข้อผิดพลาดในการส่งออกรายงาน SAR");
+    } finally {
+      setIsExportingSar(false);
+    }
   };
 
   // Export to CSV with UTF-8 BOM

@@ -4,3 +4,4 @@ export {
   updateAdminDocumentSchema,
 } from "./_internal/validations";
 
+export type { SarExportPackage } from "./_internal/sar-export-service";

@@ -1,3 +1,4 @@
+import { generateFacultySarPackageData } from "./_internal/sar-export-service";
 import { validateUploadFile } from "@/shared/lib/security/file-validation";
 "use server";
 
@@ -152,3 +153,11 @@ export async function importAdminDocumentsAction(
   });
 }
 
+
+export async function getFacultySarPackageAction() {
+  return runAction(async () => {
+    const ctx = await requirePermission(ADMINISTRATION_P.read);
+    const data = await generateFacultySarPackageData(ctx.tenantId);
+    return data;
+  });
+}

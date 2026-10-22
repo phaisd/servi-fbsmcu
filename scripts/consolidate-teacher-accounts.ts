@@ -148,7 +148,7 @@ const TEACHER_CLUSTERS: TeacherCluster[] = [
   {
     masterName: "พระมหาราชัน จิตฺตปาโล, อ.ดร.",
     defaultEmailPrefix: "rachan.cit",
-    aliases: ["พระมหาราชัน จิตฺตปาโล, อ.ดร."],
+    aliases: ["พระมหาราชัน จิตฺตปาโล, อ.ดร.", "Phramaha Rachan Cittapalo, Ph.D."],
   },
   {
     masterName: "รศ.ดร.กฤต ศรียะอาจ",
@@ -178,7 +178,7 @@ const TEACHER_CLUSTERS: TeacherCluster[] = [
   {
     masterName: "อ.ดร.ไชยา เสนแสนยา",
     defaultEmailPrefix: "chaiya.sen",
-    aliases: ["อ.ดร.ไชยา เสนแสนยา"],
+    aliases: ["อ.ดร.ไชยา เสนแสนยา", "ดร.ไชยา เสนแสนยา"],
   },
   {
     masterName: "ผศ.ดร.คงสฤษฎ์ แพงทรัพย์",
@@ -220,7 +220,7 @@ const TEACHER_CLUSTERS: TeacherCluster[] = [
   {
     masterName: "Dr. Duangdee Aotsoo",
     defaultEmailPrefix: "duangdee.aot",
-    aliases: ["Dr. Duangdee Aotsoo"],
+    aliases: ["Dr. Duangdee Aotsoo", "อ.ดร.ดวงดี โอฐสู"],
   },
   {
     masterName: "Phramaha Khunpon Samacitto, Ph.D.",
@@ -230,17 +230,17 @@ const TEACHER_CLUSTERS: TeacherCluster[] = [
   {
     masterName: "Asst. Prof. Phramaha Pornchai Sirivaro, Ph.D.",
     defaultEmailPrefix: "pornchai.sir",
-    aliases: ["Asst. Prof. Phramaha Pornchai Sirivaro, Ph.D."],
+    aliases: ["Asst. Prof. Phramaha Pornchai Sirivaro, Ph.D.", "Asst. Prof. PM. Pornchai Sirivaro, Ph.D."],
   },
   {
     masterName: "Asst. Prof. Phramaha Somphong Khunakaro, Ph.D.",
     defaultEmailPrefix: "somphong.khu",
-    aliases: ["Asst. Prof. Phramaha Somphong Khunakaro, Ph.D."],
+    aliases: ["Asst. Prof. Phramaha Somphong Khunakaro, Ph.D.", "Asst. Prof. PM. Somphong Khunakaro, Ph.D."],
   },
   {
     masterName: "Assoc. Prof. Dr. Jutamas Vareesangthip",
     defaultEmailPrefix: "jutamas.var",
-    aliases: ["Assoc. Prof. Dr. Jutamas Vareesangthip"],
+    aliases: ["Assoc. Prof. Dr. Jutamas Vareesangthip", "Assoc. Prof. Dr. Jutamas Vareesengthip", "รศ.พิเศษ ดร.จุฑามาศ วารีแสงทิพย์"],
   },
   {
     masterName: "Assoc. Prof. Dr. Doungkamon Tongkanaraksa",
@@ -271,7 +271,7 @@ const TEACHER_CLUSTERS: TeacherCluster[] = [
   {
     masterName: "Asst. Prof. Dr. Supapan Permpool",
     defaultEmailPrefix: "supapan.per",
-    aliases: ["Asst. Prof. Dr. Supapan Permpool"],
+    aliases: ["Asst. Prof. Dr. Supapan Permpool", "ผศ.พิเศษ ดร.สุภาพรรณ เพิ่มพูน"],
   },
   {
     masterName: "Dr. Sudtida Padrit",
@@ -343,22 +343,38 @@ async function main() {
       continue;
     }
 
-    // 2. Select the Master User (prefer one that already has a good email or the first Thai one)
+    // 2. Select the Master User: prefer official @mcu.ac.th over temporary t69...
     let masterUser =
-      matchedUsers.find((u) => !u.email.includes(".en.") && !u.email.startsWith("t69.0")) ||
-      matchedUsers.find((u) => !u.email.includes(".en.")) ||
+      matchedUsers.find((u) => u.email.toLowerCase().endsWith("@mcu.ac.th") && !u.email.toLowerCase().includes("t69")) ||
+      matchedUsers.find((u) => !u.email.toLowerCase().includes(".en.") && !u.email.toLowerCase().startsWith("t69")) ||
+      matchedUsers.find((u) => !u.email.toLowerCase().includes(".en.")) ||
       matchedUsers[0];
 
-    // Standardize master email if it was course-specific
     const targetEmail = cluster.defaultEmailPrefix
       ? `${cluster.defaultEmailPrefix}@mcu.ac.th`.toLowerCase()
-      : masterUser.email;
+      : masterUser.email.toLowerCase();
 
-    // Check if targetEmail is already taken by another user who is NOT in matchedUsers
+    // If an official user in matchedUsers already has targetEmail, that's definitively our masterUser!
+    const exactTargetUser = matchedUsers.find((u) => u.email.toLowerCase() === targetEmail);
+    if (exactTargetUser) {
+      masterUser = exactTargetUser;
+    }
+
+    // Rename any other accounts in matchedUsers away from targetEmail first to prevent unique constraint conflict
+    for (const other of matchedUsers) {
+      if (other.id !== masterUser.id && other.email.toLowerCase() === targetEmail) {
+        const tempEmail = `temp-${Date.now()}-${other.email}`;
+        await prisma.user.update({
+          where: { id: other.id },
+          data: { email: tempEmail },
+        });
+        other.email = tempEmail;
+      }
+    }
+
     const conflictUser = allUsers.find(
       (u) => u.email.toLowerCase() === targetEmail && !matchedUsers.some((m) => m.id === u.id)
     );
-
     const finalMasterEmail = conflictUser ? masterUser.email : targetEmail;
 
     // Update masterUser details: name, finalMasterEmail, password
