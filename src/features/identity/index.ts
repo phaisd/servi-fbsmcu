@@ -40,3 +40,5 @@ export { HERO_TONE_CONFIGS, getHeroToneConfig } from "./_internal/hero-tones";
 
 
 
+
+export type { AuditLogQueryResult } from "./_internal/audit";

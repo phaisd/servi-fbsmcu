@@ -1,3 +1,4 @@
+import { validateUploadFile } from "@/shared/lib/security/file-validation";
 "use server";
 
 import fs from "fs/promises";
@@ -84,24 +85,30 @@ export async function uploadAdminDocumentFileAction(
       throw errors.validation("No file provided", { file: ["กรุณาเลือกไฟล์เอกสารที่ต้องการอัปโหลด"] });
     }
 
-    const maxSizeBytes = 30 * 1024 * 1024; // 30MB
-    if (file.size > maxSizeBytes) {
-      throw errors.validation("File too large", { file: ["ขนาดไฟล์ต้องไม่เกิน 30MB"] });
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    const validation = validateUploadFile(file.name, buffer, {
+      allowedExtensions: ["pdf", "docx", "xlsx", "pptx", "png", "jpg", "jpeg"],
+      maxSizeBytes: 30 * 1024 * 1024,
+    });
+
+    if (!validation.valid) {
+      throw errors.validation(validation.error || "ไฟล์ไม่ถูกต้อง", {
+        file: [validation.error || "ไฟล์ไม่ถูกต้อง"]
+      });
     }
 
     const uploadsDir = path.join(process.cwd(), "public", "uploads", "documents");
     await fs.mkdir(uploadsDir, { recursive: true });
 
-    const rawExt = file.name.split(".").pop()?.toLowerCase() ?? "pdf";
     const safeBaseName = path
-      .basename(file.name, `.${rawExt}`)
+      .basename(file.name, `.${validation.ext}`)
       .replace(/[^a-zA-Z0-9_\u0E00-\u0E7F-]/g, "_")
       .slice(0, 40);
 
-    const filename = `doc-${Date.now()}-${safeBaseName || "file"}.${rawExt}`;
+    const filename = `doc-${Date.now()}-${safeBaseName || "file"}.${validation.ext}`;
     const filePath = path.join(uploadsDir, filename);
 
-    const buffer = Buffer.from(await file.arrayBuffer());
     await fs.writeFile(filePath, buffer);
 
     const url = `/uploads/documents/${filename}`;

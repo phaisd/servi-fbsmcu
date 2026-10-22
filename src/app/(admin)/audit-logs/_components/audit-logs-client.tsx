@@ -25,7 +25,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getAuditLogsAction } from "@/features/identity/actions";
-import type { AuditLogQueryResult } from "@/features/identity/_internal/audit";
+import type { AuditLogQueryResult } from "@/features/identity";
 
 export type AuditLogsInitialData = AuditLogQueryResult;
 export type AuditLogItem = AuditLogQueryResult["items"][number];

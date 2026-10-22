@@ -1,5 +1,5 @@
 import { resolvePublicTenantId } from "@/features/news/server";
-import { getEventProjectorData } from "@/features/events/_internal/services";
+import { getEventProjectorData } from "@/features/events/server";
 import { ProjectorClient } from "./_components/projector-client";
 import { notFound } from "next/navigation";
 

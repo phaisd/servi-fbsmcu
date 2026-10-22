@@ -1,5 +1,4 @@
-import { requirePermission, P } from "@/features/identity/server";
-import { getAuditLogs } from "@/features/identity/_internal/audit";
+import { requirePermission, P, getAuditLogs } from "@/features/identity/server";
 import { AuditLogsClient } from "./_components/audit-logs-client";
 
 export const metadata = {

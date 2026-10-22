@@ -5,4 +5,4 @@ export { P } from "./permissions";
 export { auth, handlers, signIn, signOut, oauthProviderIds } from "./_internal/auth";
 export { resolvePalette, resolveTenantSettings, getTenantPalette, getTenantSettings } from "./_internal/services/tenant.service";
 export { getDashboardStats } from "./_internal/services/dashboard.service";
-export { writeAudit, type AuditEntry } from "./_internal/audit";
+export { writeAudit, getAuditLogs, type AuditEntry } from "./_internal/audit";

@@ -1,6 +1,6 @@
 import { resolvePublicTenantId } from "@/features/news/server";
 import { getEventById } from "@/features/events/server";
-import { getEventEvaluationConfig } from "@/features/events/_internal/evaluation-service";
+import { getEventEvaluationConfig } from "@/features/events/server";
 import { EventEvaluateClient } from "./_components/event-evaluate-client";
 import { notFound } from "next/navigation";
 
