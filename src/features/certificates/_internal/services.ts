@@ -384,7 +384,13 @@ export async function getStaffUsersForCertificate(tenantId: string): Promise<Sta
     let positionTh = matchedPerson?.positionTh || "";
     if (!positionTh) {
       if (staffRole?.code === "STAFF") {
-        positionTh = ut.user.name.includes("บริหาร") ? "เจ้าหน้าที่บริหารงานทั่วไป" : "เจ้าหน้าที่บริการการศึกษา";
+        if (ut.user.name.includes("จัดการงานทั่วไป") || ut.user.name.includes("งานทั่วไป")) {
+          positionTh = "นักจัดการงานทั่วไป";
+        } else if (ut.user.name.includes("บริหาร")) {
+          positionTh = "เจ้าหน้าที่บริหารงานทั่วไป";
+        } else {
+          positionTh = "เจ้าหน้าที่บริการการศึกษา";
+        }
       } else if (staffRole?.code === "CURRICULUM_OFFICER") {
         positionTh = "เจ้าหน้าที่บริการการศึกษาและหลักสูตร";
       } else if (staffRole?.code === "ADMIN" || staffRole?.code === "SUPER_ADMIN") {
