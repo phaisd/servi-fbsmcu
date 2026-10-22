@@ -288,6 +288,12 @@ export function CertificateA4Document({
   const marginSideMm = metadata.marginSideMm ?? 25;
   const showSignature = metadata.showSignatureGraphic !== false;
   const showPhotoBox = metadata.showPhotoBox !== false;
+  const photoBoxPosition = metadata.photoBoxPosition ?? "BOTTOM_LEFT";
+  const photoBoxOffsetMm = metadata.photoBoxOffsetMm ?? 28;
+  const photoBoxSize = metadata.photoBoxSize ?? "1.5_INCH";
+  const boxWidth = photoBoxSize === "2_INCH" ? "38mm" : photoBoxSize === "1_INCH" ? "24mm" : "28mm";
+  const boxHeight = photoBoxSize === "2_INCH" ? "48mm" : photoBoxSize === "1_INCH" ? "30mm" : "34mm";
+  const boxLabel = photoBoxSize === "2_INCH" ? "2 นิ้ว" : photoBoxSize === "1_INCH" ? "1 นิ้ว" : "1.5 นิ้ว";
   const showVerificationQr = metadata.showVerificationQr !== false;
 
   const appOrigin = typeof window !== "undefined" ? window.location.origin : "";
@@ -360,6 +366,23 @@ export function CertificateA4Document({
         style={sheetStyle}
       >
         {googleFontsEmbed}
+
+        {/* Top-Right Photo Box if chosen */}
+        {showPhotoBox && photoBoxPosition === "TOP_RIGHT" && (
+          <div
+            className="absolute border border-black flex flex-col items-center justify-center text-[9px] text-slate-400 select-none print:text-transparent"
+            style={{
+              top: `${marginTopMm}mm`,
+              right: `${marginSideMm}mm`,
+              width: boxWidth,
+              height: boxHeight,
+            }}
+          >
+            <span>Photo</span>
+            <span>{boxLabel}</span>
+          </div>
+        )}
+
         <div>
           {/* Top-Left Office of Dean Header */}
           <div style={{ fontSize: `${Math.max(10, fontSizePt - 1.5)}pt`, lineHeight: 1.35 }}>
@@ -419,11 +442,18 @@ export function CertificateA4Document({
         {/* Bottom Photo Box & Student Signature + 2-Column Footer */}
         <div className="mt-6">
           <div className="space-y-1 mb-3" style={{ fontSize: `${Math.max(10.5, fontSizePt - 0.5)}pt` }}>
-            {showPhotoBox && (
+            {showPhotoBox && photoBoxPosition !== "TOP_RIGHT" && (
               <div
-                className="border border-black ml-10 mb-4"
-                style={{ width: "28mm", height: "34mm" }}
-              />
+                className="border border-black mb-4 flex flex-col items-center justify-center text-[9px] text-slate-400 select-none print:text-transparent"
+                style={{
+                  width: boxWidth,
+                  height: boxHeight,
+                  marginLeft: `${photoBoxOffsetMm}mm`,
+                }}
+              >
+                <span>Photo</span>
+                <span>{boxLabel}</span>
+              </div>
             )}
             <div>Signature ..................................................</div>
             <div className="pl-16 font-bold">({metadata.fullName || "...................................."})</div>
@@ -666,6 +696,23 @@ export function CertificateA4Document({
       style={sheetStyle}
     >
       {googleFontsEmbed}
+
+      {/* Top-Right Photo Box if chosen */}
+      {showPhotoBox && photoBoxPosition === "TOP_RIGHT" && (
+        <div
+          className="absolute border border-black flex flex-col items-center justify-center text-[9px] text-slate-400 select-none print:text-transparent"
+          style={{
+            top: `${marginTopMm}mm`,
+            right: `${marginSideMm}mm`,
+            width: boxWidth,
+            height: boxHeight,
+          }}
+        >
+          <span>ติดรูปถ่าย</span>
+          <span>{boxLabel}</span>
+        </div>
+      )}
+
       <div>
         {/* มุมซ้ายบน: ที่ อว 8002 / ... */}
         <div>ที่ อว {doc.docNo.replace(/^(ที่\s*)?อว\s*/i, "")}</div>
@@ -706,11 +753,18 @@ export function CertificateA4Document({
 
       {/* มุมซ้ายล่าง: กรอบติดรูปถ่าย + ลงชื่อนิสิต + ข้อมูลติดต่อสำนักงานคณะพุทธศาสตร์ + QR Verification */}
       <div className="mt-6">
-        {showPhotoBox && (
+        {showPhotoBox && photoBoxPosition !== "TOP_RIGHT" && (
           <div
-            className="border border-black ml-12 mb-5"
-            style={{ width: "28mm", height: "34mm" }}
-          />
+            className="border border-black mb-4 flex flex-col items-center justify-center text-[9px] text-slate-400 select-none print:text-transparent"
+            style={{
+              width: boxWidth,
+              height: boxHeight,
+              marginLeft: `${photoBoxOffsetMm}mm`,
+            }}
+          >
+            <span>ติดรูปถ่าย</span>
+            <span>{boxLabel}</span>
+          </div>
         )}
         <div className="space-y-0.5">
           <div>ลงชื่อ ..................................................</div>

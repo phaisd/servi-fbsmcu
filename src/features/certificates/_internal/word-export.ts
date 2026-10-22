@@ -29,6 +29,13 @@ export function generateCertificateWordHtml(
   const fontName = getWordFontName(meta.fontFamily, isEng);
   const topMargin = meta.marginTopMm || 25;
   const sideMargin = meta.marginSideMm || 25;
+  const showPhotoBox = meta.showPhotoBox !== false;
+  const photoBoxPosition = meta.photoBoxPosition ?? "BOTTOM_LEFT";
+  const photoBoxOffsetMm = meta.photoBoxOffsetMm ?? 28;
+  const photoBoxSize = meta.photoBoxSize ?? "1.5_INCH";
+  const boxWidth = photoBoxSize === "2_INCH" ? "38mm" : photoBoxSize === "1_INCH" ? "24mm" : "28mm";
+  const boxHeight = photoBoxSize === "2_INCH" ? "48mm" : photoBoxSize === "1_INCH" ? "30mm" : "34mm";
+  const boxLabel = photoBoxSize === "2_INCH" ? "2 นิ้ว" : photoBoxSize === "1_INCH" ? "1 นิ้ว" : "1.5 นิ้ว";
   const verifyUrl =
     verificationUrl ||
     meta.portalVerifyUrl ||
@@ -174,12 +181,16 @@ export function generateCertificateWordHtml(
       <!-- Signer -->
       <table style="width:100%; border-collapse:collapse; margin-top:28pt; font-size:${fontSizePt}pt;">
         <tr>
-          <td style="width:35%;">
-            <div style="border:1pt solid black; width:28mm; height:34mm; text-align:center; vertical-align:middle; line-height:34mm; font-size:9pt; color:#999;">Photo</div>
-            <div style="margin-top:6pt; font-size:10pt;">Signature: ........................................</div>
+          <td style="width:40%; vertical-align:bottom;">
+            ${
+              showPhotoBox && photoBoxPosition !== "TOP_RIGHT"
+                ? `<div style="border:1pt solid black; width:${boxWidth}; height:${boxHeight}; text-align:center; vertical-align:middle; line-height:${boxHeight}; font-size:9pt; color:#999; margin-left:${photoBoxOffsetMm}mm; margin-bottom:6pt;">Photo (${boxLabel})</div>`
+                : ""
+            }
+            <div style="font-size:10pt;">Signature: ........................................</div>
             <div style="font-weight:bold; font-size:10pt; margin-top:2pt;">(${meta.fullName || "...................................."})</div>
           </td>
-          <td style="width:65%; text-align:center; vertical-align:top;">
+          <td style="width:60%; text-align:center; vertical-align:top;">
             <div style="height:32pt;"></div>
             <div>${doc.signerName}</div>
             <div>${doc.signerTitle}</div>
@@ -299,12 +310,16 @@ export function generateCertificateWordHtml(
 
       <table style="width:100%; border-collapse:collapse; margin-top:24pt; font-size:${fontSizePt}pt;">
         <tr>
-          <td style="width:35%; vertical-align:bottom;">
-            <div style="border:1pt solid black; width:28mm; height:34mm; text-align:center; vertical-align:middle; line-height:34mm; font-size:9pt; color:#999; margin-bottom:6pt;">รูปถ่าย 1.5 นิ้ว</div>
+          <td style="width:45%; vertical-align:bottom;">
+            ${
+              showPhotoBox && photoBoxPosition !== "TOP_RIGHT"
+                ? `<div style="border:1pt solid black; width:${boxWidth}; height:${boxHeight}; text-align:center; vertical-align:middle; line-height:${boxHeight}; font-size:9pt; color:#999; margin-left:${photoBoxOffsetMm}mm; margin-bottom:6pt;">รูปถ่าย (${boxLabel})</div>`
+                : ""
+            }
             <div>ลงชื่อ ..................................................</div>
             <div style="font-weight:bold; margin-top:2pt;">(${meta.fullName || "............................................"})</div>
           </td>
-          <td style="width:65%; text-align:center; vertical-align:top;">
+          <td style="width:55%; text-align:center; vertical-align:top;">
             <div style="height:36pt;"></div>
             <div>${doc.signerName}</div>
             <div>${doc.signerTitle}</div>
