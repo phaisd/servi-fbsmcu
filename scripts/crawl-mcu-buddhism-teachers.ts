@@ -183,7 +183,7 @@ async function crawlTeacher(meta: (typeof teacherMeta)[0]): Promise<TeacherProfi
     const pubYear = yearMatch ? yearMatch[0] : "๒๕๖๖";
 
     // Clean title
-    let title = line
+    const title = line
       .replace(/&#8211;/g, "-")
       .replace(/&#8220;/g, '"')
       .replace(/&#8221;/g, '"')
