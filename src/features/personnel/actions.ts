@@ -9,12 +9,17 @@ import {
   createPersonnel,
   updatePersonnel,
   deletePersonnel,
+  createResearchPublication,
+  updateResearchPublication,
+  deleteResearchPublication,
 } from "./_internal/services";
 import {
   departmentSchema,
   updateDepartmentSchema,
   personnelSchema,
   updatePersonnelSchema,
+  researchPublicationSchema,
+  updateResearchPublicationSchema,
 } from "./_internal/validations";
 
 export async function createDepartmentAction(data: unknown) {
@@ -55,4 +60,24 @@ export async function deletePersonnelAction(id: string) {
   const session = await requireSession();
   await requirePermission(PERSONNEL_P.manage);
   return deletePersonnel(session.tenantId, session.userId, id);
+}
+
+export async function createResearchPublicationAction(data: unknown) {
+  const session = await requireSession();
+  await requirePermission(PERSONNEL_P.manage);
+  const parsed = researchPublicationSchema.parse(data);
+  return createResearchPublication(session.tenantId, session.userId, parsed);
+}
+
+export async function updateResearchPublicationAction(id: string, data: unknown) {
+  const session = await requireSession();
+  await requirePermission(PERSONNEL_P.manage);
+  const parsed = updateResearchPublicationSchema.parse(data);
+  return updateResearchPublication(session.tenantId, session.userId, id, parsed);
+}
+
+export async function deleteResearchPublicationAction(id: string) {
+  const session = await requireSession();
+  await requirePermission(PERSONNEL_P.manage);
+  return deleteResearchPublication(session.tenantId, session.userId, id);
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { Users, BookOpen, Building } from "lucide-react";
 import { useT } from "@/shared/lib/i18n/client";
 import { LiyonCard } from "@/shared/components/liyon";
 import type { Department } from "@/generated/prisma";
@@ -12,8 +14,35 @@ export function DepartmentsAdminClient({ initialItems }: { initialItems: Departm
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold">{t("personnel.nav")} (Departments)</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">จัดการโครงสร้างภาควิชาและหน่วยงาน</p>
         </div>
       </div>
+
+      {/* Module Navigation Strip */}
+      <div className="flex items-center gap-2 border-b border-border pb-px text-sm">
+        <Link
+          href="/personnel"
+          className="px-4 py-2 font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
+        >
+          <Users className="w-4 h-4" />
+          <span>ทำเนียบคณาจารย์และบุคลากร</span>
+        </Link>
+        <Link
+          href="/personnel/research"
+          className="px-4 py-2 font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-2"
+        >
+          <BookOpen className="w-4 h-4" />
+          <span>ผลงานวิจัยและวิชาการ</span>
+        </Link>
+        <Link
+          href="/personnel/departments"
+          className="px-4 py-2 font-semibold text-primary border-b-2 border-primary flex items-center gap-2"
+        >
+          <Building className="w-4 h-4" />
+          <span>จัดการภาควิชา ({initialItems.length})</span>
+        </Link>
+      </div>
+
       <LiyonCard>
         <div className="p-4">
           <table className="w-full text-left">

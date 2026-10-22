@@ -97,6 +97,11 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
             active: pathname.startsWith("/portal/personnel"),
           },
           {
+            label: locale === "th" ? "ผลงานวิจัย" : "Research",
+            href: "/portal/research",
+            active: pathname.startsWith("/portal/research"),
+          },
+          {
             label: locale === "th" ? "กิจกรรมนิสิต" : "Student Events",
             href: "/portal/events",
             active: pathname.startsWith("/portal/events"),
@@ -114,6 +119,7 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
     { label: locale === "th" ? "ตารางเรียน / ตารางสอน" : "Class Timetables", href: "/portal/timetables" },
     { label: locale === "th" ? "ข่าวประชาสัมพันธ์" : "Announcements", href: "/portal/news" },
     { label: locale === "th" ? "ทำเนียบบุคลากร" : "Personnel Directory", href: "/portal/personnel" },
+    { label: locale === "th" ? "ผลงานวิจัย & วิชาการ" : "Research & Publications", href: "/portal/research" },
     { label: locale === "th" ? "เอกสารดาวน์โหลด" : "Download Documents", href: "/portal/documents" },
     { label: locale === "th" ? "จองห้องประชุม" : "Meeting Rooms", href: "/portal/meetings" },
     { label: locale === "th" ? "ขอหนังสือรับรอง" : "Certificate Requests", href: "/portal/certificates" },

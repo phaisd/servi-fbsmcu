@@ -93,7 +93,10 @@ export async function getPersonnelList(tenantId: string, filters?: { departmentI
 
   return db.personnel.findMany({
     where,
-    include: { department: true },
+    include: {
+      department: true,
+      researchPublications: true,
+    },
     orderBy: [{ orderIndex: "asc" }, { createdAt: "desc" }],
   });
 }
@@ -112,7 +115,12 @@ export async function getPublicPersonnelList(tenantId: string, filters?: { depar
 
   return db.personnel.findMany({
     where,
-    include: { department: true },
+    include: {
+      department: true,
+      researchPublications: {
+        orderBy: [{ orderIndex: "asc" }, { publicationYear: "desc" }, { createdAt: "desc" }],
+      },
+    },
     orderBy: [{ orderIndex: "asc" }, { createdAt: "desc" }],
   });
 }
@@ -170,6 +178,113 @@ export async function deletePersonnel(tenantId: string, actorId: string, id: str
     actorId,
     action: "personnel.delete",
     entity: "Personnel",
+    entityId: id,
+    before,
+  });
+  return true;
+}
+
+// ==========================================
+// Research Publications
+// ==========================================
+
+export async function getResearchPublications(
+  tenantId: string,
+  filters?: { personnelId?: string; type?: string; search?: string }
+) {
+  const where: import("@/generated/prisma").Prisma.ResearchPublicationWhereInput = { tenantId };
+  if (filters?.personnelId) where.personnelId = filters.personnelId;
+  if (filters?.type && filters.type !== "ALL") where.type = filters.type;
+  if (filters?.search && filters.search.trim()) {
+    const s = filters.search.trim();
+    where.OR = [
+      { titleTh: { contains: s, mode: "insensitive" } },
+      { titleEn: { contains: s, mode: "insensitive" } },
+      { authors: { contains: s, mode: "insensitive" } },
+      { journalName: { contains: s, mode: "insensitive" } },
+    ];
+  }
+
+  return db.researchPublication.findMany({
+    where,
+    include: {
+      personnel: {
+        select: {
+          id: true,
+          firstNameTh: true,
+          lastNameTh: true,
+          positionTh: true,
+          academicPosition: true,
+          imageUrl: true,
+        },
+      },
+    },
+    orderBy: [{ orderIndex: "asc" }, { publicationYear: "desc" }, { createdAt: "desc" }],
+  });
+}
+
+export async function createResearchPublication(
+  tenantId: string,
+  actorId: string,
+  data: Omit<import("@/generated/prisma").Prisma.ResearchPublicationCreateInput, "tenant" | "id" | "createdAt" | "updatedAt" | "personnel"> & { personnelId?: string | null }
+) {
+  const result = await db.researchPublication.create({
+    data: {
+      tenantId,
+      ...data,
+    },
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "research_publication.create",
+    entity: "ResearchPublication",
+    entityId: result.id,
+    after: result,
+  });
+
+  return result;
+}
+
+export async function updateResearchPublication(
+  tenantId: string,
+  actorId: string,
+  id: string,
+  data: Partial<Omit<import("@/generated/prisma").Prisma.ResearchPublicationCreateInput, "tenant" | "id" | "createdAt" | "updatedAt" | "personnel"> & { personnelId?: string | null }>
+) {
+  const before = await db.researchPublication.findUnique({ where: { id, tenantId } });
+  if (!before) throw new Error("Not found");
+
+  const result = await db.researchPublication.update({
+    where: { id, tenantId },
+    data,
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "research_publication.update",
+    entity: "ResearchPublication",
+    entityId: result.id,
+    before,
+    after: result,
+  });
+
+  return result;
+}
+
+export async function deleteResearchPublication(tenantId: string, actorId: string, id: string) {
+  const before = await db.researchPublication.findUnique({ where: { id, tenantId } });
+  if (!before) throw new Error("Not found");
+
+  await db.researchPublication.delete({ where: { id, tenantId } });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "research_publication.delete",
+    entity: "ResearchPublication",
     entityId: id,
     before,
   });

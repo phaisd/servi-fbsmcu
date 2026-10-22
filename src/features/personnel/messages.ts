@@ -2,6 +2,8 @@ import type { Dictionary } from "@/shared/lib/i18n/translate";
 
 export const MESSAGES: Dictionary = {
   "personnel.nav": { th: "ทำเนียบบุคลากร", en: "Personnel Directory" },
+  "personnel.research.nav": { th: "ผลงานวิจัยและวิชาการ", en: "Research & Publications" },
+  "personnel.departments.nav": { th: "จัดการภาควิชา", en: "Departments" },
   "personnel.title": { th: "ระบบจัดการบุคลากร", en: "Personnel Management" },
   "personnel.subtitle": { th: "จัดการข้อมูลบุคลากรและโครงสร้างหน่วยงาน", en: "Manage staff directory and departments" },
   

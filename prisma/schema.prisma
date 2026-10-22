@@ -43,6 +43,7 @@ model Tenant {
   certificateRequests CertificateRequest[]
   departments         Department[]
   personnels          Personnel[]
+  researchPublications ResearchPublication[]
   curricula           Curriculum[]
   adminDocuments      AdminDocument[]
   meetingRooms        MeetingRoom[]
@@ -434,10 +435,53 @@ model Personnel {
 
   tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  academicPosition String? @map("academic_position") @db.VarChar(100)
+  educationTh      String? @map("education_th") @db.Text
+  experiencesTh    String? @map("experiences_th") @db.Text
+  bioTh            String? @map("bio_th") @db.Text
+  contactInfo      String? @map("contact_info") @db.Text
+
+  researchPublications ResearchPublication[]
+
 
   @@index([tenantId, type])
   @@index([departmentId])
   @@map("personnel")
+}
+
+
+// =============================================================
+// RESEARCH & PUBLICATIONS MODULE
+// =============================================================
+
+model ResearchPublication {
+  id              String   @id @default(uuid()) @db.Uuid
+  tenantId        String   @map("tenant_id") @db.Uuid
+  personnelId     String?  @map("personnel_id") @db.Uuid
+
+  titleTh         String   @map("title_th") @db.Text
+  titleEn         String?  @map("title_en") @db.Text
+  authors         String   @db.Text
+  journalName     String   @map("journal_name") @db.VarChar(255)
+  volume          String?  @db.VarChar(50)
+  issue           String?  @db.VarChar(50)
+  publicationYear String?  @map("publication_year") @db.VarChar(50)
+  pages           String?  @db.VarChar(100)
+  issn            String?  @db.VarChar(100)
+  tier            String?  @db.VarChar(100)
+  url             String?  @db.VarChar(500)
+  type            String   @default("RESEARCH") @db.VarChar(50)
+
+  orderIndex      Int      @default(0) @map("order_index")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  tenant          Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  personnel       Personnel? @relation(fields: [personnelId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, type])
+  @@index([personnelId])
+  @@map("research_publications")
 }
 
 // =============================================================

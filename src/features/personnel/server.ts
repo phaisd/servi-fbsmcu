@@ -4,4 +4,5 @@ export {
   getDepartments,
   getPersonnelList,
   getPublicPersonnelList,
+  getResearchPublications,
 } from "./_internal/services";

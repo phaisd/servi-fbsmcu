@@ -140,6 +140,7 @@ export const sidebarGroups: NavGroup[] = [
         permission: PERSONNEL_P.read,
         children: [
           { title: "personnel.nav", href: "/personnel", permission: PERSONNEL_P.read },
+          { title: "personnel.research.nav", href: "/personnel/research", permission: PERSONNEL_P.read },
           { title: "perm.personnel:manage", href: "/personnel/departments", permission: PERSONNEL_P.manage },
         ],
       },
