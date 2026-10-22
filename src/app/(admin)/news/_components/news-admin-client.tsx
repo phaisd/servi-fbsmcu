@@ -1,3 +1,4 @@
+import { TinyEditor } from "@/shared/components/tiny-editor";
 "use client";
 
 import { useState, useTransition } from "react";
@@ -638,15 +639,16 @@ export function NewsAdminClient({
                   />
                 </LiyonField>
 
-                <LiyonField label={t("news.contentTh")} htmlFor="news-content-th">
-                  <textarea
-                    id="news-content-th"
-                    rows={7}
+                <LiyonField
+                  label="เนื้อหาข่าว (ไทย) *"
+                  hint="ใช้ Tiny Editor ในการจัดรูปแบบข้อความ ตัวหนา ตัวเอียง ตาราง หัวข้อ และลิงก์"
+                >
+                  <TinyEditor
+                    id="news-content-th-tiny"
                     value={formContentTh}
-                    onChange={(e) => setFormContentTh(e.target.value)}
-                    placeholder="เนื้อหาข่าวแบบละเอียดฉบับเต็ม..."
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed"
-                    required
+                    onChange={setFormContentTh}
+                    placeholder="พิมพ์หรือจัดรูปแบบเนื้อหาข่าวฉบับเต็มภาษาไทยที่นี่..."
+                    height={380}
                   />
                 </LiyonField>
               </div>
@@ -683,14 +685,16 @@ export function NewsAdminClient({
                   />
                 </LiyonField>
 
-                <LiyonField label="Full Content (English)" htmlFor="news-content-en">
-                  <textarea
-                    id="news-content-en"
-                    rows={7}
+                <LiyonField
+                  label="Full Content (English)"
+                  hint="Format with Tiny Editor or click '✨ แปลเป็นภาษาอังกฤษด้วย Gemini AI' above to auto-generate"
+                >
+                  <TinyEditor
+                    id="news-content-en-tiny"
                     value={formContentEn}
-                    onChange={(e) => setFormContentEn(e.target.value)}
-                    placeholder="Full English news content (you can type manually or click the Gemini AI button above to auto-translate)..."
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed"
+                    onChange={setFormContentEn}
+                    placeholder="Full English news content..."
+                    height={380}
                   />
                 </LiyonField>
               </div>

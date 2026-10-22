@@ -123,7 +123,7 @@ Your task is to translate and polish the following Thai university news announce
 Instructions:
 1. "titleEn": Professional, clear, engaging, and faithful to the Thai announcement.
 2. "summaryEn": A concise 1-2 sentence executive overview summarizing the announcement.
-3. "contentEn": Full translated article with fluent academic/institutional phrasing, well-structured paragraphs, keeping all dates, numbers, course/curriculum names, and person titles accurate.
+3. "contentEn": Full translated article with fluent academic/institutional phrasing, well-structured paragraphs, keeping all dates, numbers, course/curriculum names, and person titles accurate. If the input Thai content uses HTML formatting tags (such as <p>, <strong>, <em>, <ul>, <li>, <h3>, <table>), preserve equivalent clean HTML tags in contentEn as well. If it is plain text, format it in clean semantic HTML paragraphs (<p>...</p>).
 
 Input Thai News:
 - Title (Thai): ${input.titleTh}

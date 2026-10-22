@@ -101,9 +101,16 @@ export default async function NewsDetailPage({ params }: Props) {
       )}
 
       {/* Main Content Body */}
-      <div className="prose prose-neutral dark:prose-invert max-w-none text-foreground leading-relaxed whitespace-pre-line text-sm sm:text-base">
-        {content}
-      </div>
+      {content && /<\/?[a-z][\s\S]*>/i.test(content) ? (
+        <div
+          className="prose prose-neutral dark:prose-invert max-w-none text-foreground leading-relaxed text-sm sm:text-base"
+          dangerouslySetInnerHTML={{ __html: content }}
+        />
+      ) : (
+        <div className="prose prose-neutral dark:prose-invert max-w-none text-foreground leading-relaxed whitespace-pre-line text-sm sm:text-base">
+          {content}
+        </div>
+      )}
 
       {/* Attachments Section */}
       {article.attachments && article.attachments.length > 0 && (
