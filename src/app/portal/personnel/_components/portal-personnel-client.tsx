@@ -183,6 +183,7 @@ export function PortalPersonnelClient({ items, locale }: Props) {
                             src={person.imageUrl}
                             alt={`${person.firstNameTh} ${person.lastNameTh}`}
                             fill
+                            unoptimized
                             className="object-cover object-top transition-transform duration-500 group-hover:scale-105"
                           />
                         ) : (
@@ -316,6 +317,7 @@ export function PortalPersonnelClient({ items, locale }: Props) {
                         src={selectedPerson.imageUrl}
                         alt={selectedPerson.firstNameTh}
                         fill
+                        unoptimized
                         className="object-cover"
                       />
                     ) : (

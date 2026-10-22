@@ -12,6 +12,26 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "fb.mcu.ac.th",
+      },
+      {
+        protocol: "https",
+        hostname: "*.mcu.ac.th",
+      },
+      {
+        protocol: "https",
+        hostname: "**",
+      },
+      {
+        protocol: "http",
+        hostname: "**",
+      },
+    ],
+  },
   async headers() {
     return [
       { source: "/(.*)", headers: securityHeaders },
