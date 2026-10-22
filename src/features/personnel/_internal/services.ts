@@ -290,3 +290,189 @@ export async function deleteResearchPublication(tenantId: string, actorId: strin
   });
   return true;
 }
+
+export interface ImportPersonnelItem {
+  id?: string;
+  firstNameTh: string;
+  lastNameTh?: string | null;
+  firstNameEn?: string | null;
+  lastNameEn?: string | null;
+  positionTh: string;
+  positionEn?: string | null;
+  academicPosition?: string | null;
+  type?: "EXECUTIVE" | "ACADEMIC" | "SUPPORT";
+  departmentId?: string | null;
+  departmentName?: string | null;
+  email?: string | null;
+  phoneNumber?: string | null;
+  contactInfo?: string | null;
+  imageUrl?: string | null;
+  educationTh?: string | null;
+  experiencesTh?: string | null;
+  bioTh?: string | null;
+  isActive?: boolean;
+  orderIndex?: number;
+  researchPublications?: Array<{
+    id?: string;
+    titleTh: string;
+    titleEn?: string | null;
+    authors?: string | null;
+    journalName: string;
+    volume?: string | null;
+    issue?: string | null;
+    publicationYear?: string | null;
+    pages?: string | null;
+    issn?: string | null;
+    tier?: string | null;
+    url?: string | null;
+    type?: "RESEARCH" | "ACADEMIC" | "DISSERTATION";
+    orderIndex?: number;
+  }>;
+}
+
+export async function importPersonnelBatch(
+  tenantId: string,
+  actorId: string,
+  items: ImportPersonnelItem[]
+) {
+  let createdCount = 0;
+  let updatedCount = 0;
+  let totalResearchCount = 0;
+
+  const departments = await db.department.findMany({ where: { tenantId } });
+
+  for (const item of items) {
+    if (!item.firstNameTh?.trim() || !item.positionTh?.trim()) continue;
+
+    let departmentId = item.departmentId || null;
+    if (!departmentId && item.departmentName?.trim()) {
+      const matchDept = departments.find(
+        (d) =>
+          d.nameTh.toLowerCase() === item.departmentName!.toLowerCase().trim() ||
+          (d.nameEn && d.nameEn.toLowerCase() === item.departmentName!.toLowerCase().trim())
+      );
+      if (matchDept) {
+        departmentId = matchDept.id;
+      }
+    }
+
+    let existing = null;
+    if (item.id) {
+      existing = await db.personnel.findUnique({ where: { id: item.id, tenantId } });
+    }
+    if (!existing) {
+      existing = await db.personnel.findFirst({
+        where: {
+          tenantId,
+          firstNameTh: item.firstNameTh.trim(),
+          lastNameTh: item.lastNameTh?.trim() || "",
+        },
+      });
+    }
+
+    const personnelData = {
+      firstNameTh: item.firstNameTh.trim(),
+      lastNameTh: item.lastNameTh?.trim() || "",
+      firstNameEn: item.firstNameEn?.trim() || null,
+      lastNameEn: item.lastNameEn?.trim() || null,
+      positionTh: item.positionTh.trim(),
+      positionEn: item.positionEn?.trim() || null,
+      academicPosition: item.academicPosition?.trim() || null,
+      type: item.type || "ACADEMIC",
+      departmentId,
+      email: item.email?.trim() || null,
+      phoneNumber: item.phoneNumber?.trim() || null,
+      contactInfo: item.contactInfo?.trim() || null,
+      imageUrl: item.imageUrl?.trim() || null,
+      educationTh: item.educationTh?.trim() || null,
+      experiencesTh: item.experiencesTh?.trim() || null,
+      bioTh: item.bioTh?.trim() || null,
+      isActive: item.isActive !== undefined ? item.isActive : true,
+      orderIndex: typeof item.orderIndex === "number" ? item.orderIndex : 0,
+    };
+
+    let personnelId = "";
+    if (existing) {
+      const updated = await db.personnel.update({
+        where: { id: existing.id },
+        data: personnelData,
+      });
+      personnelId = updated.id;
+      updatedCount++;
+    } else {
+      const created = await db.personnel.create({
+        data: {
+          tenantId,
+          ...personnelData,
+        },
+      });
+      personnelId = created.id;
+      createdCount++;
+    }
+
+    if (item.researchPublications && Array.isArray(item.researchPublications)) {
+      for (const pub of item.researchPublications) {
+        if (!pub.titleTh?.trim() || !pub.journalName?.trim()) continue;
+
+        let existingPub = null;
+        if (pub.id) {
+          existingPub = await db.researchPublication.findUnique({
+            where: { id: pub.id, tenantId },
+          });
+        }
+        if (!existingPub) {
+          existingPub = await db.researchPublication.findFirst({
+            where: {
+              tenantId,
+              personnelId,
+              titleTh: pub.titleTh.trim(),
+            },
+          });
+        }
+
+        const pubData = {
+          personnelId,
+          titleTh: pub.titleTh.trim(),
+          titleEn: pub.titleEn?.trim() || null,
+          authors: pub.authors?.trim() || `${item.firstNameTh} ${item.lastNameTh || ""}`.trim(),
+          journalName: pub.journalName.trim(),
+          volume: pub.volume?.trim() || null,
+          issue: pub.issue?.trim() || null,
+          publicationYear: pub.publicationYear?.trim() || null,
+          pages: pub.pages?.trim() || null,
+          issn: pub.issn?.trim() || null,
+          tier: pub.tier?.trim() || null,
+          url: pub.url?.trim() || null,
+          type: pub.type || "RESEARCH",
+          orderIndex: typeof pub.orderIndex === "number" ? pub.orderIndex : 0,
+        };
+
+        if (existingPub) {
+          await db.researchPublication.update({
+            where: { id: existingPub.id },
+            data: pubData,
+          });
+        } else {
+          await db.researchPublication.create({
+            data: {
+              tenantId,
+              ...pubData,
+            },
+          });
+        }
+        totalResearchCount++;
+      }
+    }
+  }
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "personnel.import_batch",
+    entity: "Personnel",
+    entityId: tenantId,
+    after: { createdCount, updatedCount, totalResearchCount },
+  });
+
+  return { createdCount, updatedCount, totalResearchCount };
+}

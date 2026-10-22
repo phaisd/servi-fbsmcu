@@ -12,7 +12,11 @@ import {
   createResearchPublication,
   updateResearchPublication,
   deleteResearchPublication,
+  importPersonnelBatch,
+  type ImportPersonnelItem,
 } from "./_internal/services";
+
+export type { ImportPersonnelItem };
 import {
   departmentSchema,
   updateDepartmentSchema,
@@ -80,4 +84,10 @@ export async function deleteResearchPublicationAction(id: string) {
   const session = await requireSession();
   await requirePermission(PERSONNEL_P.manage);
   return deleteResearchPublication(session.tenantId, session.userId, id);
+}
+
+export async function importPersonnelBatchAction(items: ImportPersonnelItem[]) {
+  const session = await requireSession();
+  await requirePermission(PERSONNEL_P.manage);
+  return importPersonnelBatch(session.tenantId, session.userId, items);
 }

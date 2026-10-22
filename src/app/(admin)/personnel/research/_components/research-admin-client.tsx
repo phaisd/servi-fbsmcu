@@ -67,14 +67,15 @@ interface Props {
   initialPublications: PublicationItem[];
   personnelList: PersonnelOption[];
   canManage: boolean;
+  initialAuthor?: string;
 }
 
-export function ResearchAdminClient({ initialPublications, personnelList, canManage }: Props) {
+export function ResearchAdminClient({ initialPublications, personnelList, canManage, initialAuthor }: Props) {
   const router = useRouter();
   const [items, setItems] = useState<PublicationItem[]>(initialPublications);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
-  const [authorFilter, setAuthorFilter] = useState("ALL");
+  const [authorFilter, setAuthorFilter] = useState(initialAuthor || "ALL");
   const [isPending, startTransition] = useTransition();
 
   // Dialog state
