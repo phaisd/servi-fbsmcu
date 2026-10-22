@@ -1,3 +1,5 @@
+import { validateUploadFile } from "@/shared/lib/security/file-validation";
+import crypto from "node:crypto";
 "use server";
 
 import { revalidatePath } from "next/cache";
@@ -177,25 +179,32 @@ import path from "node:path";
 export async function uploadCertificateAttachmentAction(formData: FormData) {
   const file = formData.get("file");
   if (!file || !(file instanceof File) || file.size === 0) {
-    throw new Error("No file provided");
+    throw new Error("กรุณาเลือกไฟล์เอกสารแนบ");
   }
-  const maxSizeBytes = 15 * 1024 * 1024; // 15MB
-  if (file.size > maxSizeBytes) {
-    throw new Error("File too large (max 15MB)");
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  const validation = validateUploadFile(file.name, buffer, {
+    allowedExtensions: ["pdf", "png", "jpg", "jpeg"],
+    maxSizeBytes: 15 * 1024 * 1024,
+  });
+
+  if (!validation.valid) {
+    throw new Error(validation.error || "ไฟล์เอกสารแนบไม่ถูกต้อง");
   }
+
   const uploadsDir = path.join(process.cwd(), "public", "uploads", "certificates");
   await fs.mkdir(uploadsDir, { recursive: true });
 
-  const rawExt = file.name.split(".").pop()?.toLowerCase() ?? "pdf";
   const safeBaseName = path
-    .basename(file.name, `.${rawExt}`)
+    .basename(file.name, `.${validation.ext}`)
     .replace(/[^a-zA-Z0-9_\u0E00-\u0E7F-]/g, "_")
-    .slice(0, 40);
+    .slice(0, 30);
 
-  const filename = `cert-attach-${Date.now()}-${safeBaseName || "doc"}.${rawExt}`;
+  const uniqueId = crypto.randomUUID().slice(0, 8);
+  const filename = `cert-${Date.now()}-${uniqueId}-${safeBaseName || "doc"}.${validation.ext}`;
   const filePath = path.join(uploadsDir, filename);
 
-  const buffer = Buffer.from(await file.arrayBuffer());
   await fs.writeFile(filePath, buffer);
 
   const url = `/uploads/certificates/${filename}`;
