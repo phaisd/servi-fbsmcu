@@ -52,6 +52,12 @@ export const sidebarGroups: NavGroup[] = [
     label: "nav.group.academic",
     items: [
       {
+        title: "attendance.students.title",
+        href: "/students",
+        icon: Users,
+        permission: ATTENDANCE_P.manage,
+      },
+      {
         title: "curriculum.nav",
         href: "/curriculum",
         icon: GraduationCap,

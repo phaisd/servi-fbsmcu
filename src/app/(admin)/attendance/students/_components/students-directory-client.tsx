@@ -31,6 +31,7 @@ import {
   Calendar,
   Award,
   Printer,
+  Clock,
 } from "lucide-react";
 import {
   LiyonCard,
@@ -51,6 +52,11 @@ import {
   StudentActivityTranscriptDocument,
   type StudentActivityTranscriptData,
 } from "@/components/documents/student-activity-transcript-document";
+import {
+  StudentSemesterAttendanceDocument,
+  type StudentSemesterAttendanceData,
+  type StudentSemesterAttendanceCourseItem,
+} from "@/components/documents/student-semester-attendance-document";
 
 
 export const STUDENT_STUDY_STATUS_OPTIONS = [
@@ -309,6 +315,146 @@ export function StudentsDirectoryClient({
     } finally {
       setIsLoadingTranscript(false);
     }
+  };
+
+  // Semester Attendance Transcript Document Modal State
+  const [semesterAttendanceDoc, setSemesterAttendanceDoc] = React.useState<StudentSemesterAttendanceData | null>(null);
+
+  const handleOpenStudentSemesterAttendance = (
+    student: StudentItem,
+    targetTerm?: {
+      termKey: string;
+      semester: number;
+      academicYear: string;
+      courses: StudentItem["enrollments"];
+      totalConducted: number;
+      totalAttended: number;
+      percentage: number;
+    }
+  ) => {
+    let termData = targetTerm;
+    if (!termData) {
+      const termMap = new Map<string, any>();
+      student.enrollments.forEach((en) => {
+        const sem = en.course.semester || 1;
+        const yr = en.course.academicYear || "2568";
+        const termKey = `ภาค ${sem}/${yr}`;
+        if (!termMap.has(termKey)) {
+          termMap.set(termKey, {
+            termKey,
+            semester: sem,
+            academicYear: yr,
+            courses: [],
+            totalConducted: 0,
+            totalAttended: 0,
+            percentage: 100,
+          });
+        }
+        const td = termMap.get(termKey)!;
+        td.courses.push(en);
+        const conducted = en.stats?.totalConducted || 0;
+        const attended =
+          (en.stats?.present || 0) + (en.stats?.late || 0) + (en.stats?.excused || 0);
+        td.totalConducted += conducted;
+        td.totalAttended += attended;
+      });
+
+      const terms = Array.from(termMap.values())
+        .map((t) => ({
+          ...t,
+          percentage:
+            t.totalConducted > 0 ? Math.round((t.totalAttended / t.totalConducted) * 100) : 100,
+        }))
+        .sort((a, b) => {
+          if (a.academicYear !== b.academicYear) return b.academicYear.localeCompare(a.academicYear);
+          return b.semester - a.semester;
+        });
+
+      if (terms.length === 0) {
+        toast.info(`นิสิต ${student.studentCode} ยังไม่มีประวัติการลงทะเบียนในระบบ`);
+        return;
+      }
+      termData = terms[0];
+    }
+
+    if (!termData) return;
+
+    const courses: StudentSemesterAttendanceCourseItem[] = termData.courses.map((en: any) => {
+      const stats = en.stats;
+      const conducted = stats?.totalConducted || 0;
+      const present = stats?.present || 0;
+      const late = stats?.late || 0;
+      const excused = stats?.excused || 0;
+      const absent = stats?.absent || 0;
+      const percentage = conducted > 0 ? stats?.percentage || 100 : 100;
+      return {
+        id: en.course.id,
+        courseCode: en.course.courseCode,
+        courseName: en.course.courseName,
+        courseNameEn: en.course.courseNameEn,
+        credits: en.course.credits || 3,
+        totalConducted: conducted,
+        present,
+        late,
+        excused,
+        absent,
+        percentage,
+        isEligible: percentage >= 80,
+      };
+    });
+
+    const totalCourses = courses.length;
+    const totalCredits = courses.reduce((acc, c) => acc + c.credits, 0);
+    const totalConducted = courses.reduce((acc, c) => acc + c.totalConducted, 0);
+    const totalPresent = courses.reduce((acc, c) => acc + c.present, 0);
+    const totalLate = courses.reduce((acc, c) => acc + c.late, 0);
+    const totalExcused = courses.reduce((acc, c) => acc + c.excused, 0);
+    const totalAbsent = courses.reduce((acc, c) => acc + c.absent, 0);
+    const totalAttended = totalPresent + totalLate + totalExcused;
+    const overallPercentage =
+      totalConducted > 0 ? Math.round((totalAttended / totalConducted) * 100) : 100;
+    const eligibleCount = courses.filter((c) => c.percentage >= 80).length;
+    const atRiskCount = courses.filter((c) => c.percentage >= 75 && c.percentage < 80).length;
+    const ineligibleCount = courses.filter((c) => c.percentage < 75).length;
+
+    const docData: StudentSemesterAttendanceData = {
+      student: {
+        studentCode: student.studentCode,
+        fullName: `${student.title || ""}${student.firstName} ${student.lastName}`.trim(),
+        title: student.title,
+        degree: student.degree,
+        faculty: student.faculty,
+        department: student.department,
+        major: student.major,
+        yearLevel: student.yearLevel,
+        studyStatus: student.studyStatus,
+      },
+      term: {
+        termKey: termData.termKey,
+        semester: termData.semester,
+        academicYear: termData.academicYear,
+      },
+      courses,
+      summary: {
+        totalCourses,
+        totalCredits,
+        totalConducted,
+        totalAttended,
+        totalPresent,
+        totalLate,
+        totalExcused,
+        totalAbsent,
+        overallPercentage,
+        isOverallEligible: ineligibleCount === 0 && atRiskCount === 0,
+        eligibleCount,
+        atRiskCount,
+        ineligibleCount,
+        referenceNo: `MCU-ATT-${student.studentCode}-${termData.academicYear}${termData.semester}`,
+        issuedDate: new Date().toISOString(),
+      },
+    };
+
+    setSemesterAttendanceDoc(docData);
   };
 
   // Dynamic Departments based on students and active languageFilter
@@ -2227,6 +2373,15 @@ export function StudentsDirectoryClient({
                         <div className="flex items-center justify-end gap-1">
                           <button
                             type="button"
+                            onClick={() => handleOpenStudentSemesterAttendance(student)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 transition cursor-pointer"
+                            title="พิมพ์ใบรายงานสรุปเวลาเรียน A4 ประจำภาคการศึกษาล่าสุด"
+                          >
+                            <Clock className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
                             onClick={() => handleOpenStudentTranscript(student.studentCode)}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition cursor-pointer"
                             title="พิมพ์ระเบียนกิจกรรมสะสม (Activity Transcript A4)"
@@ -3321,6 +3476,33 @@ export function StudentsDirectoryClient({
                                 style={{ width: `${Math.min(100, term.percentage)}%` }}
                               />
                             </div>
+
+                            <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-border/60">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  viewingCoursesStudent &&
+                                  handleOpenStudentSemesterAttendance(viewingCoursesStudent, term)
+                                }
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-2xs cursor-pointer transition shadow-2xs"
+                                title={`พิมพ์ใบรายงานสรุปเวลาเรียน A4 ประจำ${term.termKey}`}
+                              >
+                                <Printer className="w-3 h-3" />
+                                <span>พิมพ์สรุป A4</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  viewingCoursesStudent &&
+                                  handleOpenStudentSemesterAttendance(viewingCoursesStudent, term)
+                                }
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-2xs font-semibold cursor-pointer transition"
+                                title="ดูรายงานและส่งออก Excel"
+                              >
+                                <FileSpreadsheet className="w-3 h-3 text-emerald-600" />
+                                <span>Excel (CSV)</span>
+                              </button>
+                            </div>
                           </div>
                         );
                       })}
@@ -3454,8 +3636,27 @@ export function StudentsDirectoryClient({
                 )}
               </LiyonDialogBody>
 
-              <LiyonDialogFooter className="p-4 border-t border-border flex items-center justify-between bg-muted/20">
-                <div className="flex items-center gap-2">
+              <LiyonDialogFooter className="p-4 border-t border-border flex flex-wrap items-center justify-between gap-2 bg-muted/20">
+                <div className="flex flex-wrap items-center gap-2">
+                  {studentTermBreakdown.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (viewingCoursesStudent) {
+                          handleOpenStudentSemesterAttendance(
+                            viewingCoursesStudent,
+                            studentTermBreakdown[0]
+                          );
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-xs font-bold text-indigo-800 cursor-pointer transition shadow-2xs"
+                      title={`พิมพ์ใบรายงานสรุปเวลาเรียน A4 ประจำ${studentTermBreakdown[0].termKey}`}
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>พิมพ์สรุปเวลาเรียน ({studentTermBreakdown[0].termKey})</span>
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => {
@@ -3718,6 +3919,14 @@ export function StudentsDirectoryClient({
         <StudentActivityTranscriptDocument
           data={transcriptData}
           onClose={() => setTranscriptData(null)}
+        />
+      )}
+
+      {/* ── SEMESTER ATTENDANCE TRANSCRIPT MODAL ── */}
+      {semesterAttendanceDoc && (
+        <StudentSemesterAttendanceDocument
+          data={semesterAttendanceDoc}
+          onClose={() => setSemesterAttendanceDoc(null)}
         />
       )}
     </div>
