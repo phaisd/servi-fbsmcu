@@ -29,6 +29,8 @@ export const listUsersQuerySchema = z.object({
 export const createUserSchema = z.object({
   email: emailSchema,
   name: z.string().trim().min(1).max(255),
+  positionName: z.string().trim().max(255).optional().default(""),
+  departmentName: z.string().trim().max(255).optional().default(""),
   roles: roleAssignmentsSchema,
 });
 
@@ -36,6 +38,8 @@ export const updateUserSchema = z.object({
   userId: z.string().uuid(),
   name: z.string().trim().min(1).max(255).optional(),
   email: emailSchema.optional(),
+  positionName: z.string().trim().max(255).optional(),
+  departmentName: z.string().trim().max(255).optional(),
   roles: roleAssignmentsSchema.optional(),
   mustChangePassword: z.boolean().optional(),
 });

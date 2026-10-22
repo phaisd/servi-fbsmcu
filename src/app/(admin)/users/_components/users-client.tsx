@@ -64,7 +64,13 @@ export function UsersClient({ canManage, selfId, initialRoleId }: { canManage: b
 
   function submitCreate() {
     start(async () => {
-      const r = await createUserAction({ email: form.email, name: form.name, roles: form.roleIds.map((id) => ({ roleId: id, scopeType: "ALL", scopeId: null })) });
+      const r = await createUserAction({
+        email: form.email,
+        name: form.name,
+        positionName: form.positionName,
+        departmentName: form.departmentName,
+        roles: form.roleIds.map((id) => ({ roleId: id, scopeType: "ALL", scopeId: null })),
+      });
       if (!r.ok) return fail(r.error, r.error.fieldErrors ? Object.values(r.error.fieldErrors).flat()[0] : t("users.createFail"));
       toast.success(t("users.createOk"));
       setDialog({ kind: "link", link: r.data.link, hours: r.data.hours, title: t("users.linkTitle"), desc: t("users.linkDesc", { hours: r.data.hours }), mailDelivered: r.data.mailDelivered });
@@ -77,6 +83,8 @@ export function UsersClient({ canManage, selfId, initialRoleId }: { canManage: b
         userId: user.id,
         name: form.name,
         email: form.email,
+        positionName: form.positionName,
+        departmentName: form.departmentName,
         roles: form.roleIds.map((id) => ({ roleId: id, scopeType: "ALL", scopeId: null })),
         mustChangePassword: form.mustChangePassword,
       });
@@ -137,7 +145,17 @@ export function UsersClient({ canManage, selfId, initialRoleId }: { canManage: b
         roleId={roleId} roles={roles} onRoleChange={(r) => { setRoleId(r); setPage(1); }}
         onPrev={() => setPage((p) => Math.max(1, p - 1))} onNext={() => setPage((p) => p + 1)}
         canManage={canManage && dialog === null} selfId={selfId} selected={selected} onSelectedChange={setSelected}
-        onEdit={(u) => { setForm({ name: u.name, email: u.email, roleIds: u.roles.map((r) => r.id), mustChangePassword: u.mustChangePassword }); setDialog({ kind: "edit", user: u }); }}
+        onEdit={(u) => {
+          setForm({
+            name: u.name,
+            email: u.email,
+            positionName: u.positionName || "",
+            departmentName: u.departmentName || "",
+            roleIds: u.roles.map((r) => r.id),
+            mustChangePassword: u.mustChangePassword,
+          });
+          setDialog({ kind: "edit", user: u });
+        }}
         onIssueLink={issueLink} onChangeEmail={(u) => setDialog({ kind: "email", user: u })}
         onSuspend={(list) => setDialog({ kind: "suspend", users: list })} onActivate={(u) => toggleActive([u], true)}
         onRetry={load}

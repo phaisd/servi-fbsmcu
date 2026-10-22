@@ -12,7 +12,7 @@ import type { ListUsersQuery, RoleAssignment } from "../validations/users";
 import type { ScopeType } from "../grants";
 
 export interface UserListItem {
-  id: string; email: string; name: string; isActive: boolean; mustChangePassword: boolean; lastLoginAt: string | null;
+  id: string; email: string; name: string; positionName?: string | null; departmentName?: string | null; isActive: boolean; mustChangePassword: boolean; lastLoginAt: string | null;
   roles: { id: string; code: string; nameTh: string; nameEn: string; scopeType: ScopeType; scopeId: string | null }[];
 }
 
@@ -39,7 +39,7 @@ export async function listUsers(tenantId: string, q: ListUsersQuery): Promise<{ 
   return {
     total,
     items: rows.map((r) => ({
-      id: r.user.id, email: r.user.email, name: r.user.name, isActive: r.isActive && r.user.isActive, mustChangePassword: r.user.mustChangePassword,
+      id: r.user.id, email: r.user.email, name: r.user.name, positionName: r.user.positionName ?? null, departmentName: r.user.departmentName ?? null, isActive: r.isActive && r.user.isActive, mustChangePassword: r.user.mustChangePassword,
       lastLoginAt: r.user.lastLoginAt?.toISOString() ?? null,
       roles: r.userRoles.map((ur) => ({ ...ur.role, scopeType: ur.scopeType, scopeId: ur.scopeId })),
     })),
@@ -104,17 +104,17 @@ function assertCanActOnTarget(targetRoles: { role: { code: string } }[], actor: 
 function setupLink(raw: string) { return `${env().APP_URL}/reset-password/${raw}`; }
 function verifyLink(raw: string) { return `${env().APP_URL}/verify-email/${raw}`; }
 
-export async function createUser(input: Actor & { email: string; name: string; roles: RoleAssignment[] }) {
+export async function createUser(input: Actor & { email: string; name: string; positionName?: string; departmentName?: string; roles: RoleAssignment[] }) {
   const email = input.email.toLowerCase();
   if (await prisma.user.findUnique({ where: { email } })) throw errors.conflict("email_taken");
   await assertRolesInTenant(input.roles, input.tenantId, prisma);
   await assertCanAssignRoles(input.roles, input, prisma);
   const { user, rawToken, expiresAt } = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.create({ data: { email, name: input.name } });
+    const user = await tx.user.create({ data: { email, name: input.name, positionName: input.positionName?.trim() || null, departmentName: input.departmentName?.trim() || null } });
     const ut = await tx.userTenant.create({ data: { userId: user.id, tenantId: input.tenantId } });
     await tx.userRole.createMany({ data: input.roles.map((r) => ({ userTenantId: ut.id, ...r })) });
     const { raw, expiresAt } = await issueToken({ userId: user.id, purpose: "PASSWORD_RESET", ttlMs: TOKEN_TTL.PASSWORD_SETUP }, tx);
-    await writeAudit({ tenantId: input.tenantId, actorId: input.actorId, action: "user.create", entity: "user", entityId: user.id, after: { email, name: input.name, roles: input.roles } }, tx);
+    await writeAudit({ tenantId: input.tenantId, actorId: input.actorId, action: "user.create", entity: "user", entityId: user.id, after: { email, name: input.name, positionName: input.positionName, departmentName: input.departmentName, roles: input.roles } }, tx);
     return { user, rawToken: raw, expiresAt };
   });
   // B17: คืน delivered ให้ผู้เรียกด้วย — SMTP ที่ตั้งค่าผิดจะล้มเงียบ ๆ (mailer ไม่เคย throw) แอดมิน
@@ -123,7 +123,7 @@ export async function createUser(input: Actor & { email: string; name: string; r
   return { user, rawToken, expiresAt, mailDelivered: delivered };
 }
 
-export async function updateUser(input: Actor & { userId: string; name?: string; email?: string; roles?: RoleAssignment[]; mustChangePassword?: boolean }) {
+export async function updateUser(input: Actor & { userId: string; name?: string; email?: string; positionName?: string; departmentName?: string; roles?: RoleAssignment[]; mustChangePassword?: boolean }) {
   if (input.userId === input.actorId && (input.roles !== undefined || input.mustChangePassword !== undefined || input.email !== undefined)) throw errors.forbidden("cannot_edit_self");
   const newEmail = input.email ? input.email.trim().toLowerCase() : undefined;
   await prisma.$transaction(async (tx) => {
@@ -133,7 +133,7 @@ export async function updateUser(input: Actor & { userId: string; name?: string;
       const existing = await tx.user.findUnique({ where: { email: newEmail } });
       if (existing && existing.id !== input.userId) throw errors.conflict("email_taken");
     }
-    const before = { name: ut.user.name, email: ut.user.email, roles: ut.userRoles.map((r) => ({ roleId: r.roleId, scopeType: r.scopeType, scopeId: r.scopeId })), mustChangePassword: ut.user.mustChangePassword };
+    const before = { name: ut.user.name, email: ut.user.email, positionName: ut.user.positionName, departmentName: ut.user.departmentName, roles: ut.userRoles.map((r) => ({ roleId: r.roleId, scopeType: r.scopeType, scopeId: r.scopeId })), mustChangePassword: ut.user.mustChangePassword };
     if (input.roles) {
       await assertRolesInTenant(input.roles, input.tenantId, tx);
       await assertCanAssignRoles(input.roles, input, tx);
@@ -144,17 +144,19 @@ export async function updateUser(input: Actor & { userId: string; name?: string;
       await tx.userRole.deleteMany({ where: { userTenantId: ut.id } });
       await tx.userRole.createMany({ data: input.roles.map((r) => ({ userTenantId: ut.id, ...r })) });
     }
-    if (input.name !== undefined || input.mustChangePassword !== undefined || newEmail !== undefined) {
+    if (input.name !== undefined || input.mustChangePassword !== undefined || newEmail !== undefined || input.positionName !== undefined || input.departmentName !== undefined) {
       await tx.user.update({
         where: { id: input.userId },
         data: {
           ...(input.name !== undefined ? { name: input.name } : {}),
           ...(input.mustChangePassword !== undefined ? { mustChangePassword: input.mustChangePassword } : {}),
           ...(newEmail !== undefined ? { email: newEmail } : {}),
+          ...(input.positionName !== undefined ? { positionName: input.positionName.trim() || null } : {}),
+          ...(input.departmentName !== undefined ? { departmentName: input.departmentName.trim() || null } : {}),
         },
       });
     }
-    await writeAudit({ tenantId: input.tenantId, actorId: input.actorId, action: "user.update", entity: "user", entityId: input.userId, before, after: { name: input.name, email: newEmail, roles: input.roles, mustChangePassword: input.mustChangePassword } }, tx);
+    await writeAudit({ tenantId: input.tenantId, actorId: input.actorId, action: "user.update", entity: "user", entityId: input.userId, before, after: { name: input.name, email: newEmail, positionName: input.positionName, departmentName: input.departmentName, roles: input.roles, mustChangePassword: input.mustChangePassword } }, tx);
   });
 }
 

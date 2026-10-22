@@ -6,6 +6,21 @@ import { useT, useLocale } from "@/shared/lib/i18n/client";
 import { localizedName } from "@/shared/lib/format";
 import type { UserForm, RolePick } from "./types";
 
+const POSITION_PRESETS = [
+  "เจ้าหน้าที่บริการการศึกษา",
+  "นักจัดการงานทั่วไป",
+  "เจ้าหน้าที่บริหารงานทั่วไป",
+  "ผู้อำนวยการหลักสูตร",
+  "อาจารย์",
+];
+
+const DEPARTMENT_PRESETS = [
+  "สาขาวิชาพระไตรปิฎกศึกษา",
+  "สาขาวิชาพุทธนวัตกรรมและการสื่อสาร",
+  "สาขาวิชาศาสนาเปรียบเทียบ",
+  "สำนักงานคณบดีบัณฑิตวิทยาลัย",
+];
+
 export function UserDialog({
   open,
   mode,
@@ -56,8 +71,73 @@ export function UserDialog({
           <LiyonField label={t("users.email")} htmlFor="user-email">
             <input id="user-email" type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} required disabled={isSelf} />
           </LiyonField>
+
+          {/* ฟิลด์ตำแหน่งงาน */}
+          <LiyonField
+            label="ตำแหน่งงาน (Position / Job Title)"
+            htmlFor="user-position"
+            hint="ใช้แสดงในระบบและระบุในหนังสือรับรอง เช่น เจ้าหน้าที่บริการการศึกษา, นักจัดการงานทั่วไป"
+          >
+            <input
+              id="user-position"
+              value={form.positionName}
+              placeholder="ระบุตำแหน่ง เช่น เจ้าหน้าที่บริการการศึกษา"
+              onChange={(e) => setForm((f) => ({ ...f, positionName: e.target.value }))}
+              disabled={isSelf}
+            />
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {POSITION_PRESETS.map((pos) => (
+                <button
+                  key={pos}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, positionName: pos }))}
+                  disabled={isSelf}
+                  className={`px-2 py-0.5 text-xs rounded border transition-colors ${
+                    form.positionName === pos
+                      ? "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-700"
+                      : "bg-muted/50 hover:bg-muted text-muted-foreground border-transparent"
+                  }`}
+                >
+                  {pos}
+                </button>
+              ))}
+            </div>
+          </LiyonField>
+
+          {/* ฟิลด์สังกัดหลักสูตร / สาขาวิชา / ฝ่าย */}
+          <LiyonField
+            label="สังกัดหลักสูตร / สาขาวิชา / ฝ่าย (Curriculum / Affiliation)"
+            htmlFor="user-department"
+            hint="ระบุหลักสูตรหรือส่วนงานที่เจ้าหน้าที่สังกัด เช่น สาขาวิชาพระไตรปิฎกศึกษา"
+          >
+            <input
+              id="user-department"
+              value={form.departmentName}
+              placeholder="ระบุสังกัด เช่น สาขาวิชาพระไตรปิฎกศึกษา"
+              onChange={(e) => setForm((f) => ({ ...f, departmentName: e.target.value }))}
+              disabled={isSelf}
+            />
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {DEPARTMENT_PRESETS.map((dept) => (
+                <button
+                  key={dept}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, departmentName: dept }))}
+                  disabled={isSelf}
+                  className={`px-2 py-0.5 text-xs rounded border transition-colors ${
+                    form.departmentName === dept
+                      ? "bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950/60 dark:text-amber-200 dark:border-amber-700"
+                      : "bg-muted/50 hover:bg-muted text-muted-foreground border-transparent"
+                  }`}
+                >
+                  {dept}
+                </button>
+              ))}
+            </div>
+          </LiyonField>
+
           <LiyonField label={t("users.roles")} hint={isSelf ? t("users.cannotEditSelf") : t("users.rolesHint")}>
-            <div className="flex flex-col gap-2 max-h-[220px] overflow-y-auto p-3 rounded-lg border border-[var(--glass-border)] bg-[var(--panel)]/40 scrollbar-thin">
+            <div className="flex flex-col gap-2 max-h-[200px] overflow-y-auto p-3 rounded-lg border border-[var(--glass-border)] bg-[var(--panel)]/40 scrollbar-thin">
               {assignableRoles.map((role) => (
                 <label key={role.id} htmlFor={`role-${role.id}`} className="flex items-center gap-2 text-sm hover:text-[var(--text)] cursor-pointer">
                   <Checkbox id={`role-${role.id}`} checked={form.roleIds.includes(role.id)} onCheckedChange={(c) => toggleRole(role.id, c === true)} disabled={isSelf} />

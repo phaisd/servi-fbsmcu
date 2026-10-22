@@ -381,7 +381,15 @@ export async function getStaffUsersForCertificate(tenantId: string): Promise<Sta
         `${p.firstNameTh} ${p.lastNameTh}`.trim() === ut.user.name.trim()
     );
 
-    let positionTh = matchedPerson?.positionTh || "";
+    let positionTh = ut.user.positionName || "";
+    if (ut.user.departmentName) {
+      positionTh = positionTh
+        ? `${positionTh} ประจำ${ut.user.departmentName}`
+        : `เจ้าหน้าที่ประจำ${ut.user.departmentName}`;
+    }
+    if (!positionTh && matchedPerson?.positionTh) {
+      positionTh = matchedPerson.positionTh;
+    }
     if (!positionTh) {
       if (staffRole?.code === "STAFF") {
         if (ut.user.name.includes("จัดการงานทั่วไป") || ut.user.name.includes("งานทั่วไป")) {

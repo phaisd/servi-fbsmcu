@@ -67,7 +67,12 @@ export function UsersTableCard({
       header: t("users.colName"),
       render: (u) => (
         <div>
-          <div>{u.name}</div>
+          <div className="font-medium">{u.name}</div>
+          {(u.positionName || u.departmentName) && (
+            <div className="text-xs text-amber-700 dark:text-amber-400 font-medium">
+              {[u.positionName, u.departmentName].filter(Boolean).join(" • ")}
+            </div>
+          )}
           <div className="muted">{u.email}</div>
         </div>
       ),

@@ -72,6 +72,8 @@ model User {
   passwordHash       String?   @map("password_hash") @db.VarChar(255)
   /// ชื่อที่แสดง
   name               String    @db.VarChar(255)
+  positionName       String?   @map("position_name") @db.VarChar(255)
+  departmentName     String?   @map("department_name") @db.VarChar(255)
   imageUrl           String?   @map("image_url") @db.VarChar(500)
   /// credentials | google | microsoft
   provider           String    @default("credentials") @db.VarChar(20)
