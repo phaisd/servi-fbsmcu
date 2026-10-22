@@ -2,41 +2,354 @@ import { PrismaClient } from "../src/generated/prisma";
 
 const prisma = new PrismaClient();
 
+const chaiyaPubs = [
+  {
+    titleTh: "กระบวนทัศน์ทางพระพุทธศาสนาในการจัดการความขัดแย้งทางการเมืองของสังคมไทย",
+    titleEn: "Buddhist Paradigm on Political Conflict Management of Thai Society",
+    authors: "ไชยา เสนแสนยา, ธนาธิป ฮาดเนาลี, คงสฤษฎ์ แพงทรัพย์, พระมหาขวัญชัย เหมประไพ, เพ็ญพรรณ เฟื่องฟูลอย, แสวง นิลนามะ",
+    journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
+    volume: "ปีที่ ๙",
+    issue: "ฉบับที่ ๑",
+    publicationYear: "๒๕๖๙",
+    pages: "๑-๑๑",
+    issn: "3027-7388 (Online)",
+    tier: "TCI กลุ่ม 2",
+    type: "RESEARCH",
+    url: "https://so06.tci-thaijo.org/index.php/jmpr/article/view/287413",
+    orderIndex: 1,
+  },
+  {
+    titleTh: "หลักการสมานฉันท์ในมิติพระพุทธศาสนาเถรวาทเพื่อการอยู่ร่วมกันในสังคมพหุวัฒนธรรม",
+    titleEn: "Reconciliation Principles in Theravada Buddhist Dimension for Living in a Multicultural Society",
+    authors: "ไชยา เสนแสนยา, ธนาธิป ฮาดเนาลี, คงสฤษฎ์ แพงทรัพย์, พระมหาขวัญชัย เหมประไพ, เพ็ญพรรณ เฟื่องฟูลอย, แสวง นิลนามะ",
+    journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
+    volume: "ปีที่ ๙",
+    issue: "ฉบับที่ ๑",
+    publicationYear: "๒๕๖๙",
+    pages: "๑๐๐-๑๑๓",
+    issn: "3027-7388 (Online)",
+    tier: "TCI กลุ่ม 2",
+    type: "RESEARCH",
+    url: "https://so06.tci-thaijo.org/index.php/jmpr/article/view/288939",
+    orderIndex: 2,
+  },
+  {
+    titleTh: "กลไกการสร้างสังคมสันติสุขระหว่างคน ๓ วัยในมิติพระพุทธศาสนาของสังคมไทย",
+    titleEn: "A Mechanic to Strengthen Peace in the Society of Three Groups in Buddhist Viewpoints of Thai Society",
+    authors: "พระมหาขวัญชัย เหมประไพ, แสวง นิลนามะ, คงสฤษฎ์ แพงทรัพย์, ธนาธิป ฮาดเนาลี, ไชยา เสนแสนยา และ เพ็ญพรรณ เฟื่องฟูลอย",
+    journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
+    volume: "ปีที่ ๘",
+    issue: "ฉบับที่ ๑",
+    publicationYear: "๒๕๖๘",
+    pages: "๒๕๗-๒๗๐",
+    issn: "3027-7388 (Online)",
+    tier: "TCI กลุ่ม 2",
+    type: "RESEARCH",
+    url: "https://so06.tci-thaijo.org/index.php/jmpr/article/view/281119/187868",
+    orderIndex: 3,
+  },
+  {
+    titleTh: "การวิเคราะห์ความสัมพันธ์ระหว่างปริยัติปฏิบัติและปฏิเวธในพุทธปรัชญาเถรวาท",
+    titleEn: "An Analysis of the Relationship between Pariyatti, Patipatti, and Pativedha in Theravada Buddhist Philosophy",
+    authors: "ไชยา เสนแสนยา",
+    journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
+    volume: "ปีที่ ๘",
+    issue: "ฉบับที่ ๑",
+    publicationYear: "๒๕๖๘",
+    pages: "๕๐๐-๕๑๓",
+    issn: "3027-7388 (Online)",
+    tier: "TCI กลุ่ม 2",
+    type: "ACADEMIC",
+    url: "https://so06.tci-thaijo.org/index.php/jmpr/article/view/283179",
+    orderIndex: 4,
+  },
+  {
+    titleTh: "แนวคิดเรื่องความดีในพุทธปรัชญาเถรวาท : การศึกษาเชิงวิพากษ์ (ดุษฎีนิพนธ์)",
+    titleEn: "A Concept of Goodness in Theravada Buddhist Philosophy : A Critical Study",
+    authors: "ไชยา เสนแสนยา",
+    journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
+    volume: "ปีที่ ๘",
+    issue: "ฉบับที่ ๓",
+    publicationYear: "๒๕๖๘",
+    issn: "3027-7388 (Online)",
+    tier: "TCI กลุ่ม 2",
+    type: "DISSERTATION",
+    orderIndex: 5,
+  },
+];
+
+const chaturongPubs = [
+  {
+    titleTh: "ปรัชญาความขัดแย้ง",
+    titleEn: "Philosophy of Conflict",
+    authors: "พระมหาดวงเด่น ฐิตญาโณ, พระจาตุรงค์ อาจารสุโภ, พระถนัด วฑฺฒโน, สุมาลัย กาญจนะ",
+    journalName: "วารสารสันติศึกษาปริทรรศน์ มจร",
+    volume: "ปีที่ ๖",
+    issue: "ฉบับพิเศษ",
+    publicationYear: "๒๕๖๑",
+    pages: "๓๑๕-๓๒๖",
+    issn: "2774-0455 (Online)",
+    tier: "TCI กลุ่ม ๑",
+    type: "ACADEMIC",
+    url: "https://so03.tci-thaijo.org/index.php/journal-peace/article/view/143501",
+    orderIndex: 1,
+  },
+  {
+    titleTh: "แนวทางการบูรณาการหลักพระพุทธศาสนากับการระงับข้อพิพาทเกี่ยวกับมรดก",
+    titleEn: "Guidelines for Integrating Buddhist Principles with Inheritance Dispute Resolution",
+    authors: "พระจาตุรงค์ อาจารสุโภ",
+    journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
+    volume: "ปีที่ ๖",
+    issue: "ฉบับที่ ๑",
+    publicationYear: "๒๕๖๖",
+    pages: "๕๘-๗๐",
+    issn: "3027-7388 (Online)",
+    tier: "TCI กลุ่ม ๒",
+    type: "ACADEMIC",
+    url: "https://so06.tci-thaijo.org/index.php/jmpr/article/view/264259",
+    orderIndex: 2,
+  },
+  {
+    titleTh: "การระงับข้อพิพาทของพระมหากษัตริย์ในสมัยกรุงศรีอยุธยา : กรณีศึกษาสมเด็จพระบรมไตรโลกนาถ",
+    titleEn: "Dispute Resolution by Kings in Ayutthaya Period : A Case Study of King Borommatrailokanat",
+    authors: "พระจาตุรงค์ อาจารสุโภ",
+    journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
+    volume: "ปีที่ ๖",
+    issue: "ฉบับที่ ๒",
+    publicationYear: "๒๕๖๖",
+    pages: "๑๑-๒๔",
+    issn: "3027-7388 (Online)",
+    tier: "TCI กลุ่ม ๒",
+    type: "ACADEMIC",
+    url: "https://so06.tci-thaijo.org/index.php/jmpr/article/view/266014",
+    orderIndex: 3,
+  },
+  {
+    titleTh: "กระบวนการสร้างและประเมินมาตรวัดความผาสุกทางจิตวิญญาณของผู้บริหารสถานศึกษา สังกัดสำนักงานเขตพื้นที่การศึกษาประถมศึกษา ในภาคตะวันออกเฉียงเหนือ",
+    titleEn: "The Development and Assessment Process of Spiritual Well-Being Scale of School Administrators...",
+    authors: "พระจาตุรงค์ ชูศรี และคณะ",
+    journalName: "วารสารสันติศึกษาปริทรรศน์ มจร",
+    volume: "ปีที่ ๑๑",
+    issue: "ฉบับที่ ๔",
+    publicationYear: "๒๕๖๖",
+    pages: "๑๖๐๙-๑๖๒๒",
+    issn: "2774-0455 (Online)",
+    tier: "TCI กลุ่ม ๑",
+    type: "RESEARCH",
+    url: "https://so03.tci-thaijo.org/index.php/journal-peace/article/view/260799",
+    orderIndex: 4,
+  },
+  {
+    titleTh: "การประยุกต์ใช้พุทธวิธีการระงับข้อพิพาทในคดีที่ดิน",
+    titleEn: "Application of Buddhist Methods for Dispute Resolution in Land Cases",
+    authors: "พระจาตุรงค์ ชูศรี, พระปราโมทย์ วาทโกวิโท, นันทรัตน์ เจริญผล",
+    journalName: "วารสารพุทธมัคค์ ศูนย์วิจัยธรรมศึกษา สำนักเรียนวัดอาวุธวิกสิตาราม",
+    volume: "ปีที่ ๘",
+    issue: "ฉบับที่ ๑",
+    publicationYear: "๒๕๖๖",
+    pages: "๒๙-๔๐",
+    issn: "2774-0463 (Online)",
+    tier: "TCI กลุ่ม ๒",
+    type: "RESEARCH",
+    url: "https://so01.tci-thaijo.org/index.php/bdm/article/view/263795",
+    orderIndex: 5,
+  },
+  {
+    titleTh: "แนวทางการบูรณาการกระบวนการระงับข้อพิพาทในคดีครอบครัวตามหลักพุทธสันติวิธี",
+    titleEn: "Guidelines for Integrating Family Dispute Resolution Processes Based on Buddhist Peaceful Means",
+    authors: "พระจาตุรงค์ อาจารสุโภ",
+    journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
+    volume: "ปีที่ ๕",
+    issue: "ฉบับที่ ๒",
+    publicationYear: "๒๕๖๕",
+    pages: "๑๖-๒๘",
+    issn: "3027-7388 (Online)",
+    tier: "TCI กลุ่ม ๒",
+    type: "ACADEMIC",
+    url: "https://so06.tci-thaijo.org/index.php/jmpr/article/view/261947",
+    orderIndex: 6,
+  },
+  {
+    titleTh: "กระบวนการสร้างและประเมินมาตรวัดความผาสุกทางจิตวิญญาณของผู้บริหารสถานศึกษา...",
+    titleEn: "The Development and Assessment of Spiritual Well-Being Scale...",
+    authors: "พระจาตุรงค์ ชูศรี",
+    journalName: "วารสารพุทธมัคค์ ศูนย์วิจัยธรรมศึกษา",
+    volume: "ปีที่ ๗",
+    issue: "ฉบับที่ ๒",
+    publicationYear: "๒๕๖๕",
+    pages: "๑๖๙-๑๘๐",
+    issn: "2774-0463 (Online)",
+    tier: "TCI กลุ่ม ๒",
+    type: "RESEARCH",
+    url: "https://so01.tci-thaijo.org/index.php/bdm/article/view/258440",
+    orderIndex: 7,
+  },
+  {
+    titleTh: "ปัจจัยเชิงสาเหตุและผลของความผาสุกทางจิตวิญญาณของผู้บริหารสถานศึกษา สังกัดสำนักงานเขตพื้นที่การศึกษาประถมศึกษา ในภาคตะวันออกเฉียงเหนือ",
+    titleEn: "Causal Factors and Effects of Spiritual Well-Being of School Administrators...",
+    authors: "พระจาตุรงค์ ชูศรี",
+    journalName: "วารสารสมาคมพัฒนาวิชาชีพการบริหารการศึกษาแห่งประเทศไทย (สพบท.)",
+    volume: "ปีที่ ๔",
+    issue: "ฉบับที่ ๔",
+    publicationYear: "๒๕๖๕",
+    pages: "๑๕-๒๘",
+    issn: "2697-4789 (Online)",
+    tier: "TCI กลุ่ม ๒",
+    type: "RESEARCH",
+    url: "https://so04.tci-thaijo.org/index.php/eadatjournal/article/view/260799",
+    orderIndex: 8,
+  },
+  {
+    titleTh: "พุทธกระบวนการพัฒนานวัตกรรมการระงับข้อพิพาทเพื่อสังคมสมานฉันท์",
+    titleEn: "Buddhist Process of Developing Innovation for Dispute Resolution Towards Harmonious Society",
+    authors: "พระจาตุรงค์ อาจารสุโภ",
+    journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
+    volume: "ปีที่ ๔",
+    issue: "ฉบับที่ ๒",
+    publicationYear: "๒๕๖๔",
+    pages: "๑-๑๒",
+    issn: "3027-7388 (Online)",
+    tier: "TCI กลุ่ม ๒",
+    type: "ACADEMIC",
+    url: "https://so06.tci-thaijo.org/index.php/jmpr/article/view/254429",
+    orderIndex: 9,
+  },
+  {
+    titleTh: "การระงับข้อพิพาทด้านมรดกตามแนวพระพุทธศาสนา",
+    titleEn: "Inheritance Dispute Resolution According to Buddhism",
+    authors: "พระจาตุรงค์ อาจารสุโภ",
+    journalName: "วารสารบัณฑิตศึกษาปริทรรศน์ วิทยาลัยสงฆ์นครสวรรค์",
+    volume: "ปีที่ ๙",
+    issue: "ฉบับที่ ๑",
+    publicationYear: "๒๕๖๔",
+    pages: "๑-๑๔",
+    issn: "2408-1647 (Print)",
+    tier: "TCI กลุ่ม ๒",
+    type: "ACADEMIC",
+    url: "https://so04.tci-thaijo.org/index.php/pnakhorn/article/view/246473",
+    orderIndex: 10,
+  },
+  {
+    titleTh: "พุทธสันติวิธีกับการระงับข้อพิพาทในคดีที่ดิน",
+    titleEn: "Buddhist Peaceful Means and Dispute Resolution in Land Cases",
+    authors: "พระจาตุรงค์ อาจารสุโภ",
+    journalName: "วารสาร มจร สันติศึกษาปริทรรศน์",
+    volume: "ปีที่ ๘",
+    issue: "ฉบับที่ ๔",
+    publicationYear: "๒๕๖๓",
+    pages: "๑๔๗๔-๑๔๘๖",
+    issn: "2774-0455 (Online)",
+    tier: "TCI กลุ่ม ๑",
+    type: "ACADEMIC",
+    url: "https://so03.tci-thaijo.org/index.php/journal-peace/article/view/241857",
+    orderIndex: 11,
+  },
+  {
+    titleTh: "พุทธสันติวิธีกับการระงับข้อพิพาทในคดีครอบครัว",
+    titleEn: "Buddhist Peaceful Means and Family Dispute Resolution",
+    authors: "พระจาตุรงค์ อาจารสุโภ",
+    journalName: "วารสารวิชาการ มจร บุรีรัมย์",
+    volume: "ปีที่ ๕",
+    issue: "ฉบับที่ ๒",
+    publicationYear: "๒๕๖๓",
+    pages: "๔๕-๕๖",
+    issn: "2651-1770 (Online)",
+    tier: "TCI กลุ่ม ๒",
+    type: "ACADEMIC",
+    url: "https://so05.tci-thaijo.org/index.php/ProjectMCRBR/article/view/243763",
+    orderIndex: 12,
+  },
+  {
+    titleTh: "การจัดการความขัดแย้งของพระสงฆ์ตามพระธรรมวินัย",
+    titleEn: "Conflict Management of Buddhist Monks According to the Vinaya",
+    authors: "พระจาตุรงค์ อาจารสุโภ",
+    journalName: "วารสารวิจัยธรรมศึกษา ศูนย์วิจัยธรรมศึกษา สำนักเรียนวัดอาวุธวิกสิตาราม",
+    volume: "ปีที่ ๒",
+    issue: "ฉบับที่ ๑",
+    publicationYear: "๒๕๖๒",
+    pages: "๑-๘",
+    tier: "TCI กลุ่ม ๒",
+    type: "ACADEMIC",
+    url: "https://www.awut.org/ojs/index.php/dsr/article/view/17",
+    orderIndex: 13,
+  },
+  {
+    titleTh: "การเข้าใจชีวิตบนพื้นฐานแนวคิดเรื่องธาตุ ๑๘",
+    titleEn: "Understanding Life on the Basis of the 18 Elements Concept",
+    authors: "พระจาตุรงค์ อาจารสุโภ",
+    journalName: "วารสารพุทธมัคค์ ศูนย์วิจัยธรรมศึกษา สำนักเรียนวัดอาวุธวิกสิตาราม",
+    volume: "ปีที่ ๒",
+    issue: "ฉบับที่ ๒",
+    publicationYear: "๒๕๖๑",
+    pages: "๓๒-๓๘",
+    tier: "TCI กลุ่ม ๒",
+    type: "ACADEMIC",
+    url: "https://so01.tci-thaijo.org/index.php/bdm/article/view/179650",
+    orderIndex: 14,
+  },
+  {
+    titleTh: "ธรรมชาติความแตกแยกของมนุษย์บนรากฐานแนวคิดเรื่องธาตุ",
+    titleEn: "The Nature of Human Discord Based on the Element Concept",
+    authors: "พระจาตุรงค์ อาจารสุโภ",
+    journalName: "วารสารบัณฑิตสาเกตปริทรรศน์",
+    volume: "ปีที่ ๓",
+    issue: "ฉบับที่ ๒",
+    publicationYear: "๒๕๖๑",
+    pages: "๘๙-๙๘",
+    tier: "TCI กลุ่ม ๒",
+    type: "ACADEMIC",
+    url: "https://so03.tci-thaijo.org/index.php/saketreview/article/view/248007",
+    orderIndex: 15,
+  },
+];
+
 async function seed() {
-  console.log("Seeding teacher data and research publications...");
+  console.log("Seeding teacher data and research publications across all active tenants...");
 
-  // 1. Get or create tenant
-  const tenant = await prisma.tenant.findFirst();
-  if (!tenant) {
-    throw new Error("No tenant found");
-  }
-
-  // 2. Find or create Department: ภาควิชาศาสนาและปรัชญา
-  let dept = await prisma.department.findFirst({
-    where: {
-      tenantId: tenant.id,
-      nameTh: { contains: "ศาสนาและปรัชญา" },
-    },
+  const tenants = await prisma.tenant.findMany({
+    where: { isActive: true },
   });
 
-  if (!dept) {
-    dept = await prisma.department.create({
-      data: {
-        tenantId: tenant.id,
-        nameTh: "ภาควิชาศาสนาและปรัชญา",
-        nameEn: "Department of Religion and Philosophy",
-        code: "REL-PHIL",
-        orderIndex: 2,
-      },
-    });
+  if (tenants.length === 0) {
+    throw new Error("No active tenants found");
   }
 
-  // 3. Upsert Teacher 1: นายไชยา เสนแสนยา
-  const chaiya = await prisma.personnel.upsert({
-    where: {
-      id: "a1111111-2222-3333-4444-555555555501",
-    },
-    update: {
+  for (const tenant of tenants) {
+    console.log(`\n--- Seeding for Tenant: ${tenant.nameTh} (${tenant.code}) [${tenant.id}] ---`);
+
+    // 1. Find or create Department: ภาควิชาศาสนาและปรัชญา
+    let dept = await prisma.department.findFirst({
+      where: {
+        tenantId: tenant.id,
+        nameTh: { contains: "ศาสนาและปรัชญา" },
+      },
+    });
+
+    if (!dept) {
+      dept = await prisma.department.create({
+        data: {
+          tenantId: tenant.id,
+          nameTh: "ภาควิชาศาสนาและปรัชญา",
+          nameEn: "Department of Religion and Philosophy",
+          code: "REL-PHIL",
+          orderIndex: 2,
+        },
+      });
+      console.log(`Created department: ${dept.nameTh} for tenant ${tenant.code}`);
+    } else {
+      console.log(`Found existing department: ${dept.nameTh} for tenant ${tenant.code}`);
+    }
+
+    // 2. Upsert Teacher 1: นายไชยา เสนแสนยา
+    let chaiya = await prisma.personnel.findFirst({
+      where: {
+        tenantId: tenant.id,
+        firstNameTh: "ไชยา",
+        lastNameTh: "เสนแสนยา",
+      },
+    });
+
+    const chaiyaData = {
       firstNameTh: "ไชยา",
       lastNameTh: "เสนแสนยา",
       firstNameEn: "Chaiya",
@@ -44,7 +357,7 @@ async function seed() {
       positionTh: "อาจารย์ประจำหลักสูตรพุทธศาสตรบัณฑิต สาขาวิชาศาสนาและปรัชญา",
       positionEn: "Lecturer in Religion and Philosophy",
       academicPosition: "อาจารย์",
-      type: "ACADEMIC",
+      type: "ACADEMIC" as const,
       departmentId: dept.id,
       email: "chaiya.sen@mcu.ac.th",
       phoneNumber: "098-387-5997",
@@ -53,382 +366,103 @@ async function seed() {
       experiencesTh: `พ.ศ. ๒๕๕๓ - ๒๕๖๘ : นักจัดการงานทั่วไป หลักสูตรพุทธศาสตรมหาบัณฑิต สาขาวิชาศาสนาเปรียบเทียบ สังกัดคณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย\nพ.ศ. ๒๕๖๔ - ปัจจุบัน : อาจารย์ประจำหลักสูตรพุทธศาสตรบัณฑิต สาขาวิชาศาสนาและปรัชญา ภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์ เลขที่ ๐๒๓๑๐๐๕`,
       bioTh: `อาจารย์ประจำหลักสูตรพุทธศาสตรบัณฑิต สาขาวิชาศาสนาและปรัชญา ภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์ เลขที่ ๐๒๓๑๐๐๕ ผู้เชี่ยวชาญด้านพระไตรปิฎกศึกษา ภาษาไทย และพุทธปรัชญาเถรวาท`,
       orderIndex: 10,
-    },
-    create: {
-      id: "a1111111-2222-3333-4444-555555555501",
-      tenantId: tenant.id,
-      firstNameTh: "ไชยา",
-      lastNameTh: "เสนแสนยา",
-      firstNameEn: "Chaiya",
-      lastNameEn: "Sensaenya",
-      positionTh: "อาจารย์ประจำหลักสูตรพุทธศาสตรบัณฑิต สาขาวิชาศาสนาและปรัชญา",
-      positionEn: "Lecturer in Religion and Philosophy",
-      academicPosition: "อาจารย์",
-      type: "ACADEMIC",
-      departmentId: dept.id,
-      email: "chaiya.sen@mcu.ac.th",
-      phoneNumber: "098-387-5997",
-      contactInfo: "Tel. 098 387 5997, Facebook: ไชยา เสนแสนยา, Line ID: 0983875997",
-      educationTh: `พ.ศ. ๒๕๓๓ นักธรรมชั้นเอก วัดศรีบุญเรือง สำนักเรียนคณะจังหวัดเลย กองธรรมสนามหลวง\nพ.ศ. ๒๕๔๒ เปรียญธรรม ๗ ประโยค วัดครุใน สำนักเรียนคณะจังหวัดสมุทรปราการ กองบาลีสนามหลวง\nพ.ศ. ๒๕๔๒ พธ.บ. (ภาษาไทย) ปริญญาพุทธศาสตรบัณฑิต สาขาวิชาภาษาไทย คณะมนุษยศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย\nพ.ศ. ๒๕๔๗ พธ.ม. (พระพุทธศาสนา) ปริญญาพุทธศาสตรมหาบัณฑิต สาขาวิชาพระพุทธศาสนา บัณฑิตวิทยาลัย มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย (วิทยานิพนธ์เรื่อง "ศึกษาทัศนคติและความคาดหวังของครูและนักเรียนที่มีต่อพระภิกษุผู้สอนธรรมศึกษา")\nพ.ศ. ๒๕๖๘ พธ.ด. (ปรัชญา) ปริญญาพุทธศาสตรดุษฎีบัณฑิต สาขาวิชาปรัชญา บัณฑิตวิทยาลัย มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย (ดุษฎีนิพนธ์เรื่อง "แนวคิดเรื่องความดีในพุทธปรัชญาเถรวาท : การศึกษาเชิงวิพากษ์")`,
-      experiencesTh: `พ.ศ. ๒๕๕๓ - ๒๕๖๘ : นักจัดการงานทั่วไป หลักสูตรพุทธศาสตรมหาบัณฑิต สาขาวิชาศาสนาเปรียบเทียบ สังกัดคณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย\nพ.ศ. ๒๕๖๔ - ปัจจุบัน : อาจารย์ประจำหลักสูตรพุทธศาสตรบัณฑิต สาขาวิชาศาสนาและปรัชญา ภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์ เลขที่ ๐๒๓๑๐๐๕`,
-      bioTh: `อาจารย์ประจำหลักสูตรพุทธศาสตรบัณฑิต สาขาวิชาศาสนาและปรัชญา ภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์ เลขที่ ๐๒๓๑๐๐๕ ผู้เชี่ยวชาญด้านพระไตรปิฎกศึกษา ภาษาไทย และพุทธปรัชญาเถรวาท`,
-      orderIndex: 10,
-    },
-  });
+      isActive: true,
+    };
 
-  // 4. Upsert Teacher 2: พระจาตุรงค์ อาจารสุโภ (ชูศรี)
-  const chaturong = await prisma.personnel.upsert({
-    where: {
-      id: "a1111111-2222-3333-4444-555555555502",
-    },
-    update: {
-      firstNameTh: "พระจาตุรงค์ อาจารสุโภ",
-      lastNameTh: "(ชูศรี), ดร.",
-      firstNameEn: "Phra Chaturong",
-      lastNameEn: "Ajarasubho (Chusri), Ph.D.",
-      positionTh: "อาจารย์ประจำภาควิชาศาสนาและปรัชญา",
-      positionEn: "Lecturer in Religion and Philosophy",
-      academicPosition: "อาจารย์",
-      type: "ACADEMIC",
-      departmentId: dept.id,
-      email: "chaturong.chu@mcu.ac.th",
-      educationTh: `พ.ศ. ๒๕๔๘ ประโยค ๑-๒\nพ.ศ. ๒๕๕๐ พธ.บ. (สังคมวิทยาและมานุษยวิทยา) มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย\nพ.ศ. ๒๕๕๒ พธ.ม. (ปรัชญา) มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย\nพ.ศ. ๒๕๕๖ พธ.ด. (ปรัชญา) มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย`,
-      experiencesTh: `อาจารย์ เลขที่ ๐๒๓๑๐๐๑ ภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์ มจร (คำสั่ง มจร ที่ ๑๖๖๔/๒๕๖๕ บรรจุแต่งตั้งบุคคลเป็นบุคลากรประเภทวิชาการ ตั้งแต่วันที่ ๑๖ มีนาคม ๒๕๖๕)\nภาระงานสอนระดับปริญญาตรี: แนวคิดใหม่ทางศาสนา, พระพุทธศาสนากับปรัชญา, ศาสนากับคนรุ่นใหม่, จริยศาสตร์ประยุกต์, ศาสนากับสถานภาพสตรี, ปรัชญากับศาสนา, จริยศาสตร์, สุนทรียศาสตร์\nภาระงานสอนระดับปริญญาโท: สัมมนาวิทยานิพนธ์, เปรียบเทียบหลักจริยธรรมในศาสนา, พัฒนาการแนวคิดทางศาสนา\nภาระงานสอนระดับปริญญาเอก: ศาสนากับการพัฒนาสังคม, ศาสนากับวิทยาการโลกยุคใหม่, สัมมนาดุษฎีนิพนธ์, สัมมนาปัญหาศาสนาในปัจจุบัน, พัฒนาการแนวคิดใหม่ทางศาสนา, หลักการสานเสวนาทางศาสนา`,
-      bioTh: `อาจารย์ประจำภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์ เลขที่ ๐๒๓๑๐๐๑ ผู้เชี่ยวชาญด้านปรัชญา พุทธปรัชญา จริยศาสตร์ และสุนทรียศาสตร์ มีผลงานวิจัยและบทความวิชาการตีพิมพ์ในวารสารระดับชาติต่อเนื่อง`,
-      orderIndex: 11,
-    },
-    create: {
-      id: "a1111111-2222-3333-4444-555555555502",
-      tenantId: tenant.id,
-      firstNameTh: "พระจาตุรงค์ อาจารสุโภ",
-      lastNameTh: "(ชูศรี), ดร.",
-      firstNameEn: "Phra Chaturong",
-      lastNameEn: "Ajarasubho (Chusri), Ph.D.",
-      positionTh: "อาจารย์ประจำภาควิชาศาสนาและปรัชญา",
-      positionEn: "Lecturer in Religion and Philosophy",
-      academicPosition: "อาจารย์",
-      type: "ACADEMIC",
-      departmentId: dept.id,
-      email: "chaturong.chu@mcu.ac.th",
-      educationTh: `พ.ศ. ๒๕๔๘ ประโยค ๑-๒\nพ.ศ. ๒๕๕๐ พธ.บ. (สังคมวิทยาและมานุษยวิทยา) มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย\nพ.ศ. ๒๕๕๒ พธ.ม. (ปรัชญา) มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย\nพ.ศ. ๒๕๕๖ พธ.ด. (ปรัชญา) มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย`,
-      experiencesTh: `อาจารย์ เลขที่ ๐๒๓๑๐๐๑ ภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์ มจร (คำสั่ง มจร ที่ ๑๖๖๔/๒๕๖๕ บรรจุแต่งตั้งบุคคลเป็นบุคลากรประเภทวิชาการ ตั้งแต่วันที่ ๑๖ มีนาคม ๒๕๖๕)\nภาระงานสอนระดับปริญญาตรี: แนวคิดใหม่ทางศาสนา, พระพุทธศาสนากับปรัชญา, ศาสนากับคนรุ่นใหม่, จริยศาสตร์ประยุกต์, ศาสนากับสถานภาพสตรี, ปรัชญากับศาสนา, จริยศาสตร์, สุนทรียศาสตร์\nภาระงานสอนระดับปริญญาโท: สัมมนาวิทยานิพนธ์, เปรียบเทียบหลักจริยธรรมในศาสนา, พัฒนาการแนวคิดทางศาสนา\nภาระงานสอนระดับปริญญาเอก: ศาสนากับการพัฒนาสังคม, ศาสนากับวิทยาการโลกยุคใหม่, สัมมนาดุษฎีนิพนธ์, สัมมนาปัญหาศาสนาในปัจจุบัน, พัฒนาการแนวคิดใหม่ทางศาสนา, หลักการสานเสวนาทางศาสนา`,
-      bioTh: `อาจารย์ประจำภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์ เลขที่ ๐๒๓๑๐๐๑ ผู้เชี่ยวชาญด้านปรัชญา พุทธปรัชญา จริยศาสตร์ และสุนทรียศาสตร์ มีผลงานวิจัยและบทความวิชาการตีพิมพ์ในวารสารระดับชาติต่อเนื่อง`,
-      orderIndex: 11,
-    },
-  });
+    if (chaiya) {
+      chaiya = await prisma.personnel.update({
+        where: { id: chaiya.id },
+        data: chaiyaData,
+      });
+      console.log(`Updated Chaiya Sensaenya (${chaiya.id})`);
+    } else {
+      chaiya = await prisma.personnel.create({
+        data: {
+          tenantId: tenant.id,
+          ...chaiyaData,
+        },
+      });
+      console.log(`Created Chaiya Sensaenya (${chaiya.id})`);
+    }
 
-  // 5. Clear old publications for these 2 teachers to avoid duplicates when re-running
-  await prisma.researchPublication.deleteMany({
-    where: {
-      personnelId: { in: [chaiya.id, chaturong.id] },
-    },
-  });
-
-  // 6. Insert publications for นายไชยา เสนแสนยา
-  const chaiyaPubs = [
-    {
-      titleTh: "ศาสนารมณ์: เทคนิคการจัดการอารมณ์ตามแนวทางพระพุทธศาสนา",
-      titleEn: "Religion and Emotion: A Technique on Emotional Management According to the Principle of Buddhism",
-      authors: "นายไชยา เสนแสนยา, พระธรรมวชิรมุนี วิ.,รศ.ดร., รศ.ดร.กฤต ศรียะอาจ, พระครูโกมุทสุวรรณาภรณ์,ดร., พระมหาขวัญชัย กิตฺติเมธี, ผศ.ดร., นางสาวเกษริน บุตรา",
-      journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
-      volume: "ปีที่ ๙",
-      issue: "ฉบับที่ ๑",
-      publicationYear: "๒๕๖๙",
-      pages: "๒๖๔-๒๗๕",
-      issn: "3027-7388 (Online)",
-      tier: "TCI กลุ่ม 2",
-      type: "RESEARCH",
-      url: "https://so06.tci-thaijo.org/index.php/jmpr/article/view/292431/194379",
-      orderIndex: 1,
-    },
-    {
-      titleTh: "ท้าวจาตุโลกบาล: การสื่อสารแบบซอฟพาวเวอร์จากเทพสู่วัตถุมงคลทางศาสนาในประเทศไทย",
-      titleEn: "The Four Guardian Gods: Soft Power Communication from Gods to Religious Spiritual Materialism in Thailand",
-      authors: "พระมหาขวัญชัย เหมประไพ, คงสฤษฎ์ แพงทรัพย์, ไชยา เสนแสนยา และ เพ็ญพรรณ เฟื่องฟูลอย",
-      journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
-      volume: "ปีที่ ๙",
-      issue: "ฉบับที่ ๑",
-      publicationYear: "๒๕๖๙",
-      pages: "๑๐๐-๑๑๓",
-      issn: "3027-7388 (Online)",
-      tier: "TCI กลุ่ม 2",
-      type: "RESEARCH",
-      url: "https://so06.tci-thaijo.org/index.php/jmpr/article/view/288939",
-      orderIndex: 2,
-    },
-    {
-      titleTh: "กลไกการสร้างสังคมสันติสุขระหว่างคน ๓ วัยในมิติพระพุทธศาสนาของสังคมไทย",
-      titleEn: "A Mechanic to Strengthen Peace in the Society of Three Groups in Buddhist Viewpoints of Thai Society",
-      authors: "พระมหาขวัญชัย เหมประไพ, แสวง นิลนามะ, คงสฤษฎ์ แพงทรัพย์, ธนาธิป ฮาดเนาลี, ไชยา เสนแสนยา และ เพ็ญพรรณ เฟื่องฟูลอย",
-      journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
-      volume: "ปีที่ ๘",
-      issue: "ฉบับที่ ๑",
-      publicationYear: "๒๕๖๘",
-      pages: "๒๕๗-๒๗๐",
-      issn: "3027-7388 (Online)",
-      tier: "TCI กลุ่ม 2",
-      type: "RESEARCH",
-      url: "https://so06.tci-thaijo.org/index.php/jmpr/article/view/281119/187868",
-      orderIndex: 3,
-    },
-    {
-      titleTh: "การวิเคราะห์ความสัมพันธ์ระหว่างปริยัติปฏิบัติและปฏิเวธในพุทธปรัชญาเถรวาท",
-      titleEn: "An Analysis of the Relationship between Pariyatti, Patipatti, and Pativedha in Theravada Buddhist Philosophy",
-      authors: "ไชยา เสนแสนยา",
-      journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
-      volume: "ปีที่ ๘",
-      issue: "ฉบับที่ ๑",
-      publicationYear: "๒๕๖๘",
-      pages: "๕๐๐-๕๑๓",
-      issn: "3027-7388 (Online)",
-      tier: "TCI กลุ่ม 2",
-      type: "ACADEMIC",
-      url: "https://so06.tci-thaijo.org/index.php/jmpr/article/view/283179",
-      orderIndex: 4,
-    },
-    {
-      titleTh: "แนวคิดเรื่องความดีในพุทธปรัชญาเถรวาท : การศึกษาเชิงวิพากษ์ (ดุษฎีนิพนธ์)",
-      titleEn: "A Concept of Goodness in Theravada Buddhist Philosophy : A Critical Study",
-      authors: "ไชยา เสนแสนยา",
-      journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
-      volume: "ปีที่ ๘",
-      issue: "ฉบับที่ ๓",
-      publicationYear: "๒๕๖๘",
-      issn: "3027-7388 (Online)",
-      tier: "TCI กลุ่ม 2",
-      type: "DISSERTATION",
-      orderIndex: 5,
-    },
-  ];
-
-  for (const pub of chaiyaPubs) {
-    await prisma.researchPublication.create({
-      data: {
+    // 3. Upsert Teacher 2: พระจาตุรงค์ อาจารสุโภ (ชูศรี), ดร.
+    let chaturong = await prisma.personnel.findFirst({
+      where: {
         tenantId: tenant.id,
-        personnelId: chaiya.id,
-        ...pub,
+        firstNameTh: { contains: "จาตุรงค์" },
       },
     });
-  }
 
-  // 7. Insert publications for พระจาตุรงค์ อาจารสุโภ (ชูศรี)
-  const chaturongPubs = [
-    {
-      titleTh: "ปรัชญาความขัดแย้ง",
-      titleEn: "Philosophy of Conflict",
-      authors: "พระมหาดวงเด่น ฐิตญาโณ, พระจาตุรงค์ อาจารสุโภ, พระถนัด วฑฺฒโน, สุมาลัย กาญจนะ",
-      journalName: "วารสารสันติศึกษาปริทรรศน์ มจร",
-      volume: "ปีที่ ๖",
-      issue: "ฉบับที่ ๑",
-      publicationYear: "๒๕๖๑",
-      pages: "๒๘๔-๒๙๒",
-      tier: "TCI กลุ่ม ๑",
-      type: "RESEARCH",
-      url: "https://so03.tci-thaijo.org/index.php/journal-peace/article/view/107984",
-      orderIndex: 1,
-    },
-    {
-      titleTh: "ประโยชน์จากการเผยแผ่ธรรมะออนไลน์ขององค์การธรรมเป็นทีมสากล",
-      titleEn: "Benefits of Online Dhamma Propagation by Dhamma as a Global Team Organization",
-      authors: "พระจาตุรงค์ ชูศรี, พระมหาสราวุธ โพธิ์ศรีขาม, พระมหาดวงทิพย์ ปริยตฺติธารี",
-      journalName: "วารสารสังคมศึกษา ศาสนา และวัฒนธรรม",
-      volume: "ปีที่ ๓",
-      issue: "ฉบับที่ ๑",
-      publicationYear: "๒๕๖๕",
-      pages: "๑-๑๓",
-      type: "ACADEMIC",
-      url: "https://so12.tci-thaijo.org/index.php/src/article/view/59",
-      orderIndex: 2,
-    },
-    {
-      titleTh: "ความหลากหลายด้านสถาปัตยกรรมในยุคสุโขทัย: เจดีย์ทรงระฆังและทรงพุ่มข้าวบิณฑ์, ธรรมธารา",
-      titleEn: "Architectural Diversity in the Sukhothai Era: Bell-Shaped and Lotus-Bud Stupas",
-      authors: "พระมหาสราวุธ โพธิ์ศรีขาม, พระจาตุรงค์ ชูศรี",
-      journalName: "วารสารวิชาการทางพระพุทธศาสนา",
-      volume: "ปีที่ ๘",
-      issue: "ฉบับที่ ๑ (ฉบับรวมที่ ๑๔)",
-      publicationYear: "๒๕๖๕",
-      pages: "๑๕๗-๒๑๒",
-      tier: "TCI ฐาน ๑",
-      type: "ACADEMIC",
-      url: "https://so01.tci-thaijo.org/index.php/dhammadhara/article/view/249475",
-      orderIndex: 3,
-    },
-    {
-      titleTh: "การปฏิเสธอัตตาของพระพุทธเจ้าในพระไตรปิฎก",
-      titleEn: "The Buddha's Denial of Atta (Self) in the Tipitaka",
-      authors: "พระมหาสราวุธ โพธิ์ศรีขาม, พระจาตุรงค์ ชูศรี, พระปลัดบุญช่วย ฐิตจิตฺโต (ยังสามารถ)",
-      journalName: "วารสาร มจร พุทธศาสตร์ปริทรรศน์",
-      volume: "ปีที่ ๕",
-      issue: "ฉบับที่ ๒",
-      publicationYear: "๒๕๖๔",
-      pages: "๑๑๘-๑๓๖",
-      tier: "TCI ฐาน ๒",
-      type: "ACADEMIC",
-      url: "https://so06.tci-thaijo.org/index.php/jmb/article/view/252501",
-      orderIndex: 4,
-    },
-    {
-      titleTh: "จริยศาสตร์",
-      titleEn: "Ethics",
-      authors: "พระจาตุรงค์ ชูศรี,ดร.",
-      journalName: "วารสารสังคมศึกษา ศาสนา และวัฒนธรรม",
-      volume: "ปีที่ ๒",
-      issue: "ฉบับที่ ๑",
-      publicationYear: "๒๕๖๔",
-      pages: "๔๘-๕๖",
-      type: "ACADEMIC",
-      url: "https://so12.tci-thaijo.org/index.php/src/article/view/45",
-      orderIndex: 5,
-    },
-    {
-      titleTh: "คุณวิทยา : คุณค่าคืออะไร? วาทกรรมว่าด้วยความจริง ความดีและความงาม",
-      titleEn: "Axiology : What is Value? Discourse on Truth, Goodness, and Beauty",
-      authors: "พระจาตุรงค์ อาจารสุโภ",
-      journalName: "วารสารชัยภูมิปริทรรศน์",
-      volume: "ปีที่ ๔",
-      issue: "ฉบับที่ ๓",
-      publicationYear: "๒๕๖๔",
-      pages: "๓๑-๓๗",
-      type: "ACADEMIC",
-      url: "https://so02.tci-thaijo.org/index.php/jcr/article/view/249884",
-      orderIndex: 6,
-    },
-    {
-      titleTh: "วิเคราะห์ปรากฏการณ์วิทยาของฮุสเซิร์ล",
-      titleEn: "An Analysis of Husserl's Phenomenology",
-      authors: "พระจาตุรงค์ อาจารสุโภ",
-      journalName: "วารสารวิจัยธรรมศึกษา ศูนย์วิจัยธรรมศึกษา สำนักเรียนวัดอาวุธวิกสิตาราม",
-      volume: "ปีที่ ๓",
-      issue: "ฉบับที่ ๑",
-      publicationYear: "๒๕๖๓",
-      pages: "๑-๙",
-      tier: "TCI กลุ่ม ๒",
-      type: "ACADEMIC",
-      url: "https://www.awut.org/ojs/index.php/dsr/article/view/22",
-      orderIndex: 7,
-    },
-    {
-      titleTh: "สุนทรียศาสตร์อุโบสถวัดร่องขุ่น",
-      titleEn: "Aesthetics of Wat Rong Khun's Ubosot",
-      authors: "พระจาตุรงค์ อาจารสุโภ",
-      journalName: "วารสารสังคมศึกษา มมร สาขาวิชาการสอนสังคมศึกษา",
-      volume: "ปีที่ ๑",
-      issue: "ฉบับที่ ๑",
-      publicationYear: "๒๕๖๓",
-      pages: "๓๙-๕๐",
-      type: "ACADEMIC",
-      url: "http://ojs.mbu.ac.th/index.php/josmbu/article/view/683",
-      orderIndex: 8,
-    },
-    {
-      titleTh: "การทำความเข้าใจความทุกข์โดยการทำความเข้าใจธรรมชาติของมนุษย์",
-      titleEn: "Understanding Suffering through Understanding Human Nature",
-      authors: "พระจาตุรงค์ อาจารสุโภ",
-      journalName: "วารสารพุทธมัคค์ ศูนย์วิจัยธรรมศึกษา สำนักเรียนวัดอาวุธวิกสิตาราม",
-      volume: "ปีที่ ๔",
-      issue: "ฉบับที่ ๒",
-      publicationYear: "๒๕๖๒",
-      pages: "๒๐-๓๐",
-      type: "ACADEMIC",
-      url: "https://so01.tci-thaijo.org/index.php/bdm/article/view/233569",
-      orderIndex: 9,
-    },
-    {
-      titleTh: "เรื่องไร้สาระในคัมภีร์พระพุทธศาสนา",
-      titleEn: "Nonsense in Buddhist Scriptures",
-      authors: "พระจาตุรงค์ อาจารสุโภ",
-      journalName: "วารสารวิจัยธรรมศึกษา ศูนย์วิจัยธรรมศึกษา สำนักเรียนวัดอาวุธวิกสิตาราม",
-      volume: "ปีที่ ๒",
-      issue: "ฉบับที่ ๒",
-      publicationYear: "๒๕๖๒",
-      pages: "๑-๗",
-      type: "ACADEMIC",
-      url: "https://www.awut.org/ojs/index.php/dsr/article/view/7",
-      orderIndex: 10,
-    },
-    {
-      titleTh: "การอ้างสิทธิในการฆ่าตัวตายกับหลักกรรมในพระพุทธศาสนา",
-      titleEn: "Claiming the Right to Suicide and the Law of Kamma in Buddhism",
-      authors: "พระจาตุรงค์ อาจารสุโภ",
-      journalName: "วารสารชัยภูมิปริทรรศน์",
-      volume: "ปีที่ ๒",
-      issue: "ฉบับที่ ๒",
-      publicationYear: "๒๕๖๒",
-      pages: "๑๖-๒๙",
-      type: "ACADEMIC",
-      url: "https://so02.tci-thaijo.org/index.php/jcr/article/view/246259",
+    const chaturongData = {
+      firstNameTh: "พระจาตุรงค์ อาจารสุโภ (ชูศรี), ดร.",
+      lastNameTh: "",
+      firstNameEn: "Phra Chaturong",
+      lastNameEn: "Ajarasubho (Chusri), Ph.D.",
+      positionTh: "อาจารย์ประจำภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์",
+      positionEn: "Lecturer, Department of Religion and Philosophy",
+      academicPosition: "อาจารย์, ดร.",
+      type: "ACADEMIC" as const,
+      departmentId: dept.id,
+      email: "jaturong.aca@mcu.ac.th",
+      phoneNumber: "02-623-6333",
+      contactInfo: "ภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย",
+      educationTh: `พ.ศ. ๒๕๓๓ นักธรรมชั้นเอก สำนักเรียนวัดมงคลทับคล้อ สำนักเรียนคณะจังหวัดพิจิตร\nพ.ศ. ๒๕๓๗ เปรียญธรรม ๑-๒ ประโยค สำนักเรียนวัดมงคลทับคล้อ สำนักเรียนคณะจังหวัดพิจิตร\nพ.ศ. ๒๕๔๐ ปริญญาพุทธศาสตรบัณฑิต (พธ.บ.) สาขาวิชาสังคมวิทยาและมานุษยวิทยา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย\nพ.ศ. ๒๕๕๓ ปริญญาพุทธศาสตรมหาบัณฑิต (พธ.ม.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย\nพ.ศ. ๒๕๖๓ ปริญญาพุทธศาสตรดุษฎีบัณฑิต (พธ.ด.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย (ดุษฎีนิพนธ์เรื่อง "การพัฒนานวัตกรรมการระงับข้อพิพาทของศาลยุติธรรมตามแนวพุทธสันติวิธี")`,
+      experiencesTh: `อาจารย์ประจำหลักสูตรพุทธศาสตรบัณฑิต สาขาวิชาศาสนาและปรัชญา คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย (เลขที่ ๐๒๓๑๐๐๑)\nอาจารย์ผู้สอนระดับปริญญาตรี บรรยายรายวิชา: ปรัชญาเบื้องต้น, พุทธปรัชญา, มนุษย์กับสังคม, พุทธปรัชญาเถรวาท\nอาจารย์ผู้สอนระดับปริญญาโท บรรยายรายวิชา: สัมมนาพุทธปรัชญาเถรวาท, ทฤษฎีความรู้ทางปรัชญา\nอาจารย์ผู้สอนระดับปริญญาเอก บรรยายรายวิชา: พุทธปรัชญาดุษฎีบัณฑิตศึกษา, นวัตกรรมและสันติวิธี`,
+      bioTh: `อาจารย์ประจำภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์ เลขที่ ๐๒๓๑๐๐๑ ผู้เชี่ยวชาญด้านพุทธปรัชญาและพุทธสันติวิธีกับการระงับข้อพิพาท มีผลงานตีพิมพ์ทางวิชาการและงานวิจัยระดับชาติ TCI กลุ่ม 1 และกลุ่ม 2 รวมกว่า 15 เรื่อง`,
       orderIndex: 11,
-    },
-    {
-      titleTh: "การปรับเปลี่ยนพฤติกรรมให้มีเมตตาโดยการคบคนดี",
-      titleEn: "Behavior Modification towards Loving-Kindness by Associating with Good People",
-      authors: "พระจาตุรงค์ อาจารสุโภ",
-      journalName: "วารสารพุทธมัคค์ ศูนย์วิจัยธรรมศึกษา สำนักเรียนวัดอาวุธวิกสิตาราม",
-      volume: "ปีที่ ๔",
-      issue: "ฉบับที่ ๑",
-      publicationYear: "๒๕๖๒",
-      pages: "๒๗-๓๗",
-      tier: "TCI กลุ่ม ๒",
-      type: "ACADEMIC",
-      url: "https://so01.tci-thaijo.org/index.php/bdm/article/view/187402",
-      orderIndex: 12,
-    },
-    {
-      titleTh: "ข้อยืนยันสาระสำคัญของอภิปรัชญาเชน",
-      titleEn: "Essential Affirmations of Jaina Metaphysics",
-      authors: "พระจาตุรงค์ อาจารสุโภ",
-      journalName: "วารสารวิจัยธรรมศึกษา ศูนย์วิจัยธรรมศึกษา สำนักเรียนวัดอาวุธวิกสิตาราม",
-      volume: "ปีที่ ๒",
-      issue: "ฉบับที่ ๑",
-      publicationYear: "๒๕๖๒",
-      pages: "๑-๘",
-      tier: "TCI กลุ่ม ๒",
-      type: "ACADEMIC",
-      url: "https://www.awut.org/ojs/index.php/dsr/article/view/17",
-      orderIndex: 13,
-    },
-    {
-      titleTh: "การเข้าใจชีวิตบนพื้นฐานแนวคิดเรื่องธาตุ ๑๘",
-      titleEn: "Understanding Life on the Basis of the 18 Elements Concept",
-      authors: "พระจาตุรงค์ อาจารสุโภ",
-      journalName: "วารสารพุทธมัคค์ ศูนย์วิจัยธรรมศึกษา สำนักเรียนวัดอาวุธวิกสิตาราม",
-      volume: "ปีที่ ๒",
-      issue: "ฉบับที่ ๒",
-      publicationYear: "๒๕๖๑",
-      pages: "๓๒-๓๘",
-      tier: "TCI กลุ่ม ๒",
-      type: "ACADEMIC",
-      url: "https://so01.tci-thaijo.org/index.php/bdm/article/view/179650",
-      orderIndex: 14,
-    },
-    {
-      titleTh: "ธรรมชาติความแตกแยกของมนุษย์บนรากฐานแนวคิดเรื่องธาตุ",
-      titleEn: "The Nature of Human Discord Based on the Element Concept",
-      authors: "พระจาตุรงค์ อาจารสุโภ",
-      journalName: "วารสารบัณฑิตสาเกตปริทรรศน์",
-      volume: "ปีที่ ๓",
-      issue: "ฉบับที่ ๒",
-      publicationYear: "๒๕๖๑",
-      pages: "๘๙-๙๘",
-      tier: "TCI กลุ่ม ๒",
-      type: "ACADEMIC",
-      url: "https://so03.tci-thaijo.org/index.php/saketreview/article/view/248007",
-      orderIndex: 15,
-    },
-  ];
+      isActive: true,
+    };
 
-  for (const pub of chaturongPubs) {
-    await prisma.researchPublication.create({
-      data: {
+    if (chaturong) {
+      chaturong = await prisma.personnel.update({
+        where: { id: chaturong.id },
+        data: chaturongData,
+      });
+      console.log(`Updated Phra Chaturong (${chaturong.id})`);
+    } else {
+      chaturong = await prisma.personnel.create({
+        data: {
+          tenantId: tenant.id,
+          ...chaturongData,
+        },
+      });
+      console.log(`Created Phra Chaturong (${chaturong.id})`);
+    }
+
+    // 4. Clear existing publications for these 2 teachers in this tenant
+    await prisma.researchPublication.deleteMany({
+      where: {
         tenantId: tenant.id,
-        personnelId: chaturong.id,
-        ...pub,
+        personnelId: { in: [chaiya.id, chaturong.id] },
       },
     });
+
+    // 5. Insert Chaiya publications
+    for (const pub of chaiyaPubs) {
+      await prisma.researchPublication.create({
+        data: {
+          tenantId: tenant.id,
+          personnelId: chaiya.id,
+          ...pub,
+        },
+      });
+    }
+
+    // 6. Insert Chaturong publications
+    for (const pub of chaturongPubs) {
+      await prisma.researchPublication.create({
+        data: {
+          tenantId: tenant.id,
+          personnelId: chaturong.id,
+          ...pub,
+        },
+      });
+    }
+
+    console.log(`Seeded publications: Chaiya (${chaiyaPubs.length}), Chaturong (${chaturongPubs.length})`);
   }
 
-  console.log("Successfully seeded 2 teachers and " + (chaiyaPubs.length + chaturongPubs.length) + " research publications!");
+  console.log("\nFinished seeding teacher profiles and research across all tenants successfully!");
 }
 
 seed()
