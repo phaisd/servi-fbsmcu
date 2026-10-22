@@ -19,6 +19,7 @@ import {
   Calculator,
   RefreshCw,
   X,
+  Printer,
 } from "lucide-react";
 import {
   LiyonCard,
@@ -37,6 +38,7 @@ import {
   updateCourseGradingConfigAction,
 } from "@/features/attendance/actions";
 import { formatDate } from "@/shared/lib/format";
+import { OfficialGradeDocument } from "./official-grade-document";
 
 interface StudentGradeItem {
   enrollmentId: string;
@@ -90,20 +92,22 @@ interface GradesClientProps {
     major?: string;
     startDate?: string | null;
     endDate?: string | null;
+    logoUrl?: string;
   };
   initialGradingConfig: GradingConfig;
   initialStudents: StudentGradeItem[];
   isSuperAdmin?: boolean;
 }
 
+// เกณฑ์คะแนนตามแบบฟอร์มทางการ คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย
 function calculateGrade(score: number): string {
-  if (score >= 80) return "A";
-  if (score >= 75) return "B+";
-  if (score >= 70) return "B";
-  if (score >= 65) return "C+";
-  if (score >= 60) return "C";
-  if (score >= 55) return "D+";
-  if (score >= 50) return "D";
+  if (score >= 90) return "A";
+  if (score >= 85) return "B+";
+  if (score >= 80) return "B";
+  if (score >= 75) return "C+";
+  if (score >= 70) return "C";
+  if (score >= 65) return "D+";
+  if (score >= 60) return "D";
   return "F";
 }
 
@@ -119,6 +123,7 @@ export function GradesClient({
   const [filterEligible, setFilterEligible] = useState<"ALL" | "ELIGIBLE" | "INELIGIBLE">("ALL");
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [documentPrintMode, setDocumentPrintMode] = useState<"final" | "midterm" | null>(null);
 
   // Modal สัดส่วนคะแนน
   const [isConfigOpen, setIsConfigOpen] = useState(false);
@@ -678,6 +683,26 @@ export function GradesClient({
           >
             <Sliders className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
             สัดส่วนคะแนน
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDocumentPrintMode("final")}
+            title="พิมพ์ใบกรอกคะแนนผลการสอบปลายภาค ตามแบบฟอร์มทางการคณะพุทธศาสตร์ มจร."
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 text-xs font-bold shadow-2xs transition cursor-pointer"
+          >
+            <Printer className="w-3.5 h-3.5" />
+            ใบกรอกคะแนนปลายภาค (ทางการ)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setDocumentPrintMode("midterm")}
+            title="พิมพ์ใบเก็บคะแนนและวัดผลระหว่างภาค สำหรับอาจารย์ใช้ติดตามคะแนนสะสม"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 hover:bg-slate-50 text-xs font-semibold shadow-2xs transition cursor-pointer"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            ใบเก็บคะแนนระหว่างภาค
           </button>
 
           <button
@@ -1271,6 +1296,17 @@ export function GradesClient({
           </div>
         </div>
       </LiyonDialog>
+      {/* โมดอลแสดงและพิมพ์เอกสารทางการ (ปลายภาค / ระหว่างภาค) */}
+      {documentPrintMode && (
+        <OfficialGradeDocument
+          course={course}
+          config={config}
+          students={students}
+          defaultMode={documentPrintMode}
+          onClose={() => setDocumentPrintMode(null)}
+        />
+      )}
+
     </div>
   );
 }

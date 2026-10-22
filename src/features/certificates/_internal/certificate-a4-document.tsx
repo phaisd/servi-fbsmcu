@@ -105,6 +105,7 @@ function CertificateFooterBlock({
   isEnglish,
   footerFontSizePt,
   footerLayout,
+  showVerificationQr = true,
 }: {
   leftContent: React.ReactNode;
   qrDataUrl: string | null;
@@ -113,7 +114,21 @@ function CertificateFooterBlock({
   isEnglish?: boolean;
   footerFontSizePt: number;
   footerLayout: "TWO_COLUMNS" | "STACKED";
+  showVerificationQr?: boolean;
 }) {
+  if (!showVerificationQr) {
+    return (
+      <div className="mt-4 pt-2.5 border-t border-black/25 text-black">
+        <div
+          className="text-left leading-tight"
+          style={{ fontSize: `${footerFontSizePt}pt` }}
+        >
+          {leftContent}
+        </div>
+      </div>
+    );
+  }
+
   if (footerLayout === "TWO_COLUMNS") {
     return (
       <div className="mt-4 pt-2.5 border-t border-black/25 flex items-end justify-between gap-4 text-black">
@@ -273,6 +288,7 @@ export function CertificateA4Document({
   const marginSideMm = metadata.marginSideMm ?? 25;
   const showSignature = metadata.showSignatureGraphic !== false;
   const showPhotoBox = metadata.showPhotoBox !== false;
+  const showVerificationQr = metadata.showVerificationQr !== false;
 
   const appOrigin = typeof window !== "undefined" ? window.location.origin : "";
   const rawVerifyUrl =
@@ -363,7 +379,15 @@ export function CertificateA4Document({
             className="text-center font-bold uppercase tracking-wide my-8"
             style={{ fontSize: `${fontSizePt + 1}pt` }}
           >
-            TO WHOM IT MAY CONCERN
+            <div>{doc.documentTitleEn || "TO WHOM IT MAY CONCERN"}</div>
+            {doc.isNewStudent && (
+              <div
+                className="font-semibold tracking-normal mt-1"
+                style={{ fontSize: `${Math.max(10.5, fontSizePt - 0.5)}pt` }}
+              >
+                (หนังสือรับรองการเป็นผู้ผ่านการคัดเลือกเข้าศึกษา • For Non-ED Visa Application)
+              </div>
+            )}
           </div>
 
           {/* Body Paragraph 1 */}
@@ -426,6 +450,7 @@ export function CertificateA4Document({
             isEnglish
             footerFontSizePt={footerFontSizePt}
             footerLayout={footerLayout}
+            showVerificationQr={showVerificationQr}
           />
         </div>
       </div>
@@ -509,6 +534,7 @@ export function CertificateA4Document({
             requestId={requestId}
             footerFontSizePt={footerFontSizePt}
             footerLayout={footerLayout}
+            showVerificationQr={showVerificationQr}
           />
         </div>
       </div>
@@ -624,6 +650,7 @@ export function CertificateA4Document({
             requestId={requestId}
             footerFontSizePt={footerFontSizePt}
             footerLayout={footerLayout}
+            showVerificationQr={showVerificationQr}
           />
         </div>
       </div>
@@ -643,12 +670,20 @@ export function CertificateA4Document({
         {/* มุมซ้ายบน: ที่ อว 8002 / ... */}
         <div>ที่ อว {doc.docNo.replace(/^(ที่\s*)?อว\s*/i, "")}</div>
 
-        {/* หัวเรื่อง: หนังสือรับรอง */}
+        {/* หัวเรื่อง: หนังสือรับรอง / หนังสือรับรองการเป็นผู้ผ่านการคัดเลือกเข้าศึกษา */}
         <div
           className="text-center font-bold my-8"
           style={{ fontSize: `${fontSizePt + 2}pt` }}
         >
-          หนังสือรับรอง
+          <div>{doc.documentTitleTh || "หนังสือรับรอง"}</div>
+          {doc.isNewStudent && (
+            <div
+              className="font-semibold mt-0.5"
+              style={{ fontSize: `${Math.max(12, fontSizePt - 1)}pt` }}
+            >
+              (Certificate of Admission)
+            </div>
+          )}
         </div>
 
         {/* เนื้อความรับรอง */}
@@ -704,6 +739,7 @@ export function CertificateA4Document({
             requestId={requestId}
             footerFontSizePt={footerFontSizePt}
             footerLayout={footerLayout}
+            showVerificationQr={showVerificationQr}
           />
         </div>
       </div>

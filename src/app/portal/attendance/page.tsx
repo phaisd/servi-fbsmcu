@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { auth } from "@/features/identity/server";
 import { resolvePublicTenantId } from "@/features/news/server";
 import { getClasses } from "@/features/attendance/server";
 import { getLocale } from "@/shared/lib/i18n/server";
@@ -7,13 +8,36 @@ import { StudentAttendanceInquiry } from "./_components/student-attendance-inqui
 import { Button } from "@/components/ui/button";
 
 export default async function PublicAttendancePage() {
-  const locale = await getLocale();
-  const tenantId = await resolvePublicTenantId();
-  
-  const classes = await getClasses(tenantId);
+  const [locale, tenantId, session] = await Promise.all([
+    getLocale(),
+    resolvePublicTenantId(),
+    auth(),
+  ]);
+
+  let initialStudentCode = "";
+  const email = session?.user?.email?.toLowerCase().trim() || "";
+  if (email.endsWith("@mcu.ac.th")) {
+    const prefix = email.split("@")[0]?.trim() || "";
+    if (/^\d{8,12}$/.test(prefix) || prefix.startsWith("temp-")) {
+      initialStudentCode = prefix.toUpperCase();
+    }
+  }
+
+  const canManageAttendance = Boolean(
+    session?.isSuperAdmin || session?.permissions?.includes("attendance:manage")
+  );
+
+  const classes = canManageAttendance ? await getClasses(tenantId) : [];
+  const serializedClasses = classes.map((cls) => ({
+    id: cls.id,
+    courseCode: cls.courseCode,
+    courseName: cls.courseName,
+    term: cls.term,
+    instructorName: cls.primaryTeacher?.name || "-",
+  }));
 
   return (
-    <div className="space-y-12 max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+    <div className="space-y-10 max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
       {/* Top Banner & Quick QR Action */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border">
         <div>
@@ -26,8 +50,8 @@ export default async function PublicAttendancePage() {
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {locale === "th"
-              ? "ตรวจสอบประวัติเวลาเรียน ตรวจสิทธิ์สอบรายบุคคล และสแกน QR Code เข้าเรียน"
-              : "Check attendance history, exam eligibility, and scan QR code for check-in"}
+              ? "ตรวจสอบประวัติเวลาเรียน ตรวจสิทธิ์สอบรายบุคคล ลงทะเบียนรายวิชาเข้าชั้นเรียน และสแกน QR Code เข้าเรียน"
+              : "Check attendance history, exam eligibility, register courses, and scan QR code for check-in"}
           </p>
         </div>
 
@@ -39,48 +63,33 @@ export default async function PublicAttendancePage() {
         </Link>
       </div>
 
-      {/* Feature 1: Student Personal Attendance Search & Dashboard */}
-      <StudentAttendanceInquiry />
-
-      {/* All Available Classes Section */}
-      <div className="space-y-6 pt-4 border-t border-border">
-        <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-            {locale === "th" ? "รายวิชาทั้งหมดที่เปิดสอน" : "All Enrolled Classes"}
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {locale === "th" ? "วิชาที่มีการบันทึกเวลาเรียนในระบบ" : "Classes available for attendance tracking"}
-          </p>
+      {/* Security notice for students */}
+      {session?.user && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 dark:text-amber-200">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-amber-700 dark:text-amber-300">🔒 คำแนะนำด้านความปลอดภัย:</span>
+            <span>
+              {locale === "th"
+                ? "เพื่อความปลอดภัยของข้อมูลส่วนตัว (PDPA) หากท่านยังใช้รหัสผ่านเริ่มต้น (Fbตามด้วยรหัสนิสิต) กรุณาเปลี่ยนเป็นรหัสผ่านส่วนตัว"
+                : "Security tip: If you are still using your default password, please change it to protect your privacy."}
+            </span>
+          </div>
+          <Link
+            href="/change-password"
+            className="inline-flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-300 hover:underline shrink-0"
+          >
+            <span>{locale === "th" ? "เปลี่ยนรหัสผ่านที่นี่ →" : "Change password here →"}</span>
+          </Link>
         </div>
+      )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {classes.map((cls) => (
-          <div key={cls.id} className="flex flex-col overflow-hidden rounded-2xl border bg-card hover:shadow-md transition-all">
-            <div className="p-6 flex-1">
-              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted text-muted-foreground text-[11px] font-semibold tracking-wide uppercase mb-3">
-                <BookOpen className="h-3 w-3" />
-                {cls.courseCode}
-              </div>
-              <h3 className="text-xl font-bold text-foreground mb-4">{cls.courseName}</h3>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="h-4 w-4" />
-                  {locale === "th" ? "ภาคการศึกษา:" : "Term:"} {cls.term}
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">{locale === "th" ? "ผู้สอน:" : "Instructor:"}</span> {cls.primaryTeacher?.name || "-"}
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-        {classes.length === 0 && (
-          <div className="col-span-full py-20 text-center text-muted-foreground border rounded-xl bg-muted/20">
-            {locale === "th" ? "ยังไม่มีรายวิชาในระบบ" : "No classes available."}
-          </div>
-        )}
-      </div>
-      </div>
+      {/* Feature 1: Student Personal Attendance Search & Dashboard (+ Optional Admin All Classes Toggle) */}
+      <StudentAttendanceInquiry
+        initialStudentCode={initialStudentCode}
+        canManageAttendance={canManageAttendance}
+        allClasses={serializedClasses}
+        locale={locale}
+      />
     </div>
   );
 }

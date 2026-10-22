@@ -92,7 +92,7 @@ export function ClassesClient({
   initialItems,
   availableTeachers = [],
   isSuperAdmin,
-  currentUserId: _currentUserId,
+  currentUserId,
 }: ClassesClientProps) {
   const router = useRouter();
   const [items, setItems] = useState<ClassItem[]>(initialItems);
@@ -218,7 +218,7 @@ export function ClassesClient({
         dayOfWeek: formData.dayOfWeek,
         startTime: formData.startTime?.trim() || "09.00",
         endTime: formData.endTime?.trim() || "11.30",
-        primaryTeacherId: formData.primaryTeacherId ? formData.primaryTeacherId : _currentUserId,
+        primaryTeacherId: formData.primaryTeacherId ? formData.primaryTeacherId : currentUserId,
         description: formData.description?.trim()
           ? `${deptLangMeta} • ${formData.description.trim()}`
           : deptLangMeta,
@@ -736,6 +736,75 @@ export function ClassesClient({
         </Link>
       </div>
 
+      {/* ══════════ Quick Teaching History & Year Filters ══════════ */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 shadow-2xs flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+            <BookOpen className="w-4 h-4 text-primary" /> มุมมองการสอน:
+          </span>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedStatus("ACTIVE");
+              setSelectedTerm("ALL");
+            }}
+            className={`px-3 py-1.5 rounded-xl font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+              selectedStatus === "ACTIVE"
+                ? "bg-primary text-white shadow-xs font-bold"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900"
+            }`}
+          >
+            <span>📌 ภาคเรียนปัจจุบัน</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedStatus("ALL");
+              setSelectedTerm("ALL");
+            }}
+            className={`px-3 py-1.5 rounded-xl font-semibold transition cursor-pointer flex items-center gap-1.5 ${
+              selectedStatus === "ALL" && selectedTerm === "ALL"
+                ? "bg-purple-700 text-white shadow-xs font-bold"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900"
+            }`}
+          >
+            <span>📜 แฟ้มผลงานสอนย้อนหลังทั้งหมด (Teaching Portfolio)</span>
+          </button>
+        </div>
+
+        {/* Quick Academic Year Pills */}
+        <div className="flex items-center gap-1">
+          <span className="text-2xs text-slate-400 font-semibold mr-1">เลือกปีการศึกษา:</span>
+          {["2569", "2568", "2567", "2566"].map((yr) => {
+            const isMatch = selectedTerm.includes(yr);
+            return (
+              <button
+                key={yr}
+                type="button"
+                onClick={() => {
+                  setSelectedStatus("ALL");
+                  const matchedTerm = uniqueTerms.find((t) => t.includes(yr));
+                  if (matchedTerm) {
+                    setSelectedTerm(matchedTerm);
+                  } else {
+                    setSearchTerm(yr);
+                  }
+                }}
+                className={`px-2.5 py-1 rounded-lg text-2xs font-mono font-bold transition cursor-pointer ${
+                  isMatch || (searchTerm === yr && selectedStatus === "ALL")
+                    ? "bg-amber-600 text-white shadow-xs"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200"
+                }`}
+              >
+                {yr}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* แถบค้นหา ตัวกรองภาคการศึกษา และสถานะวิชา */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         <div className="lg:col-span-2 relative">
@@ -822,6 +891,11 @@ export function ClassesClient({
                         <StatusPill tone="info" className="text-2xs">
                           เทอม {item.term}
                         </StatusPill>
+                      )}
+                      {item.teachers?.some((t: any) => t.userId === currentUserId && t.role === "GUEST_LECTURER") && (
+                        <span className="px-2 py-0.5 rounded-lg bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 font-bold text-2xs border border-purple-300">
+                          ⭐ อาจารย์พิเศษ
+                        </span>
                       )}
 
                       {/* ปุ่มปิดภาคเรียน / เปิดใช้งานใหม่ */}

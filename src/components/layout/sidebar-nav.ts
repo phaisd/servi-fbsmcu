@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Settings, Layers, Newspaper, FileText, GraduationCap, Calendar, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Users, Settings, Layers, Newspaper, FileText, GraduationCap, Calendar, ShieldCheck, type LucideIcon } from "lucide-react";
 import { hasPermission, P } from "@/features/identity";
 import { SAMPLE_P } from "@/features/sample";
 import { NEWS_P } from "@/features/news";
@@ -24,6 +24,14 @@ export interface NavCrumb { title: string; href: string }
 
 export const sidebarGroups: NavGroup[] = [
   { label: "nav.group.overview", items: [{ title: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard }] },
+  {
+    label: "certificates.portal.nav",
+    items: [
+      { title: "certificates.portal.request", href: "/portal/certificates/request", icon: FileText, permission: CERTIFICATES_P.portalRequest },
+      { title: "certificates.portal.track", href: "/portal/certificates", icon: Layers, permission: CERTIFICATES_P.portalRequest },
+      { title: "certificates.portal.attendance", href: "/portal/attendance", icon: GraduationCap },
+    ],
+  },
   {
     label: "news.nav",
     items: [{ title: "news.nav", href: "/news", icon: Newspaper, permission: NEWS_P.newsRead }],
@@ -104,7 +112,13 @@ export const sidebarGroups: NavGroup[] = [
       ],
     }],
   },
-  { label: "nav.group.settings", items: [{ title: "nav.settings", href: "/settings", icon: Settings, permission: P.settingsManage }] },
+  {
+    label: "nav.group.settings",
+    items: [
+      { title: "nav.settings", href: "/settings", icon: Settings, permission: P.settingsManage },
+      { title: "audit.nav", href: "/audit-logs", icon: ShieldCheck, permission: P.auditRead },
+    ],
+  },
 ];
 
 type Ctx = Parameters<typeof hasPermission>[0];

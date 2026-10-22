@@ -44,6 +44,9 @@ import {
   createOrUpdateStudent,
   deleteStudent,
   batchImportStudents,
+  updateStudentStudyStatus,
+  getAvailableCoursesForStudent,
+  studentSelfEnrollCourses,
 } from "./_internal/services";
 
 import {
@@ -533,3 +536,55 @@ export async function batchImportStudentsAction(items: any[]) {
 
 
 
+
+export async function updateStudentStudyStatusAction(studentId: string, studyStatus: string) {
+  const session = await requireSession();
+  await requirePermission(ATTENDANCE_P.manage);
+
+  const result = await updateStudentStudyStatus(session.tenantId, session.userId, studentId, studyStatus);
+  revalidatePath("/attendance/students");
+  revalidatePath("/attendance/classes");
+  return { success: true, student: result };
+}
+
+/**
+ * ดึงรายวิชาที่เปิดสอนสำหรับให้นิสิตค้นหาและเลือกเข้าเรียนใน Student Portal
+ */
+export async function getAvailableCoursesForStudentAction(studentCode?: string, term?: string) {
+  const session = await getSessionContext();
+  const tenantId = session?.tenantId || (await resolvePublicTenantId());
+  const result = await getAvailableCoursesForStudent(tenantId, studentCode, term);
+  return result;
+}
+
+/**
+ * นิสิตลงทะเบียนรายวิชาเข้าชั้นเรียนด้วยตนเอง (หรือผ่านการสแกนสลิป/ใบลงทะเบียน)
+ */
+export async function studentSelfEnrollCoursesAction(data: {
+  studentCode: string;
+  courseIds: string[];
+  notes?: string;
+  studentProfile?: {
+    firstName?: string;
+    lastName?: string;
+    title?: string;
+    degree?: string;
+    department?: string;
+    major?: string;
+    yearLevel?: number;
+  };
+}) {
+  const session = await getSessionContext();
+  const tenantId = session?.tenantId || (await resolvePublicTenantId());
+  const result = await studentSelfEnrollCourses(
+    tenantId,
+    data.studentCode,
+    data.courseIds,
+    data.notes,
+    data.studentProfile,
+    session?.userId
+  );
+  revalidatePath("/portal/attendance");
+  revalidatePath("/attendance/classes");
+  return result;
+}

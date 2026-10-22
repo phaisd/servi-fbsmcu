@@ -22,6 +22,8 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:bootstrap": "tsx prisma/bootstrap.ts",
+    "db:backup": "tsx scripts/backup-database.ts",
+    "db:restore": "tsx scripts/restore-database.ts",
     "db:backup-attendance": "tsx scripts/backup-attendance.ts",
     "db:restore-attendance": "tsx scripts/restore-attendance.ts",
     "sync:liyon": "tsx scripts/sync-liyon-theme.ts",

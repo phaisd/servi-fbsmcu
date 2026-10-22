@@ -1,11 +1,13 @@
 export { CERTIFICATES_P, CERTIFICATES_PERMISSIONS } from "./permissions";
 export {
   CERTIFICATE_TEMPLATE_TYPES,
+  CERTIFICATE_APPLICANT_TYPES,
   CERTIFICATE_PURPOSES,
   certificateMetadataSchema,
   parseCertificateNote,
   serializeCertificateNote,
   type CertificateTemplateType,
+  type CertificateApplicantType,
   type CertificateRequestMetadata,
   SIGNER_PRESETS,
   SIGNER_NAME_PRESETS_TH,
@@ -17,6 +19,8 @@ export {
 export {
   buildCertificateDocumentText,
   inferDefaultTemplate,
+  isNewStudentAdmission,
+  isFacultyOrStaffApplicant,
   INITIAL_EXCEL_CERTIFICATE_RECORDS,
   type BuiltCertificateText,
 } from "./_internal/templates";
@@ -30,4 +34,3 @@ export {
   generateCertificateWordHtml,
   downloadCertificateAsWordDoc,
 } from "./_internal/word-export";
-

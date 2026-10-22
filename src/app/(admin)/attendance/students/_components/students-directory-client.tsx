@@ -30,6 +30,7 @@ import {
   Activity,
   Calendar,
   Award,
+  Printer,
 } from "lucide-react";
 import {
   LiyonCard,
@@ -43,7 +44,32 @@ import {
   createOrUpdateStudentAction,
   deleteStudentAction,
   batchImportStudentsAction,
+  updateStudentStudyStatusAction,
 } from "@/features/attendance/actions";
+import { getStudentActivityTranscriptAction } from "@/features/events/actions";
+import {
+  StudentActivityTranscriptDocument,
+  type StudentActivityTranscriptData,
+} from "@/components/documents/student-activity-transcript-document";
+
+
+export const STUDENT_STUDY_STATUS_OPTIONS = [
+  { value: "ปกติ", label: "ปกติ (Active)", color: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800" },
+  { value: "เทียบโอน", label: "เทียบโอน (Credit Transfer)", color: "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border-indigo-300 dark:border-indigo-800" },
+  { value: "ย้ายเข้า", label: "ย้ายเข้า (Transferred In)", color: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-300 dark:border-blue-800" },
+  { value: "ย้ายออก", label: "ย้ายออก (Transferred Out)", color: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-300 dark:border-purple-800" },
+  { value: "ลาออก", label: "ลาออก (Resigned)", color: "bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-300 dark:border-rose-800" },
+  { value: "ลาพักการศึกษา", label: "ลาพักการศึกษา (Leave of Absence)", color: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-800" },
+  { value: "รักษาสถานภาพ", label: "รักษาสถานภาพ (Retaining Status)", color: "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-800" },
+  { value: "พ้นสภาพ", label: "พ้นสภาพ (Dismissed)", color: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-300 dark:border-red-800" },
+  { value: "สำเร็จการศึกษา", label: "สำเร็จการศึกษา (Graduated)", color: "bg-teal-500/10 text-teal-700 dark:text-teal-400 border-teal-300 dark:border-teal-800" },
+  { value: "นิสิตใหม่ (รอออกรหัส)", label: "นิสิตใหม่ (รอออกรหัส)", color: "bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border-cyan-300 dark:border-cyan-800" },
+];
+
+export function getStudyStatusStyle(status?: string | null) {
+  const match = STUDENT_STUDY_STATUS_OPTIONS.find((s) => s.value === status);
+  return match ? match.color : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800";
+}
 
 export function getStudentProgramType(s: {
   curriculumName?: string | null;
@@ -194,11 +220,13 @@ interface StudentsDirectoryClientProps {
   initialStudents: any[];
   isSuperAdmin?: boolean;
   currentUserId?: string;
+  scopedNotice?: string | null;
 }
 
 export function StudentsDirectoryClient({
   initialStudents,
   isSuperAdmin,
+  scopedNotice,
 }: StudentsDirectoryClientProps) {
   const [students, setStudents] = React.useState<StudentItem[]>(initialStudents);
 
@@ -223,6 +251,7 @@ export function StudentsDirectoryClient({
   const [yearFilter, setYearFilter] = React.useState<number | "ALL">("ALL");
   const [deptFilter, setDeptFilter] = React.useState<string>("ALL");
   const [countryFilter, setCountryFilter] = React.useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = React.useState<string>("ALL");
 
   // Pagination
   const [currentPage, setCurrentPage] = React.useState(1);
@@ -265,6 +294,22 @@ export function StudentsDirectoryClient({
 
   // Expanded courses list popover/modal
   const [viewingCoursesStudent, setViewingCoursesStudent] = React.useState<StudentItem | null>(null);
+
+  // Activity Transcript Modal State
+  const [transcriptData, setTranscriptData] = React.useState<StudentActivityTranscriptData | null>(null);
+  const [isLoadingTranscript, setIsLoadingTranscript] = React.useState(false);
+
+  const handleOpenStudentTranscript = async (studentCode: string) => {
+    setIsLoadingTranscript(true);
+    try {
+      const res = await getStudentActivityTranscriptAction(studentCode);
+      setTranscriptData(res as StudentActivityTranscriptData);
+    } catch (err: any) {
+      toast.error(err.message || "ไม่สามารถโหลดระเบียนกิจกรรมได้");
+    } finally {
+      setIsLoadingTranscript(false);
+    }
+  };
 
   // Dynamic Departments based on students and active languageFilter
   const availableDepartments = React.useMemo(() => {
@@ -528,9 +573,11 @@ export function StudentsDirectoryClient({
 
       const matchCountry = countryFilter === "ALL" || (s.country || "").trim() === countryFilter;
 
-      return matchSearch && matchDegree && matchLanguage && matchYear && matchDept && matchCountry;
+      const matchStatus = statusFilter === "ALL" || (s.studyStatus || "ปกติ") === statusFilter;
+
+      return matchSearch && matchDegree && matchLanguage && matchYear && matchDept && matchCountry && matchStatus;
     });
-  }, [students, search, degreeFilter, languageFilter, yearFilter, deptFilter, countryFilter]);
+  }, [students, search, degreeFilter, languageFilter, yearFilter, deptFilter, countryFilter, statusFilter]);
 
   // Pagination slice
   const totalPages = Math.ceil(filteredStudents.length / pageSize) || 1;
@@ -594,7 +641,7 @@ export function StudentsDirectoryClient({
   // Reset page when filter changes
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [search, degreeFilter, languageFilter, yearFilter, deptFilter, countryFilter]);
+  }, [search, degreeFilter, languageFilter, yearFilter, deptFilter, countryFilter, statusFilter]);
 
   // Reset deptFilter if no longer available in the current language filter
   React.useEffect(() => {
@@ -602,6 +649,46 @@ export function StudentsDirectoryClient({
       setDeptFilter("ALL");
     }
   }, [availableDepartments, deptFilter]);
+
+  const generateNextTempStudentCode = React.useCallback(
+    (yearShort = "68") => {
+      const regex = new RegExp(`^TEMP-${yearShort}(\\d+)$`, "i");
+      let maxNum = 0;
+      students.forEach((s) => {
+        const m = (s.studentCode || "").trim().match(regex);
+        if (m) {
+          const n = parseInt(m[1], 10);
+          if (!isNaN(n) && n > maxNum) maxNum = n;
+        }
+      });
+      return `TEMP-${yearShort}${String(maxNum + 1).padStart(3, "0")}`;
+    },
+    [students]
+  );
+
+  const handleGenerateTempStudentId = (yearShort = "68", applyInterDefaults = true) => {
+    const nextCode = generateNextTempStudentCode(yearShort);
+    setFormData((prev) => ({
+      ...prev,
+      studentCode: nextCode,
+      yearLevel: 1,
+      studyStatus: "นิสิตใหม่ (รอออกรหัส)",
+      email: `${nextCode.toLowerCase()}@mcu.ac.th`,
+      ...(applyInterDefaults
+        ? {
+            degree: prev.degree || "ปริญญาตรี",
+            major: prev.major || "Buddhist Studies",
+            department: prev.department || "ภาควิชาพระพุทธศาสนา",
+            curriculumName:
+              prev.curriculumName && prev.curriculumName.includes("ภาษาอังกฤษ")
+                ? prev.curriculumName
+                : "พุทธศาสตรบัณฑิต สาขาวิชาพระพุทธศาสนา (หลักสูตรภาษาอังกฤษ)",
+            faculty: "คณะพุทธศาสตร์",
+          }
+        : {}),
+    }));
+    toast.success(`สร้างรหัสนิสิตชั่วคราว ${nextCode} สำหรับนิสิตใหม่ต่างประเทศเรียบร้อยแล้ว`);
+  };
 
   const handleOpenAdd = () => {
     setEditingStudent(null);
@@ -625,6 +712,25 @@ export function StudentsDirectoryClient({
       address: "",
     });
     setIsModalOpen(true);
+  };
+
+
+  const handleQuickStatusChange = async (studentId: string, newStatus: string) => {
+    // Optimistic update
+    setStudents((prev) =>
+      prev.map((s) => (s.id === studentId ? { ...s, studyStatus: newStatus } : s))
+    );
+
+    try {
+      const res = await updateStudentStudyStatusAction(studentId, newStatus);
+      if (res && res.success) {
+        toast.success(`เปลี่ยนสถานภาพเป็น "${newStatus}" เรียบร้อยแล้ว`);
+      } else {
+        throw new Error("Failed");
+      }
+    } catch {
+      toast.error("ไม่สามารถเปลี่ยนสถานภาพได้ โปรดลองอีกครั้ง");
+    }
   };
 
   const handleOpenEdit = (student: StudentItem) => {
@@ -1155,6 +1261,23 @@ export function StudentsDirectoryClient({
           </button>
         </div>
       </div>
+
+      {/* ── SCOPED OFFICER BANNER ── */}
+      {scopedNotice && (
+        <div className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40 border border-amber-300 dark:border-amber-800 rounded-2xl text-xs">
+          <span className="p-2 rounded-xl bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200 shrink-0 text-base">
+            🔒
+          </span>
+          <div className="space-y-0.5">
+            <span className="font-bold text-amber-900 dark:text-amber-200 block text-xs">
+              มุมมองเจ้าหน้าที่หลักสูตร: {scopedNotice}
+            </span>
+            <p className="text-2xs text-amber-700 dark:text-amber-400">
+              ระบบจำกัดการแสดงผลและจัดการข้อมูลเฉพาะนิสิตในสาขาวิชาและระดับการศึกษาที่ท่านได้รับมอบหมาย เพื่อความถูกต้องและปลอดภัยของข้อมูลหลักสูตร
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── VIEW MODE SWITCHER TABS ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
@@ -1783,6 +1906,21 @@ export function StudentsDirectoryClient({
               ))}
             </select>
 
+
+            {/* Status Filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="px-3 py-2 rounded-xl bg-muted/50 border border-border text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <option value="ALL">🌟 ทุกสถานภาพ</option>
+              {STUDENT_STUDY_STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+
             {/* Country / Nationality Filter */}
             {availableCountries.length > 0 && (
               <select
@@ -1811,7 +1949,8 @@ export function StudentsDirectoryClient({
             languageFilter !== "ALL" ||
             yearFilter !== "ALL" ||
             deptFilter !== "ALL" ||
-            countryFilter !== "ALL") && (
+            countryFilter !== "ALL" ||
+            statusFilter !== "ALL") && (
             <button
               type="button"
               onClick={() => {
@@ -1821,6 +1960,7 @@ export function StudentsDirectoryClient({
                 setYearFilter("ALL");
                 setDeptFilter("ALL");
                 setCountryFilter("ALL");
+                setStatusFilter("ALL");
               }}
               className="text-primary hover:underline cursor-pointer"
             >
@@ -1873,9 +2013,25 @@ export function StudentsDirectoryClient({
                       </td>
 
                       <td className="py-3 px-4">
-                        <span className="font-mono font-semibold px-2 py-0.5 rounded-md bg-muted text-foreground text-xs">
-                          {student.studentCode}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span
+                            className={`font-mono font-semibold px-2 py-0.5 rounded-md text-xs ${
+                              student.studentCode.toUpperCase().startsWith("TEMP-")
+                                ? "bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30"
+                                : "bg-muted text-foreground"
+                            }`}
+                          >
+                            {student.studentCode}
+                          </span>
+                          {student.studentCode.toUpperCase().startsWith("TEMP-") && (
+                            <span
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                              title="รหัสนิสิตชั่วคราวสำหรับนิสิตใหม่ที่สอบผ่านและรอออกรหัสนิสิต 10 หลัก"
+                            >
+                              รหัสชั่วคราว
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="py-3 px-4">
@@ -2051,19 +2207,33 @@ export function StudentsDirectoryClient({
                       </td>
 
                       <td className="py-3 px-4 text-center">
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-semibold ${
-                            student.studyStatus === "ปกติ" || !student.studyStatus
-                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                              : "bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                          }`}
+                        <select
+                          value={student.studyStatus || "ปกติ"}
+                          onChange={(e) => handleQuickStatusChange(student.id, e.target.value)}
+                          className={`text-2xs font-semibold rounded-lg px-2 py-1 border transition-all cursor-pointer shadow-2xs hover:shadow-xs focus:ring-1 focus:ring-primary ${getStudyStatusStyle(
+                            student.studyStatus
+                          )}`}
+                          title="คลิกเพื่อเปลี่ยนสถานภาพนิสิตได้ทันที"
                         >
-                          {student.studyStatus || "ปกติ"}
-                        </span>
+                          {STUDENT_STUDY_STATUS_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value} className="bg-background text-foreground">
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
                       </td>
 
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenStudentTranscript(student.studentCode)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition cursor-pointer"
+                            title="พิมพ์ระเบียนกิจกรรมสะสม (Activity Transcript A4)"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                          </button>
+
                           <button
                             type="button"
                             onClick={() => handleOpenEdit(student)}
@@ -2409,12 +2579,42 @@ export function StudentsDirectoryClient({
                 <LiyonDialogBody className="p-5 space-y-4 overflow-y-auto flex-1">
                   {/* ── SECTION 1: ข้อมูลประจำตัวนิสิต ── */}
                   <div className="bg-muted/30 dark:bg-muted/10 border border-border/70 rounded-2xl p-4 space-y-3.5">
-                    <div className="flex items-center gap-2 text-xs font-bold text-foreground">
-                      <div className="w-5 h-5 rounded-md bg-primary/10 text-primary flex items-center justify-center">
-                        <Users className="w-3.5 h-3.5" />
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+                        <div className="w-5 h-5 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+                          <Users className="w-3.5 h-3.5" />
+                        </div>
+                        <span>ข้อมูลประจำตัวและสถานภาพนิสิต</span>
                       </div>
-                      <span>ข้อมูลประจำตัวและสถานภาพนิสิต</span>
+
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleGenerateTempStudentId("68", true)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-2xs font-bold transition cursor-pointer shadow-2xs"
+                          title="สร้างรหัสชั่วคราวอัตโนมัติ (เช่น TEMP-68001) และตั้งค่าเริ่มต้นสำหรับนิสิตใหม่ต่างประเทศที่เพิ่งสอบผ่าน"
+                        >
+                          <span>🌍 นิสิตใหม่ต่างประเทศ / สร้างรหัสชั่วคราว (Auto TEMP ID)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleGenerateTempStudentId("69", true)}
+                          className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground border border-border text-[10px] font-semibold transition cursor-pointer"
+                          title="สร้างรหัสชั่วคราวรุ่นปี 2569 (เช่น TEMP-69001)"
+                        >
+                          <span>TEMP-69xxx</span>
+                        </button>
+                      </div>
                     </div>
+
+                    {formData.studentCode.toUpperCase().startsWith("TEMP-") && (
+                      <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/25 text-2xs text-amber-800 dark:text-amber-300">
+                        <span>
+                          ✨ <strong>โหมดลงทะเบียนนิสิตใหม่รหัสชั่วคราว ({formData.studentCode}):</strong>{" "}
+                          สามารถบันทึกเข้าระบบและออกหนังสือรับรองผู้ผ่านการคัดเลือก (Non-ED Visa) ได้ทันที เมื่อได้รับรหัส 10 หลักจริงแล้วสามารถกลับมาแก้ไขรหัสนิสิตได้ภายหลัง
+                        </span>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
@@ -2437,9 +2637,19 @@ export function StudentsDirectoryClient({
                       </div>
 
                       <div>
-                        <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
-                          รหัสนิสิต <span className="text-destructive">*</span>
-                        </label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-2xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            รหัสนิสิต <span className="text-destructive">*</span>
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => handleGenerateTempStudentId("68", false)}
+                            className="text-[10px] font-bold text-amber-700 dark:text-amber-400 hover:underline cursor-pointer"
+                            title="คลิกเพื่อสุ่ม/รันรหัสชั่วคราว TEMP-68xxx"
+                          >
+                            + Auto TEMP-68xxx
+                          </button>
+                        </div>
                         <input
                           type="text"
                           required
@@ -2448,18 +2658,25 @@ export function StudentsDirectoryClient({
                             const newCode = e.target.value.trim();
                             setFormData((prev) => {
                               const oldDefaultEmail = prev.studentCode ? `${prev.studentCode}@mcu.ac.th` : "";
+                              const oldLowerDefaultEmail = prev.studentCode
+                                ? `${prev.studentCode.toLowerCase()}@mcu.ac.th`
+                                : "";
                               const shouldAutoUpdate =
                                 !prev.email ||
                                 prev.email === oldDefaultEmail ||
+                                prev.email === oldLowerDefaultEmail ||
                                 prev.email === "student@mcu.ac.th";
                               return {
                                 ...prev,
                                 studentCode: newCode,
-                                email: shouldAutoUpdate && newCode ? `${newCode}@mcu.ac.th` : prev.email,
+                                email:
+                                  shouldAutoUpdate && newCode
+                                    ? `${newCode.toLowerCase()}@mcu.ac.th`
+                                    : prev.email,
                               };
                             });
                           }}
-                          placeholder="เช่น 6601201001"
+                          placeholder="เช่น 6601201001 หรือ TEMP-68001"
                           className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono font-bold"
                         />
                       </div>
@@ -2473,11 +2690,11 @@ export function StudentsDirectoryClient({
                           onChange={(e) => setFormData({ ...formData, studyStatus: e.target.value })}
                           className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 font-medium"
                         >
-                          <option value="ปกติ">ปกติ (Active)</option>
-                          <option value="รักษาสถานภาพ">รักษาสถานภาพ</option>
-                          <option value="ลาพักการศึกษา">ลาพักการศึกษา</option>
-                          <option value="พ้นสภาพ">พ้นสภาพ</option>
-                          <option value="สำเร็จการศึกษา">สำเร็จการศึกษา</option>
+                          {STUDENT_STUDY_STATUS_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
                         </select>
                       </div>
                     </div>
@@ -3198,10 +3415,20 @@ export function StudentsDirectoryClient({
                 {/* ── SECTION 5: กิจกรรมและโครงการที่ลงทะเบียน ── */}
                 {viewingCoursesStudent.eventRegistrations && viewingCoursesStudent.eventRegistrations.length > 0 && (
                   <div className="space-y-2 pt-2 border-t border-border">
-                    <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                      <Award className="w-4 h-4 text-blue-600" />
-                      กิจกรรมและโครงการที่ลงทะเบียน ({viewingCoursesStudent.eventRegistrations.length} รายการ)
-                    </span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                        <Award className="w-4 h-4 text-blue-600" />
+                        กิจกรรมและโครงการที่ลงทะเบียน ({viewingCoursesStudent.eventRegistrations.length} รายการ)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenStudentTranscript(viewingCoursesStudent.studentCode)}
+                        className="inline-flex items-center gap-1 text-2xs font-bold text-amber-700 hover:text-amber-800 hover:underline cursor-pointer"
+                      >
+                        <Printer className="w-3 h-3" />
+                        <span>พิมพ์ระเบียนกิจกรรม (A4)</span>
+                      </button>
+                    </div>
                     <div className="space-y-1.5">
                       {viewingCoursesStudent.eventRegistrations.map((reg, idx) => (
                         <div
@@ -3228,18 +3455,32 @@ export function StudentsDirectoryClient({
               </LiyonDialogBody>
 
               <LiyonDialogFooter className="p-4 border-t border-border flex items-center justify-between bg-muted/20">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const target = viewingCoursesStudent;
-                    setViewingCoursesStudent(null);
-                    handleOpenEdit(target);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-primary cursor-pointer transition"
-                >
-                  <Edit2 className="w-3.5 h-3.5" />
-                  แก้ไขข้อมูลนิสิต
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const code = viewingCoursesStudent.studentCode;
+                      handleOpenStudentTranscript(code);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-xs font-bold text-amber-800 cursor-pointer transition shadow-2xs"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>พิมพ์ Activity Transcript</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = viewingCoursesStudent;
+                      setViewingCoursesStudent(null);
+                      handleOpenEdit(target);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card hover:bg-muted text-xs font-semibold text-primary cursor-pointer transition"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                    แก้ไขข้อมูลนิสิต
+                  </button>
+                </div>
 
                 <button
                   type="button"
@@ -3470,6 +3711,14 @@ export function StudentsDirectoryClient({
             </div>
           </div>
         </LiyonDialog>
+      )}
+
+      {/* ── ACTIVITY TRANSCRIPT MODAL ── */}
+      {transcriptData && (
+        <StudentActivityTranscriptDocument
+          data={transcriptData}
+          onClose={() => setTranscriptData(null)}
+        />
       )}
     </div>
   );

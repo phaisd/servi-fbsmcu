@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useMemo, useRef } from "react";
+import Link from "next/link";
 import {
   Plus,
   Search,
@@ -633,6 +634,16 @@ export function AdministrationClient({ initialItems, canManage }: Props) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* View Public View Shortcut Button */}
+          <Link
+            href="/documents"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/80 px-3 py-1.5 text-xs font-semibold text-indigo-700 shadow-xs transition hover:bg-indigo-100"
+            title="เปิดดูหน้าทำเนียบคำสั่ง ประกาศ และแบบฟอร์มสาธารณะ (/documents)"
+          >
+            <Globe className="h-3.5 w-3.5 text-indigo-600" />
+            <span>ดูหน้าสาธารณะ (View Public View ↗)</span>
+          </Link>
+
           {/* Refresh Button */}
           <Button
             variant="outline"

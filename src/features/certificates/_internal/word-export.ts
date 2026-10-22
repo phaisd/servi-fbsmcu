@@ -151,7 +151,12 @@ export function generateCertificateWordHtml(
       </table>
 
       <div style="text-align:center; font-weight:bold; font-size:${fontSizePt + 3}pt; margin-top:24pt; margin-bottom:24pt; letter-spacing:1px;">
-        TO WHOM IT MAY CONCERN
+        <div>${doc.documentTitleEn || "TO WHOM IT MAY CONCERN"}</div>
+        ${
+          doc.isNewStudent
+            ? `<div style="font-size:${Math.max(11, fontSizePt - 0.5)}pt; font-weight:normal; margin-top:4pt;">(หนังสือรับรองการเป็นผู้ผ่านการคัดเลือกเข้าศึกษา • For Non-ED Visa Application)</div>`
+            : ""
+        }
       </div>
 
       <p class="indent" style="font-size:${fontSizePt}pt; line-height:1.5; text-align:justify; margin-bottom:14pt;">
@@ -276,7 +281,12 @@ export function generateCertificateWordHtml(
       </table>
 
       <div style="text-align:center; font-weight:bold; font-size:${fontSizePt + 4}pt; margin-top:16pt; margin-bottom:20pt;">
-        หนังสือรับรอง
+        <div>${doc.documentTitleTh || "หนังสือรับรอง"}</div>
+        ${
+          doc.isNewStudent
+            ? `<div style="font-size:${Math.max(13, fontSizePt)}pt; font-weight:bold; margin-top:4pt;">(Certificate of Admission)</div>`
+            : ""
+        }
       </div>
 
       <p class="indent" style="font-size:${fontSizePt}pt; line-height:1.45; text-align:justify; margin-bottom:14pt;">

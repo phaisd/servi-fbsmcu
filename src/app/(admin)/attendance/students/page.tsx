@@ -9,13 +9,33 @@ export const metadata = {
 
 export default async function AttendanceStudentsPage() {
   const ctx = await requirePermission(ATTENDANCE_P.manage);
-  const students = await getAllStudentsDirectory(ctx.tenantId);
+  const students = await getAllStudentsDirectory(ctx.tenantId, ctx.userId);
+
+  // Check if scoped curriculum officer
+  let scopedNotice: string | null = null;
+  if (!ctx.isSuperAdmin) {
+    const email = ctx.email.toLowerCase();
+    if (email.includes("tipitaka")) {
+      scopedNotice = "สาขาวิชาพระไตรปิฎกศึกษา" + (email.includes("master") ? " (ระดับปริญญาโท)" : email.includes("doc") ? " (ระดับปริญญาเอก)" : "");
+      if (email.includes("wknd")) scopedNotice += " • ภาคพิเศษ/เสาร์-อาทิตย์";
+      else if (email.includes("reg")) scopedNotice += " • ภาคปกติ";
+    } else if (email.includes("religion")) {
+      scopedNotice = "สาขาวิชาศาสนาเปรียบเทียบ" + (email.includes("master") ? " (ระดับปริญญาโท)" : email.includes("doc") ? " (ระดับปริญญาเอก)" : "");
+      if (email.includes("wknd")) scopedNotice += " • ภาคพิเศษ/เสาร์-อาทิตย์";
+      else if (email.includes("reg")) scopedNotice += " • ภาคปกติ";
+    } else if (email.includes("vipassana")) {
+      scopedNotice = "สาขาวิชาวิปัสสนาภาวนาศึกษา" + (email.includes("master") ? " (ระดับปริญญาโท)" : "");
+      if (email.includes("wknd")) scopedNotice += " • ภาคพิเศษ/เสาร์-อาทิตย์";
+      else if (email.includes("reg")) scopedNotice += " • ภาคปกติ";
+    }
+  }
 
   return (
     <StudentsDirectoryClient
       initialStudents={students}
       isSuperAdmin={ctx.isSuperAdmin}
       currentUserId={ctx.userId}
+      scopedNotice={scopedNotice}
     />
   );
 }

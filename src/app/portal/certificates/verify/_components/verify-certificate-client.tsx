@@ -66,10 +66,28 @@ export function VerifyCertificateClient({ initialData, searchCode = "" }: Props)
     timeStyle: "medium",
   });
 
+  const applicantType = m?.applicantType || "CURRENT_STUDENT";
+  const statusBadgeText =
+    applicantType === "NEW_STUDENT"
+      ? isEn
+        ? "Admitted / Eligible to Enroll"
+        : "ผ่านการคัดเลือก / มีสิทธิ์เข้าศึกษา"
+      : applicantType === "FACULTY_LECTURER"
+      ? isEn
+        ? "Active Faculty Lecturer"
+        : "ปฏิบัติหน้าที่อาจารย์ผู้สอน"
+      : applicantType === "STAFF_MEMBER"
+      ? isEn
+        ? "Active Faculty Staff"
+        : "ปฏิบัติงานสายสนับสนุน"
+      : isEn
+      ? "Currently Enrolled"
+      : "กำลังศึกษาอยู่";
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-100/60 to-slate-100 text-slate-900">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-slate-100/60 to-slate-100 text-slate-900 print:min-h-0 print:bg-white">
       {/* Header Bar */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs print:static print:shadow-none">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4">
           <Link
             href="/portal/certificates"
@@ -96,8 +114,8 @@ export function VerifyCertificateClient({ initialData, searchCode = "" }: Props)
             </div>
           </Link>
 
-          {/* Language Switcher */}
-          <div className="flex items-center gap-1.5 shrink-0 bg-slate-100 p-1 rounded-xl border border-slate-200">
+          {/* Language Switcher (Hidden when printing) */}
+          <div className="flex items-center gap-1.5 shrink-0 bg-slate-100 p-1 rounded-xl border border-slate-200 print:hidden">
             <button
               type="button"
               onClick={() => setLang("th")}
@@ -125,9 +143,9 @@ export function VerifyCertificateClient({ initialData, searchCode = "" }: Props)
       </header>
 
       {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-        {/* Search Bar for manual lookup */}
-        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6 print:py-4">
+        {/* Search Bar for manual lookup (Hidden when printing) */}
+        <div className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs print:hidden">
           <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2.5">
             <div className="relative flex-1">
               <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -155,7 +173,7 @@ export function VerifyCertificateClient({ initialData, searchCode = "" }: Props)
 
         {/* Verification Result Card */}
         {initialData && isApproved ? (
-          <div className="bg-white rounded-3xl border-2 border-emerald-500/40 shadow-lg overflow-hidden">
+          <div className="bg-white rounded-3xl border-2 border-emerald-500/40 shadow-lg overflow-hidden print:shadow-none print:rounded-2xl">
             {/* Banner: Verified Authentic */}
             <div className="bg-gradient-to-r from-emerald-600 via-emerald-600 to-teal-700 text-white px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3.5">
@@ -214,11 +232,13 @@ export function VerifyCertificateClient({ initialData, searchCode = "" }: Props)
 
               {/* Main Information Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                {/* 1. Student Identity */}
+                {/* 1. Student / Applicant Identity */}
                 <div className="bg-slate-50/80 rounded-2xl p-4 sm:p-5 border border-slate-200/80 space-y-3.5">
                   <div className="flex items-center gap-2 font-bold text-xs text-slate-700 uppercase tracking-wider pb-2 border-b border-slate-200">
                     <User className="w-4 h-4 text-primary" />
-                    <span>{isEn ? "Student Identification" : "ข้อมูลประจำตัวนิสิต"}</span>
+                    <span>
+                      {isEn ? "Applicant Identification" : "ข้อมูลประจำตัวผู้ได้รับการรับรอง"}
+                    </span>
                   </div>
 
                   <div>
@@ -233,7 +253,7 @@ export function VerifyCertificateClient({ initialData, searchCode = "" }: Props)
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <span className="text-[11px] text-slate-400">
-                        {isEn ? "Student ID Code:" : "รหัสประจำตัวนิสิต:"}
+                        {isEn ? "ID / Reference Code:" : "รหัสประจำตัว / เลขอ้างอิง:"}
                       </span>
                       <p className="font-mono font-bold text-slate-800 text-sm mt-0.5">
                         {m?.studentCode || "-"}
@@ -265,26 +285,28 @@ export function VerifyCertificateClient({ initialData, searchCode = "" }: Props)
                   </div>
                 </div>
 
-                {/* 2. Academic Enrollment Status */}
+                {/* 2. Academic Enrollment / Affiliation Status */}
                 <div className="bg-slate-50/80 rounded-2xl p-4 sm:p-5 border border-slate-200/80 space-y-3.5">
                   <div className="flex items-center gap-2 font-bold text-xs text-slate-700 uppercase tracking-wider pb-2 border-b border-slate-200">
                     <GraduationCap className="w-4 h-4 text-primary" />
-                    <span>{isEn ? "Academic Enrollment Status" : "สถานภาพการศึกษา"}</span>
+                    <span>{isEn ? "Academic / Affiliation Status" : "สถานภาพการศึกษาและสังกัด"}</span>
                   </div>
 
                   <div>
                     <span className="text-[11px] text-slate-400">
-                      {isEn ? "Program & Major:" : "ระดับการศึกษาและสาขาวิชา:"}
+                      {isEn ? "Program / Department:" : "ระดับการศึกษา / สังกัดสาขาวิชา:"}
                     </span>
                     <p className="font-bold text-slate-900 text-sm mt-0.5">
-                      {m?.degreeLevel || "Bachelor of Arts"} • {m?.major || "Buddhist Studies"}
+                      {applicantType === "FACULTY_LECTURER" || applicantType === "STAFF_MEMBER"
+                        ? `${m?.staffPosition || "บุคลากรคณะพุทธศาสตร์"} • ${m?.staffDepartment || "คณะพุทธศาสตร์"}`
+                        : `${m?.degreeLevel || "Bachelor of Arts"} • ${m?.major || "Buddhist Studies"}`}
                     </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <span className="text-[11px] text-slate-400">
-                        {isEn ? "Class Year:" : "ชั้นปีที่ศึกษา:"}
+                        {isEn ? "Class Year / Role:" : "ชั้นปี / บทบาท:"}
                       </span>
                       <p className="font-medium text-slate-800 text-sm mt-0.5">
                         {m?.classYear || "ปีที่ 1 (First Year)"}
@@ -292,12 +314,12 @@ export function VerifyCertificateClient({ initialData, searchCode = "" }: Props)
                     </div>
                     <div>
                       <span className="text-[11px] text-slate-400">
-                        {isEn ? "Student Status:" : "สถานภาพนิสิต:"}
+                        {isEn ? "Official Status:" : "สถานภาพปัจจุบัน:"}
                       </span>
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                         <span className="font-bold text-emerald-700 text-xs sm:text-sm">
-                          {isEn ? "Currently Enrolled" : "กำลังศึกษาอยู่"}
+                          {statusBadgeText}
                         </span>
                       </div>
                     </div>
@@ -358,7 +380,7 @@ export function VerifyCertificateClient({ initialData, searchCode = "" }: Props)
                 </div>
               </div>
 
-              {/* Action Buttons for Immigration Officer */}
+              {/* Action Buttons for Immigration Officer & Admin */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200">
                 <div className="flex items-center gap-2 text-xs text-slate-500">
                   <Phone className="w-3.5 h-3.5 text-slate-400" />
@@ -368,18 +390,18 @@ export function VerifyCertificateClient({ initialData, searchCode = "" }: Props)
                   </span>
                 </div>
 
-                <div className="flex items-center gap-2 w-full sm:w-auto">
+                <div className="flex items-center gap-2 w-full sm:w-auto print:hidden">
                   <button
                     type="button"
                     onClick={() => window.print()}
-                    className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
+                    className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-xs"
                   >
                     <Printer className="w-3.5 h-3.5" />
-                    <span>{isEn ? "Print Verification Summary" : "พิมพ์ใบรับรองการตรวจสอบ"}</span>
+                    <span>{isEn ? "Print Verification Summary" : "พิมพ์ใบรับรองการตรวจสอบ (สำหรับ ตม.)"}</span>
                   </button>
                   <Link
                     href="/portal/certificates"
-                    className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-semibold transition shadow-xs"
+                    className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
                     <span>{isEn ? "Certificates Portal" : "หน้ารวมคำขอรับรอง"}</span>
@@ -406,7 +428,7 @@ export function VerifyCertificateClient({ initialData, searchCode = "" }: Props)
                   : "คำขอนี้ยังอยู่ระหว่างการตรวจสอบของงานวิชาการ หรือยังไม่ได้รับการอนุมัติอย่างเป็นทางการ กรุณาประสานงานกับสำนักงานคณะพุทธศาสตร์ มจร เพื่อตรวจสอบ"}
               </p>
             </div>
-            <div className="pt-2">
+            <div className="pt-2 print:hidden">
               <Link
                 href="/portal/certificates"
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold"
@@ -432,7 +454,7 @@ export function VerifyCertificateClient({ initialData, searchCode = "" }: Props)
                   : `ไม่พบข้อมูลหนังสือรับรองที่ตรงกับ "${searchCode}" กรุณาตรวจสอบเลขที่หนังสือหรือสแกน QR Code ใหม่อีกครั้ง`}
               </p>
             </div>
-            <div className="pt-2">
+            <div className="pt-2 print:hidden">
               <Link
                 href="/portal/certificates"
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold"
@@ -465,7 +487,7 @@ export function VerifyCertificateClient({ initialData, searchCode = "" }: Props)
       </main>
 
       {/* Footer */}
-      <footer className="max-w-4xl mx-auto px-4 sm:px-6 py-6 text-center text-xs text-slate-500 border-t border-slate-200/60 mt-12">
+      <footer className="max-w-4xl mx-auto px-4 sm:px-6 py-6 text-center text-xs text-slate-500 border-t border-slate-200/60 mt-12 print:mt-4">
         <p>
           © 2026 Faculty of Buddhism, Mahachulalongkornrajavidyalaya University. All Rights Reserved.
         </p>

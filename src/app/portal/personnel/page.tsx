@@ -1,8 +1,9 @@
 import { resolvePublicTenantId } from "@/features/news/server";
 import { getPublicPersonnelList } from "@/features/personnel/server";
 import { getLocale } from "@/shared/lib/i18n/server";
-import { Users, Mail, Phone, Briefcase } from "lucide-react";
+import { Users, Mail, Phone, Briefcase, FileText } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 
 export default async function PublicPersonnelPage() {
   const locale = await getLocale();
@@ -52,9 +53,16 @@ export default async function PublicPersonnelPage() {
                     )}
                   </div>
                   <div className="p-6">
-                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[11px] font-semibold tracking-wide uppercase mb-3">
-                      <Briefcase className="h-3 w-3" />
-                      {person.type === "EXECUTIVE" ? "ผู้บริหาร" : person.type === "ACADEMIC" ? "สายวิชาการ" : "สายสนับสนุน"}
+                    <div className="flex flex-wrap items-center gap-1.5 mb-3">
+                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[11px] font-semibold tracking-wide uppercase">
+                        <Briefcase className="h-3 w-3" />
+                        {person.type === "EXECUTIVE" ? "ผู้บริหาร" : person.type === "ACADEMIC" ? "สายวิชาการ" : "สายสนับสนุน"}
+                      </div>
+                      {(person.positionTh?.includes("พิเศษ") || person.positionTh?.includes("ภายนอก")) && (
+                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border border-purple-200 text-[11px] font-semibold">
+                          ⭐ ผู้ทรงคุณวุฒิภายนอก / อาจารย์พิเศษ
+                        </div>
+                      )}
                     </div>
                     <h3 className="text-lg font-bold text-foreground">
                       {person.firstNameTh} {person.lastNameTh}
@@ -80,6 +88,16 @@ export default async function PublicPersonnelPage() {
                           </a>
                         </div>
                       )}
+
+                      <div className="pt-2">
+                        <Link
+                          href={`/portal/certificates/request?mode=personnel&personnelId=${person.id}`}
+                          className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-primary/20 bg-primary/5 py-1.5 text-xs font-semibold text-primary hover:bg-primary hover:text-primary-foreground transition-all duration-200 shadow-2xs"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          <span>{locale === "th" ? "ขอหนังสือรับรองอาจารย์/บุคลากร →" : "Request Certificate →"}</span>
+                        </Link>
+                      </div>
                     </div>
                   </div>
                 </div>

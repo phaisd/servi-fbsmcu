@@ -61,22 +61,107 @@ export async function assertCourseAccess(
  * ดึงรายชื่ออาจารย์ทั้งหมดในระบบเพื่อใช้มอบหมายผู้สอน
  */
 export async function getAvailableTeachers(tenantId: string) {
-  return db.user.findMany({
-    where: {
-      isActive: true,
-      userTenants: {
-        some: {
-          tenantId,
-          isActive: true,
+  const [users, personnel] = await Promise.all([
+    db.user.findMany({
+      where: {
+        isActive: true,
+        userTenants: {
+          some: {
+            tenantId,
+            isActive: true,
+            userRoles: {
+              some: {
+                role: {
+                  code: "TEACHER",
+                },
+              },
+              none: {
+                role: {
+                  code: "STUDENT",
+                },
+              },
+            },
+          },
+        },
+        NOT: {
+          email: {
+            contains: "@student",
+          },
         },
       },
-    },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-    },
-    orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+      },
+      orderBy: { name: "asc" },
+    }),
+    db.personnel.findMany({
+      where: { tenantId, isActive: true },
+      include: { department: true },
+    }),
+  ]);
+
+  const normalizeTeacherName = (name: string): string => {
+    return name
+      .toLowerCase()
+      .replace(/^(พระครูปลัด|พระครูภาวนา|พระครูศรี|พระครูสิริ|พระครู|พระมหา|พระราช|พระศรี|พระสมุห์|พระสิทธิ|พระธรรม|พระพรหม|พระ|ผศ\.พิเศษ ดร\.|ผศ\.ดร\.|ผศ\.|รศ\.พิเศษ ดร\.|รศ\.ดร\.|รศ\.|ดร\.|อ\.ดร\.|อ\.|assoc\. prof\. dr\.|asst\. prof\. dr\.|asst\. prof\. pm\.|asst\. prof\.|assoc\. prof\.|dr\.|prof\.|phramaha|phrasamu|ven\. dr\.|ven\. phra|ven\.|a\.dr\.)\s*/gi, "")
+      .replace(/(วิ\.|ผศ\.ดร\.|รศ\.ดร\.|ดร\.|ph\.d\.|,)/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  };
+
+  // Deduplicate: if an instructor has duplicate accounts (e.g. dummy vs official), prioritize official @mcu.ac.th
+  const dedupedUsers: typeof users = [];
+  const seenKeys = new Map<string, (typeof users)[0]>();
+
+  for (const u of users) {
+    const key = normalizeTeacherName(u.name);
+    const existing = seenKeys.get(key);
+
+    if (!existing) {
+      seenKeys.set(key, u);
+      dedupedUsers.push(u);
+    } else {
+      const isCurrentOfficial = u.email.endsWith("@mcu.ac.th") && !u.email.includes("@buddhist.mcu.ac.th");
+      const isExistingOfficial = existing.email.endsWith("@mcu.ac.th") && !existing.email.includes("@buddhist.mcu.ac.th");
+
+      if (isCurrentOfficial && !isExistingOfficial) {
+        const idx = dedupedUsers.findIndex((d) => d.id === existing.id);
+        if (idx !== -1) {
+          dedupedUsers[idx] = u;
+        }
+        seenKeys.set(key, u);
+      }
+    }
+  }
+
+  const personnelMap = new Map<string, { position?: string | null; department?: string | null }>();
+  for (const p of personnel) {
+    if (p.email) {
+      personnelMap.set(p.email.toLowerCase().trim(), {
+        position: p.positionTh,
+        department: p.department?.nameTh,
+      });
+    }
+    const fullName = `${p.firstNameTh} ${p.lastNameTh}`.trim().toLowerCase();
+    personnelMap.set(fullName, {
+      position: p.positionTh,
+      department: p.department?.nameTh,
+    });
+  }
+
+  return dedupedUsers.map((u) => {
+    const pInfo = (u.email && personnelMap.get(u.email.toLowerCase().trim())) ||
+                  personnelMap.get(u.name.toLowerCase().trim()) || null;
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      position: pInfo?.position || null,
+      department: pInfo?.department || null,
+      isExternal: pInfo?.position?.includes("ภายนอก") || pInfo?.position?.includes("พิเศษ") || false,
+    };
   });
 }
 
@@ -108,7 +193,7 @@ export async function assignCourseTeacher(
   courseId: string,
   data: {
     userId: string;
-    role: "PRIMARY_TEACHER" | "CO_TEACHER" | "TEACHING_ASSISTANT";
+    role: "PRIMARY_TEACHER" | "CO_TEACHER" | "GUEST_LECTURER" | "TEACHING_ASSISTANT";
   }
 ) {
   const course = await db.course.findUnique({
@@ -245,12 +330,39 @@ export async function getCourses(
     ];
   }
 
-  // กรองตามบทบาทอาจารย์ (ไม่ใช่ Admin)
+  // กรองตามบทบาทอาจารย์ หรือเจ้าหน้าที่หลักสูตร (ไม่ใช่ Admin)
   if (options?.userId && !options.isSuperAdmin) {
-    where.OR = [
-      { primaryTeacherId: options.userId },
-      { teachers: { some: { userId: options.userId } } },
-    ];
+    const userTenant = await db.userTenant.findUnique({
+      where: { userId_tenantId: { userId: options.userId, tenantId } },
+      include: { user: true, userRoles: { include: { role: true } } },
+    });
+
+    const isOfficer = userTenant?.userRoles.some((ur) => ur.role.code === "CURRICULUM_OFFICER");
+
+    if (isOfficer && userTenant) {
+      const email = userTenant.user.email.toLowerCase();
+      if (email.includes("tipitaka")) {
+        where.OR = [
+          { courseName: { contains: "พระไตรปิฎก", mode: "insensitive" } },
+          { description: { contains: "พระไตรปิฎก", mode: "insensitive" } },
+        ];
+      } else if (email.includes("religion")) {
+        where.OR = [
+          { courseName: { contains: "ศาสนา", mode: "insensitive" } },
+          { description: { contains: "ศาสนา", mode: "insensitive" } },
+        ];
+      } else if (email.includes("vipassana")) {
+        where.OR = [
+          { courseName: { contains: "วิปัสสนา", mode: "insensitive" } },
+          { description: { contains: "วิปัสสนา", mode: "insensitive" } },
+        ];
+      }
+    } else {
+      where.OR = [
+        { primaryTeacherId: options.userId },
+        { teachers: { some: { userId: options.userId } } },
+      ];
+    }
   }
 
   return db.course.findMany({
@@ -2373,6 +2485,10 @@ export async function getAvailableStudentsForCohort(
   const where: Prisma.StudentWhereInput = {
     tenantId,
     isActive: true,
+    OR: [
+      { studyStatus: null },
+      { studyStatus: { notIn: ["ลาออก", "ย้ายออก", "พ้นสภาพ", "ลาพักการศึกษา", "สำเร็จการศึกษา"] } },
+    ],
   };
 
   if (filters?.yearLevel) {
@@ -2730,6 +2846,9 @@ export async function getCourseAttendanceMatrix(
   const course = await db.course.findUnique({
     where: { id: courseId },
     include: {
+      tenant: {
+        select: { logoUrl: true },
+      },
       primaryTeacher: true,
       sessions: {
         orderBy: { sessionNumber: "asc" },
@@ -2918,6 +3037,9 @@ export async function getCourseGrades(
   const course = await db.course.findUnique({
     where: { id: courseId },
     include: {
+      tenant: {
+        select: { logoUrl: true },
+      },
       primaryTeacher: true,
       sessions: {
         orderBy: { sessionNumber: "asc" },
@@ -3038,7 +3160,8 @@ export async function getCourseGrades(
   const distinctDegrees = Array.from(
     new Set(course.enrollments.map((e: any) => e.student?.degree).filter(Boolean))
   );
-  const degree = distinctDegrees.length > 0 ? distinctDegrees.join(", ") : "ระดับปริญญาตรี";
+  const rawDegree = distinctDegrees.length > 0 ? distinctDegrees.join(", ") : "ปริญญาตรี";
+  const degree = rawDegree.startsWith("ระดับ") ? rawDegree : `ระดับ${rawDegree}`;
 
   const distinctFaculties = Array.from(
     new Set(course.enrollments.map((e: any) => e.student?.faculty).filter(Boolean))
@@ -3051,9 +3174,12 @@ export async function getCourseGrades(
   const isInter = distinctCurriculums.some(
     (c: any) =>
       typeof c === "string" &&
-      (c.toLowerCase().includes("inter") || c.includes("นานาชาติ") || c.toLowerCase().includes("english"))
+      (c.toLowerCase().includes("inter") ||
+        c.includes("นานาชาติ") ||
+        c.toLowerCase().includes("english") ||
+        c.includes("ภาษาอังกฤษ"))
   );
-  const programLanguage = isInter ? "หลักสูตรภาคภาษาอังกฤษ (นานาชาติ)" : "หลักสูตรภาคภาษาไทย";
+  const programLanguage = isInter ? "ภาคภาษาอังกฤษ" : "ภาคภาษาไทย";
 
   const distinctYears = Array.from(
     new Set(course.enrollments.map((e: any) => e.student?.yearLevel).filter(Boolean))
@@ -3102,6 +3228,7 @@ export async function getCourseGrades(
       major,
       startDate,
       endDate,
+      logoUrl: course.tenant?.logoUrl || "/uploads/logo-b8eef236-b993-4bc9-a08c-b02935131b84-1792468122154.png",
     },
     gradingConfig,
     students,
@@ -3232,12 +3359,79 @@ export async function updateCourseGradingConfig(
 }
 
 /**
- * ดึงข้อมูลนิสิตทั้งหมดในระบบสำหรับหน้าทะเบียนนิสิตกลาง (Student Directory)
+ * ดึงข้อมูลนิสิตในระบบสำหรับหน้าทะเบียนนิสิตกลาง (Student Directory)
+ * รองรับการล็อกขอบเขตการมองเห็นข้อมูลตามสาขาวิชาและระดับการศึกษาสำหรับเจ้าหน้าที่หลักสูตร
  */
-export async function getAllStudentsDirectory(tenantId: string) {
+export async function getAllStudentsDirectory(tenantId: string, actorId?: string) {
+  const where: any = { tenantId };
+
+  if (actorId) {
+    const userTenant = await db.userTenant.findUnique({
+      where: { userId_tenantId: { userId: actorId, tenantId } },
+      include: {
+        user: true,
+        userRoles: {
+          include: { role: true },
+        },
+      },
+    });
+
+    const isSuperAdmin = userTenant?.userRoles.some(
+      (ur) => ur.role.code === "SUPER_ADMIN" || (ur.role.code === "ADMIN" && ur.scopeType === "ALL")
+    );
+
+    if (!isSuperAdmin && userTenant) {
+      const email = userTenant.user.email.toLowerCase();
+      const officerRoles = userTenant.userRoles.filter((ur) => ur.role.code === "CURRICULUM_OFFICER");
+
+      if (officerRoles.length > 0) {
+        if (email.includes("tipitaka")) {
+          where.OR = [
+            { major: { contains: "พระไตรปิฎก", mode: "insensitive" } },
+            { curriculumName: { contains: "พระไตรปิฎก", mode: "insensitive" } },
+          ];
+          if (email.includes("master")) {
+            where.degree = { contains: "โท", mode: "insensitive" };
+          } else if (email.includes("doc")) {
+            where.degree = { contains: "เอก", mode: "insensitive" };
+          }
+        } else if (email.includes("religion")) {
+          where.OR = [
+            { major: { contains: "ศาสนาเปรียบเทียบ", mode: "insensitive" } },
+            { curriculumName: { contains: "ศาสนาเปรียบเทียบ", mode: "insensitive" } },
+          ];
+          if (email.includes("master")) {
+            where.degree = { contains: "โท", mode: "insensitive" };
+          } else if (email.includes("doc")) {
+            where.degree = { contains: "เอก", mode: "insensitive" };
+          }
+        } else if (email.includes("vipassana")) {
+          where.OR = [
+            { major: { contains: "วิปัสสนา", mode: "insensitive" } },
+            { curriculumName: { contains: "วิปัสสนา", mode: "insensitive" } },
+          ];
+          if (email.includes("master")) {
+            where.degree = { contains: "โท", mode: "insensitive" };
+          }
+        } else {
+          const orgScopes = officerRoles
+            .filter((ur) => ur.scopeType === "ORG_UNIT" && ur.scopeId)
+            .map((ur) => ur.scopeId!);
+          if (orgScopes.length > 0) {
+            const depts = await db.department.findMany({ where: { id: { in: orgScopes } } });
+            const deptNames = depts.map((d) => d.nameTh);
+            if (deptNames.length > 0) {
+              where.department = { in: deptNames };
+            }
+          }
+        }
+      }
+    }
+  }
+
   const [students, eventRegistrations] = await Promise.all([
     db.student.findMany({
-      where: { tenantId },
+      where,
       include: {
         enrollments: {
           where: { status: { not: EnrollmentStatus.DROPPED } },
@@ -3352,6 +3546,112 @@ export async function getAllStudentsDirectory(tenantId: string) {
   });
 }
 
+/**
+ * สร้างหรืออัปเดตบัญชีเข้าสู่ระบบสำหรับนิสิตอัตโนมัติ
+ * อีเมล: <รหัสนิสิต>@mcu.ac.th | รหัสผ่าน: Fb<รหัสนิสิต>
+ */
+export async function syncStudentLoginAccount(
+  tenantId: string,
+  student: {
+    studentCode: string;
+    title?: string | null;
+    firstName: string;
+    lastName: string;
+    email?: string | null;
+  }
+) {
+  const code = student.studentCode.trim();
+  if (!code) return null;
+
+  const loginEmail = `${code.toLowerCase()}@mcu.ac.th`;
+  const plainPassword = `Fb${code}`;
+  const passwordHash = await bcrypt.hash(plainPassword, 10);
+  const fullName =
+    [student.title, student.firstName, student.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim() || code;
+
+  const user = await db.user.upsert({
+    where: { email: loginEmail },
+    update: {
+      name: fullName,
+      isActive: true,
+    },
+    create: {
+      email: loginEmail,
+      name: fullName,
+      passwordHash,
+      provider: "credentials",
+      emailVerified: true,
+      mustChangePassword: false,
+      isActive: true,
+    },
+  });
+
+  if (!user.passwordHash) {
+    await db.user.update({
+      where: { id: user.id },
+      data: { passwordHash, mustChangePassword: false },
+    });
+  }
+
+  const ut = await db.userTenant.upsert({
+    where: {
+      userId_tenantId: {
+        userId: user.id,
+        tenantId,
+      },
+    },
+    update: { isActive: true },
+    create: {
+      userId: user.id,
+      tenantId,
+      isActive: true,
+    },
+  });
+
+  let studentRole = await db.role.findFirst({
+    where: { tenantId, code: "STUDENT" },
+  });
+  if (!studentRole) {
+    studentRole = await db.role.create({
+      data: {
+        tenantId,
+        code: "STUDENT",
+        nameTh: "นิสิต/นักศึกษา",
+        nameEn: "Student",
+        isSystem: false,
+      },
+    });
+  }
+  if (studentRole) {
+    const existingRole = await db.userRole.findFirst({
+      where: { userTenantId: ut.id, roleId: studentRole.id },
+    });
+    if (!existingRole) {
+      await db.userRole.create({
+        data: {
+          userTenantId: ut.id,
+          roleId: studentRole.id,
+          scopeType: "ALL",
+        },
+      });
+    }
+    const viewerRole = await db.role.findFirst({
+      where: { tenantId, code: "VIEWER" },
+    });
+    if (viewerRole) {
+      await db.userRole.deleteMany({
+        where: { userTenantId: ut.id, roleId: viewerRole.id },
+      });
+    }
+  }
+
+  return user;
+}
+
 export async function createOrUpdateStudent(
   tenantId: string,
   actorId: string,
@@ -3400,6 +3700,8 @@ export async function createOrUpdateStudent(
       },
     });
 
+    await syncStudentLoginAccount(tenantId, updated).catch(() => null);
+
     await writeAudit({
       tenantId,
       actorId,
@@ -3434,6 +3736,8 @@ export async function createOrUpdateStudent(
       address: data.address,
     },
   });
+
+  await syncStudentLoginAccount(tenantId, created).catch(() => null);
 
   await writeAudit({
     tenantId,
@@ -3470,6 +3774,32 @@ export async function deleteStudent(tenantId: string, actorId: string, studentId
   });
 
   return { success: true };
+}
+
+/**
+ * เปลี่ยนสถานภาพการศึกษาของนิสิต (Quick Update Study Status)
+ */
+export async function updateStudentStudyStatus(
+  tenantId: string,
+  actorId: string,
+  studentId: string,
+  studyStatus: string
+) {
+  const updated = await db.student.update({
+    where: { id: studentId, tenantId },
+    data: { studyStatus },
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "student.status.update",
+    entity: "Student",
+    entityId: studentId,
+    after: { studyStatus },
+  });
+
+  return updated;
 }
 
 /**
@@ -3634,4 +3964,237 @@ export async function getExecutiveAcademicStats(tenantId: string) {
   };
 }
 
+/**
+ * ดึงรายวิชาที่เปิดสอนสำหรับให้นิสิตค้นหาและลงทะเบียนด้วยตนเอง (Student Self-Enrollment Catalog)
+ */
+export async function getAvailableCoursesForStudent(
+  tenantId: string,
+  studentCode?: string,
+  term?: string
+) {
+  const where: Prisma.CourseWhereInput = {
+    tenantId,
+    status: CourseStatus.ACTIVE,
+  };
 
+  if (term && term !== "ALL") {
+    where.term = term;
+  }
+
+  // 1. ดึงข้อมูลรายวิชาที่เปิดทั้งหมด
+  const courses = await db.course.findMany({
+    where,
+    include: {
+      primaryTeacher: { select: { id: true, name: true, email: true } },
+      _count: { select: { enrollments: true, sessions: true } },
+    },
+    orderBy: [{ term: "desc" }, { courseCode: "asc" }],
+  });
+
+  // 2. ดึงรายการภาคการศึกษาที่มีเปิดสอนทั้งหมดเพื่อใช้ทำ Filter
+  const allTerms = await db.course.findMany({
+    where: { tenantId, status: CourseStatus.ACTIVE },
+    select: { term: true },
+    distinct: ["term"],
+    orderBy: { term: "desc" },
+  });
+
+  // 3. ตรวจสอบสถานะการลงทะเบียนของนิสิตคนนี้ (หากมีระบุรหัสนิสิต)
+  let studentData: any = null;
+  const enrolledCourseIdSet = new Set<string>();
+
+  if (studentCode && studentCode.trim()) {
+    const cleanCode = studentCode.trim();
+    const student = await db.student.findFirst({
+      where: {
+        tenantId,
+        studentCode: { equals: cleanCode, mode: "insensitive" },
+      },
+      include: {
+        enrollments: {
+          where: { status: EnrollmentStatus.ENROLLED },
+          select: { courseId: true, enrolledAt: true },
+        },
+      },
+    });
+
+    if (student) {
+      student.enrollments.forEach((e) => enrolledCourseIdSet.add(e.courseId));
+      studentData = {
+        id: student.id,
+        studentCode: student.studentCode,
+        fullName: `${student.title || ""}${student.firstName} ${student.lastName}`.trim(),
+        firstName: student.firstName,
+        lastName: student.lastName,
+        title: student.title,
+        degree: student.degree,
+        yearLevel: student.yearLevel,
+        department: student.department,
+        major: student.major,
+      };
+    }
+  }
+
+  const formattedCourses = courses.map((c) => ({
+    id: c.id,
+    courseCode: c.courseCode,
+    courseName: c.courseName,
+    courseNameEn: c.courseNameEn,
+    term: c.term,
+    academicYear: c.academicYear,
+    semester: c.semester,
+    credits: c.credits,
+    section: c.section,
+    room: c.room,
+    dayOfWeek: c.dayOfWeek,
+    startTime: c.startTime,
+    endTime: c.endTime,
+    description: c.description,
+    primaryTeacherName: c.primaryTeacher?.name || "-",
+    primaryTeacherEmail: c.primaryTeacher?.email || null,
+    totalEnrolled: c._count.enrollments,
+    totalSessions: c._count.sessions,
+    isEnrolled: enrolledCourseIdSet.has(c.id),
+  }));
+
+  return {
+    student: studentData,
+    courses: formattedCourses,
+    availableTerms: allTerms.map((t) => t.term).filter(Boolean),
+  };
+}
+
+/**
+ * ให้นิสิตลงทะเบียนรายวิชาด้วยตนเอง (เดี่ยว หรือ หลายวิชาพร้อมกัน / จากใบเสร็จหรือสลิป)
+ */
+export async function studentSelfEnrollCourses(
+  tenantId: string,
+  studentCode: string,
+  courseIds: string[],
+  notes?: string,
+  studentProfile?: {
+    firstName?: string;
+    lastName?: string;
+    title?: string;
+    degree?: string;
+    department?: string;
+    major?: string;
+    yearLevel?: number;
+  },
+  actorId?: string
+) {
+  const cleanCode = studentCode.trim();
+  if (!cleanCode) {
+    throw new Error("กรุณาระบุรหัสนิสิต");
+  }
+  if (!courseIds || courseIds.length === 0) {
+    throw new Error("กรุณาเลือกรายวิชาที่ต้องการลงทะเบียนอย่างน้อย 1 วิชา");
+  }
+
+  return db.$transaction(async (tx) => {
+    // 1. ค้นหาหรือสร้างโปรไฟล์นิสิต
+    let student = await tx.student.findFirst({
+      where: {
+        tenantId,
+        studentCode: { equals: cleanCode, mode: "insensitive" },
+      },
+    });
+
+    if (!student) {
+      if (!studentProfile?.firstName || !studentProfile?.lastName) {
+        throw new Error(
+          "ไม่พบข้อมูลนิสิตรหัสนี้ในฐานข้อมูลคณะ กรุณาระบุชื่อ-นามสกุลเพื่อสร้างบัญชีนิสิต"
+        );
+      }
+      student = await tx.student.create({
+        data: {
+          tenantId,
+          studentCode: cleanCode,
+          firstName: studentProfile.firstName.trim(),
+          lastName: studentProfile.lastName.trim(),
+          title: studentProfile.title || "นาย",
+          degree: studentProfile.degree || "ปริญญาตรี",
+          department: studentProfile.department || "สาขาวิชาพระพุทธศาสนา",
+          major: studentProfile.major || studentProfile.department || "สาขาวิชาพระพุทธศาสนา",
+          yearLevel: studentProfile.yearLevel || 1,
+        },
+      });
+    }
+
+    // 2. ดึงข้อมูลรายวิชาที่ต้องการลงทะเบียน
+    const courses = await tx.course.findMany({
+      where: {
+        tenantId,
+        id: { in: courseIds },
+      },
+    });
+
+    const newlyEnrolled: string[] = [];
+    const alreadyEnrolled: string[] = [];
+
+    for (const course of courses) {
+      const existing = await tx.courseEnrollment.findUnique({
+        where: {
+          courseId_studentId: {
+            courseId: course.id,
+            studentId: student.id,
+          },
+        },
+      });
+
+      if (existing) {
+        if (existing.status === EnrollmentStatus.ENROLLED) {
+          alreadyEnrolled.push(`${course.courseCode} ${course.courseName}`);
+          continue;
+        }
+        // ถ้าเคยถูกถอน ให้กลับมาสถานะ ENROLLED
+        await tx.courseEnrollment.update({
+          where: { id: existing.id },
+          data: {
+            status: EnrollmentStatus.ENROLLED,
+            notes: notes || "นิสิตลงทะเบียนด้วยตนเองผ่าน Student Portal",
+          },
+        });
+        newlyEnrolled.push(`${course.courseCode} ${course.courseName}`);
+      } else {
+        const enrollment = await tx.courseEnrollment.create({
+          data: {
+            tenantId,
+            courseId: course.id,
+            studentId: student.id,
+            status: EnrollmentStatus.ENROLLED,
+            notes: notes || "นิสิตลงทะเบียนด้วยตนเองผ่าน Student Portal",
+          },
+        });
+        newlyEnrolled.push(`${course.courseCode} ${course.courseName}`);
+
+        await writeAudit({
+          tenantId,
+          actorId: actorId || student.id,
+          action: "course.enrollment.self_enroll",
+          entity: "CourseEnrollment",
+          entityId: enrollment.id,
+          after: {
+            studentCode: student.studentCode,
+            courseCode: course.courseCode,
+            courseName: course.courseName,
+            notes: notes || "นิสิตลงทะเบียนด้วยตนเองผ่าน Student Portal",
+          },
+        });
+      }
+    }
+
+    return {
+      success: true,
+      student: {
+        id: student.id,
+        studentCode: student.studentCode,
+        fullName: `${student.title || ""}${student.firstName} ${student.lastName}`.trim(),
+      },
+      enrolledCount: newlyEnrolled.length,
+      alreadyEnrolledCount: alreadyEnrolled.length,
+      newlyEnrolled,
+      alreadyEnrolled,
+    };
+  });
+}

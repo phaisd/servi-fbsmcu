@@ -20,11 +20,13 @@ import {
   Building2,
   FileSpreadsheet,
   FileDown,
+  GraduationCap,
 } from "lucide-react";
 import {
   CertificateA4Document,
   CERTIFICATE_PURPOSES,
   buildCertificateDocumentText,
+  isNewStudentAdmission,
   downloadCertificateAsWordDoc,
   type CertificateRequestMetadata,
   type CertificateTemplateType,
@@ -267,18 +269,35 @@ export function CertificateStudioClient({ request, suggestedNextDocNo = "8002 / 
   };
 
   const handleAutoLookupStudent = () => {
-    if (!meta.studentCode?.trim()) {
-      showToast("กรุณาระบุรหัสนิสิตก่อนค้นหา");
+    const q = (meta.studentCode || meta.fullName || "").trim();
+    if (!q) {
+      showToast("กรุณาระบุรหัสนิสิต / รหัสอาจารย์ (T69xxx) หรือชื่อก่อนค้นหา");
       return;
     }
     startTransition(async () => {
-      const found = await lookupStudentByCodeAction(meta.studentCode.trim());
+      const found = await lookupStudentByCodeAction(q);
       if (!found) {
-        showToast("ไม่พบรหัสนิสิตนี้ในฐานข้อมูลนิสิต");
+        showToast("ไม่พบข้อมูลในฐานข้อมูลนิสิต/บุคลากร");
         return;
       }
+      const detectedType = found.applicantType;
+
       setMeta((prev) => ({
         ...prev,
+        applicantType: detectedType,
+        studentCode: found.studentCode || prev.studentCode,
+        staffPosition: found.staffPosition || prev.staffPosition,
+        staffDepartment: found.staffDepartment || prev.staffDepartment,
+        taughtCourses: found.taughtCourses || prev.taughtCourses,
+        requestPurpose:
+          detectedType === "NEW_STUDENT"
+            ? "Letter of Acceptance (หนังสือตอบรับเข้าศึกษา/ขอวีซ่า)"
+            : detectedType === "FACULTY_LECTURER"
+            ? "Teaching & Lecturer Certificate (รับรองการเป็นอาจารย์ประจำ/อาจารย์พิเศษ)"
+            : detectedType === "STAFF_MEMBER"
+            ? "Faculty & Staff Employment Certificate (รับรองการปฏิบัติงานอาจารย์/เจ้าหน้าที่)"
+            : prev.requestPurpose,
+        customBodyText: "",
         fullName: found.fullName || prev.fullName,
         degreeLevel: found.degreeLevel || prev.degreeLevel,
         major: found.major || prev.major,
@@ -286,9 +305,61 @@ export function CertificateStudioClient({ request, suggestedNextDocNo = "8002 / 
         sex: found.sex || prev.sex,
         email: found.email || prev.email,
         phone: found.phone || prev.phone,
+        nationality: found.nationality || prev.nationality,
+        country: found.country || prev.country,
+        fullAddress: found.address || prev.fullAddress,
       }));
-      showToast(`ดึงข้อมูลนิสิต ${found.fullName} เรียบร้อยแล้ว`);
+      showToast(
+        detectedType === "NEW_STUDENT"
+          ? `ตรวจพบนิสิตใหม่ (${found.fullName}) • ปรับเป็นหนังสือรับรองการเป็นผู้ผ่านการคัดเลือกเข้าศึกษา (Certificate of Admission) อัตโนมัติ`
+          : detectedType === "FACULTY_LECTURER"
+          ? `ดึงข้อมูลอาจารย์ ${found.fullName} และรายวิชาที่สอนเรียบร้อยแล้ว`
+          : detectedType === "STAFF_MEMBER"
+          ? `ดึงข้อมูลบุคลากร ${found.fullName} เรียบร้อยแล้ว`
+          : `ดึงข้อมูลนิสิต ${found.fullName} เรียบร้อยแล้ว`
+      );
     });
+  };
+
+  const handleToggleApplicantType = (
+    nextType: "CURRENT_STUDENT" | "NEW_STUDENT" | "FACULTY_LECTURER" | "STAFF_MEMBER"
+  ) => {
+    setMeta((prev) => ({
+      ...prev,
+      applicantType: nextType,
+      staffPosition:
+        nextType === "FACULTY_LECTURER"
+          ? prev.staffPosition || "อาจารย์ประจำ / อาจารย์พิเศษผู้สอน"
+          : nextType === "STAFF_MEMBER"
+          ? prev.staffPosition || "นักวิชาการศึกษา / เจ้าหน้าที่บริหารงานทั่วไป"
+          : prev.staffPosition,
+      staffDepartment:
+        nextType === "FACULTY_LECTURER"
+          ? prev.staffDepartment || "ภาควิชาพระพุทธศาสนา คณะพุทธศาสตร์"
+          : nextType === "STAFF_MEMBER"
+          ? prev.staffDepartment || "สำนักงานคณบดี คณะพุทธศาสตร์"
+          : prev.staffDepartment,
+      requestPurpose:
+        nextType === "NEW_STUDENT"
+          ? "Letter of Acceptance (หนังสือตอบรับเข้าศึกษา/ขอวีซ่า)"
+          : nextType === "FACULTY_LECTURER"
+          ? "Teaching & Lecturer Certificate (รับรองการเป็นอาจารย์ประจำ/อาจารย์พิเศษ)"
+          : nextType === "STAFF_MEMBER"
+          ? "Faculty & Staff Employment Certificate (รับรองการปฏิบัติงานอาจารย์/เจ้าหน้าที่)"
+          : prev.requestPurpose === "Letter of Acceptance (หนังสือตอบรับเข้าศึกษา/ขอวีซ่า)"
+          ? "Bonafide Certificate (ความเป็นนิสิต)"
+          : prev.requestPurpose,
+      customBodyText: "",
+    }));
+    showToast(
+      nextType === "NEW_STUDENT"
+        ? 'ปรับเป็นโหมดนิสิตใหม่: "หนังสือรับรองการเป็นผู้ผ่านการคัดเลือกเข้าศึกษา (Certificate of Admission)" สำหรับขอ Non-ED Visa'
+        : nextType === "FACULTY_LECTURER"
+        ? "ปรับเป็นโหมดอาจารย์ประจำ / อาจารย์พิเศษผู้สอน"
+        : nextType === "STAFF_MEMBER"
+        ? "ปรับเป็นโหมดเจ้าหน้าที่สายสนับสนุน คณะพุทธศาสตร์"
+        : "ปรับเป็นโหมดนิสิตปัจจุบัน: หนังสือรับรองสถานภาพความเป็นนิสิต"
+    );
   };
 
   const handleLoadGeneratedBodyIntoCustom = () => {
@@ -305,6 +376,7 @@ export function CertificateStudioClient({ request, suggestedNextDocNo = "8002 / 
   };
 
   const isEng = meta.docTemplate === "ENG_CERT";
+  const isNewStudent = isNewStudentAdmission(meta);
 
   const fontPresets = isEng
     ? [
@@ -409,6 +481,16 @@ export function CertificateStudioClient({ request, suggestedNextDocNo = "8002 / 
               </button>
             )}
 
+            <Link
+              href={`/portal/certificates/verify/${request.id}`}
+              target="_blank"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-800 shadow-xs transition hover:bg-emerald-100"
+              title="เปิดหน้าตรวจสอบสถานะดิจิทัลสำหรับ ตม. หรือสั่งพิมพ์ใบสรุปการตรวจสอบแนบเอกสาร"
+            >
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              เปิด/พิมพ์ใบตรวจสอบ ตม. ↗
+            </Link>
+
             <button
               type="button"
               onClick={handleExportWord}
@@ -478,6 +560,156 @@ export function CertificateStudioClient({ request, suggestedNextDocNo = "8002 / 
                 );
               })}
             </div>
+
+            {/* NEW_STUDENT / LECTURER / STAFF Auto-Detection & Mode Switcher */}
+            {(meta.docTemplate === "THAI_CERT" ||
+              meta.docTemplate === "ENG_CERT" ||
+              meta.docTemplate === "BANK_LETTER") && (
+              <div
+                className={`mt-3.5 rounded-xl border p-3 transition ${
+                  isNewStudent
+                    ? "border-emerald-300 bg-emerald-50/80"
+                    : meta.applicantType === "FACULTY_LECTURER" ||
+                      meta.applicantType === "STAFF_MEMBER"
+                    ? "border-amber-300 bg-amber-50/70"
+                    : "border-slate-200 bg-slate-50/70"
+                }`}
+              >
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <GraduationCap
+                      className={`h-4 w-4 ${
+                        isNewStudent ? "text-emerald-700" : "text-slate-600"
+                      }`}
+                    />
+                    <span className="text-xs font-bold text-slate-900">
+                      ประเภทผู้ขอใบรับรอง (Applicant Status)
+                    </span>
+                  </div>
+                  {isNewStudent && (
+                    <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-2xs">
+                      NEW_STUDENT • Non-ED Visa
+                    </span>
+                  )}
+                  {(meta.applicantType === "FACULTY_LECTURER" ||
+                    meta.applicantType === "STAFF_MEMBER") && (
+                    <span className="rounded-full bg-amber-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-2xs">
+                      {meta.applicantType === "FACULTY_LECTURER"
+                        ? "อาจารย์ประจำ/พิเศษ"
+                        : "เจ้าหน้าที่คณะ"}
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleApplicantType("CURRENT_STUDENT")}
+                    className={`rounded-lg border px-2.5 py-2 text-left text-[11px] font-semibold transition ${
+                      !isNewStudent &&
+                      meta.applicantType !== "FACULTY_LECTURER" &&
+                      meta.applicantType !== "STAFF_MEMBER"
+                        ? "border-indigo-600 bg-indigo-600 text-white shadow-xs"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    <div className="font-bold">1. นิสิตปัจจุบัน</div>
+                    <div
+                      className={`text-[10px] ${
+                        !isNewStudent &&
+                        meta.applicantType !== "FACULTY_LECTURER" &&
+                        meta.applicantType !== "STAFF_MEMBER"
+                          ? "text-indigo-100"
+                          : "text-slate-400"
+                      }`}
+                    >
+                      รับรองสถานภาพนิสิต (Bonafide)
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleToggleApplicantType("NEW_STUDENT")}
+                    className={`rounded-lg border px-2.5 py-2 text-left text-[11px] font-semibold transition ${
+                      isNewStudent
+                        ? "border-emerald-600 bg-emerald-600 text-white shadow-xs"
+                        : "border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50"
+                    }`}
+                  >
+                    <div className="font-bold">2. 🌍 นิสิตใหม่ (NEW_STUDENT)</div>
+                    <div
+                      className={`text-[10px] ${
+                        isNewStudent ? "text-emerald-100" : "text-emerald-600"
+                      }`}
+                    >
+                      ผู้ผ่านการคัดเลือก (ขอ Non-ED Visa)
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleToggleApplicantType("FACULTY_LECTURER")}
+                    className={`rounded-lg border px-2.5 py-2 text-left text-[11px] font-semibold transition ${
+                      meta.applicantType === "FACULTY_LECTURER"
+                        ? "border-amber-600 bg-amber-600 text-white shadow-xs"
+                        : "border-amber-200 bg-white text-amber-900 hover:bg-amber-50"
+                    }`}
+                  >
+                    <div className="font-bold">3. 👨‍🏫 อาจารย์ประจำ/พิเศษ</div>
+                    <div
+                      className={`text-[10px] ${
+                        meta.applicantType === "FACULTY_LECTURER"
+                          ? "text-amber-100"
+                          : "text-amber-700"
+                      }`}
+                    >
+                      รับรองการสอน / สังกัดคณะ
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleToggleApplicantType("STAFF_MEMBER")}
+                    className={`rounded-lg border px-2.5 py-2 text-left text-[11px] font-semibold transition ${
+                      meta.applicantType === "STAFF_MEMBER"
+                        ? "border-amber-600 bg-amber-600 text-white shadow-xs"
+                        : "border-amber-200 bg-white text-amber-900 hover:bg-amber-50"
+                    }`}
+                  >
+                    <div className="font-bold">4. 🏛️ เจ้าหน้าที่คณะ</div>
+                    <div
+                      className={`text-[10px] ${
+                        meta.applicantType === "STAFF_MEMBER"
+                          ? "text-amber-100"
+                          : "text-amber-700"
+                      }`}
+                    >
+                      รับรองการปฏิบัติงานบุคลากร
+                    </div>
+                  </button>
+                </div>
+
+                {isNewStudent && (
+                  <p className="mt-2 rounded-lg bg-white/90 px-2.5 py-1.5 text-[11px] leading-relaxed font-medium text-emerald-900 border border-emerald-200">
+                    ✓ ปรับหัวข้อและเนื้อหาอัตโนมัติเป็น{" "}
+                    <span className="font-bold underline">
+                      &ldquo;หนังสือรับรองการเป็นผู้ผ่านการคัดเลือกเข้าศึกษา (Certificate of Admission)&rdquo;
+                    </span>{" "}
+                    สำหรับใช้ยื่นขอวีซ่าประเภทการศึกษา (Non-Immigrant ED Visa)
+                  </p>
+                )}
+                {(meta.applicantType === "FACULTY_LECTURER" ||
+                  meta.applicantType === "STAFF_MEMBER") && (
+                  <p className="mt-2 rounded-lg bg-white/90 px-2.5 py-1.5 text-[11px] leading-relaxed font-medium text-amber-950 border border-amber-200">
+                    ✓ โหมดบุคลากรคณะ: สามารถใส่รหัสอาจารย์ (เช่น{" "}
+                    <span className="font-mono font-bold">T69001</span>–
+                    <span className="font-mono font-bold">T69041</span>) ในแท็บ{" "}
+                    <span className="font-bold">&ldquo;3. ข้อมูลนิสิต&rdquo;</span>{" "}
+                    เพื่อดึงชื่อและรายวิชาที่สอนอัตโนมัติได้ทันที
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Step 2: Tabs for Font Size, Document Header, Student Data, Custom Text */}
@@ -749,6 +981,23 @@ export function CertificateStudioClient({ request, suggestedNextDocNo = "8002 / 
                         />
                       </label>
                     )}
+
+                    <label className="flex cursor-pointer items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50/40 px-3.5 py-2.5 hover:bg-emerald-50">
+                      <div>
+                        <span className="block text-xs font-bold text-emerald-950">
+                          แสดง QR Code ตรวจสอบสถานะสำหรับ ตม. ท้ายกระดาษ
+                        </span>
+                        <span className="text-[10px] text-emerald-700">
+                          ติ๊กออกหากไม่ต้องการแสดงกล่องสแกน QR Code สำหรับ ตม. บนใบรับรองฉบับนี้
+                        </span>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={meta.showVerificationQr ?? true}
+                        onChange={(e) => updateField("showVerificationQr", e.target.checked)}
+                        className="h-4 w-4 rounded border-emerald-300 text-emerald-600"
+                      />
+                    </label>
                   </div>
 
                   {/* ปรับแต่งส่วนท้ายเอกสารและ URL ตรวจสอบ (Footer Settings) */}
@@ -1272,15 +1521,123 @@ export function CertificateStudioClient({ request, suggestedNextDocNo = "8002 / 
               {/* TAB 3: STUDENT & EXCEL FIELDS */}
               {activeTab === "student" && (
                 <div className="space-y-3 max-h-[540px] overflow-y-auto pr-1">
+                  {/* Quick Applicant Type Switcher inside Student Tab */}
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                    <label className="mb-1.5 block text-[11px] font-bold text-slate-700">
+                      สถานะผู้ขอหนังสือรับรอง (Applicant Type)
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleApplicantType("CURRENT_STUDENT")}
+                        className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition ${
+                          !isNewStudent &&
+                          meta.applicantType !== "FACULTY_LECTURER" &&
+                          meta.applicantType !== "STAFF_MEMBER"
+                            ? "border-indigo-600 bg-indigo-600 text-white"
+                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
+                        }`}
+                      >
+                        1. นิสิตปัจจุบัน
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleApplicantType("NEW_STUDENT")}
+                        className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition ${
+                          isNewStudent
+                            ? "border-emerald-600 bg-emerald-600 text-white"
+                            : "border-emerald-200 bg-white text-emerald-800 hover:bg-emerald-50"
+                        }`}
+                      >
+                        2. 🌍 นิสิตใหม่
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleApplicantType("FACULTY_LECTURER")}
+                        className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition ${
+                          meta.applicantType === "FACULTY_LECTURER"
+                            ? "border-amber-600 bg-amber-600 text-white"
+                            : "border-amber-200 bg-white text-amber-900 hover:bg-amber-50"
+                        }`}
+                      >
+                        3. 👨‍🏫 อาจารย์ประจำ/พิเศษ
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleApplicantType("STAFF_MEMBER")}
+                        className={`rounded-lg border px-2.5 py-1.5 text-[11px] font-bold transition ${
+                          meta.applicantType === "STAFF_MEMBER"
+                            ? "border-amber-600 bg-amber-600 text-white"
+                            : "border-amber-200 bg-white text-amber-900 hover:bg-amber-50"
+                        }`}
+                      >
+                        4. 🏛️ เจ้าหน้าที่คณะ
+                      </button>
+                    </div>
+                  </div>
+
+                  {(meta.applicantType === "FACULTY_LECTURER" ||
+                    meta.applicantType === "STAFF_MEMBER") && (
+                    <div className="space-y-2.5 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-amber-950">
+                          ตำแหน่งอาจารย์ / เจ้าหน้าที่ (Position)
+                        </label>
+                        <input
+                          type="text"
+                          value={meta.staffPosition || ""}
+                          onChange={(e) => updateField("staffPosition", e.target.value)}
+                          placeholder="เช่น อาจารย์ประจำ, อาจารย์พิเศษผู้สอน, นักวิชาการศึกษา"
+                          className="w-full rounded-xl border border-amber-200 bg-white px-3 py-1.5 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-amber-950">
+                          สังกัดภาควิชา / ส่วนงาน (Department)
+                        </label>
+                        <input
+                          type="text"
+                          value={meta.staffDepartment || ""}
+                          onChange={(e) => updateField("staffDepartment", e.target.value)}
+                          placeholder="เช่น ภาควิชาพระพุทธศาสนา คณะพุทธศาสตร์"
+                          className="w-full rounded-xl border border-amber-200 bg-white px-3 py-1.5 text-xs"
+                        />
+                      </div>
+                      {meta.applicantType === "FACULTY_LECTURER" && (
+                        <div>
+                          <label className="mb-1 block text-[11px] font-semibold text-amber-950">
+                            รายวิชาที่รับผิดชอบสอน (Taught Courses)
+                          </label>
+                          <input
+                            type="text"
+                            value={meta.taughtCourses || ""}
+                            onChange={(e) => updateField("taughtCourses", e.target.value)}
+                            placeholder="ดึงอัตโนมัติเมื่อค้นหารหัส T69001-T69041 หรือระบุเอง"
+                            className="w-full rounded-xl border border-amber-200 bg-white px-3 py-1.5 text-xs"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <label className="mb-1 block text-[11px] font-semibold text-slate-700">
-                        รหัสนิสิต (Student ID)
+                        รหัสนิสิต / รหัสชั่วคราว / รหัสอาจารย์ (Student ID / TEMP / T69xxx)
                       </label>
                       <input
                         type="text"
                         value={meta.studentCode || ""}
-                        onChange={(e) => updateField("studentCode", e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateField("studentCode", val);
+                          if (val.trim().toUpperCase().startsWith("TEMP-") && meta.applicantType !== "NEW_STUDENT") {
+                            updateField("applicantType", "NEW_STUDENT");
+                          } else if (/^T\d{4,6}$/i.test(val.trim()) && meta.applicantType !== "FACULTY_LECTURER") {
+                            updateField("applicantType", "FACULTY_LECTURER");
+                          }
+                        }}
+                        placeholder="เช่น 6801203001, TEMP-68001 หรือ T69001"
                         className="w-full rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-mono"
                       />
                     </div>
@@ -1290,7 +1647,7 @@ export function CertificateStudioClient({ request, suggestedNextDocNo = "8002 / 
                         onClick={handleAutoLookupStudent}
                         className="rounded-xl bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
                       >
-                        ดึงข้อมูลนิสิต
+                        ดึงข้อมูลอัตโนมัติ
                       </button>
                     </div>
                   </div>

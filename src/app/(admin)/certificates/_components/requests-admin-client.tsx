@@ -890,6 +890,16 @@ export function RequestsAdminClient({
                           ออกหนังสือ / ปรับฟอนต์ PDF
                         </Link>
 
+                        <Link
+                          href={`/portal/certificates/verify/${item.id}`}
+                          target="_blank"
+                          title="เปิดหน้าตรวจสอบสถานะสำหรับ ตม. หรือสั่งพิมพ์ใบสรุปการตรวจสอบ"
+                          className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                          <span>ใบตรวจสอบ ตม. ↗</span>
+                        </Link>
+
                         {item.status === "PENDING" && (
                           <>
                             <button

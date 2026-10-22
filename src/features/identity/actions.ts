@@ -8,3 +8,4 @@ export { setLocaleAction, updateProfileAction } from "./_internal/actions/profil
 export { listUsersAction, listRolesForPickerAction, createUserAction, updateUserAction, setUserActiveAction, issuePasswordLinkAction, requestEmailChangeAction, confirmEmailChangeAction } from "./_internal/actions/users.actions";
 export { listRolesAction, listPermissionsAction, createRoleAction, updateRoleAction, deleteRoleAction } from "./_internal/actions/roles.actions";
 export { getSettingsAction, updateSettingsAction, uploadLogoAction, removeLogoAction, testSmtpAction } from "./_internal/actions/settings.actions";
+export { getAuditLogsAction } from "./_internal/actions/audit.actions";

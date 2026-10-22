@@ -6,6 +6,10 @@ import {
 
 export interface BuiltCertificateText {
   template: CertificateTemplateType;
+  isNewStudent?: boolean;
+  isFacultyOrStaff?: boolean;
+  documentTitleTh?: string;
+  documentTitleEn?: string;
   docNo: string;
   issueDateTh: string;
   issueDateEn: string;
@@ -20,6 +24,34 @@ export interface BuiltCertificateText {
   signerOrg?: string;
   coordinatorName?: string;
   coordinatorPhone?: string;
+}
+
+export function isNewStudentAdmission(meta: Partial<CertificateRequestMetadata>): boolean {
+  if (meta.applicantType === "NEW_STUDENT") return true;
+  if (meta.applicantType === "FACULTY_LECTURER" || meta.applicantType === "STAFF_MEMBER") return false;
+  const code = (meta.studentCode || "").trim().toUpperCase();
+  if (code.startsWith("TEMP-")) return true;
+  const purpose = (meta.requestPurpose || "").toLowerCase();
+  if (
+    purpose.includes("letter of acceptance") ||
+    purpose.includes("certificate of admission") ||
+    purpose.includes("ตอบรับเข้าศึกษา") ||
+    purpose.includes("ผู้ผ่านการคัดเลือก")
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function isFacultyOrStaffApplicant(meta: Partial<CertificateRequestMetadata>): boolean {
+  if (meta.applicantType === "FACULTY_LECTURER" || meta.applicantType === "STAFF_MEMBER") {
+    return true;
+  }
+  const code = (meta.studentCode || "").trim().toUpperCase();
+  if (/^T\d{5}$/.test(code) || code.startsWith("STAFF-")) {
+    return true;
+  }
+  return false;
 }
 
 export function extractYearNumber(classYear?: string): string {
@@ -215,23 +247,54 @@ export function buildCertificateDocumentText(meta: CertificateRequestMetadata): 
     const pronounPosCap = isFemale ? "Her" : "His";
     const degreeProgramEn = formatDegreeProgramEn(meta.degreeLevel);
     const majorEn = formatMajorEn(meta.major, meta.degreeLevel);
-    const semesterEn = meta.semesterEn || "second semester";
+    const semesterEn = meta.semesterEn || "first semester";
     const academicYearEn = meta.academicYearEn || "2026";
     const passportClause = passportNo ? `, Passport No. ${passportNo}` : "";
-    const isNewStudent = meta.applicantType === "NEW_STUDENT";
-    const defaultEngP1 = isNewStudent
-      ? `This is to certify that ${fullName}, whose age is ${age} years old, ${nationality} Nationality${passportClause} has been officially accepted and admitted to study at the Faculty of Buddhism, Mahachulalongkornrajavidyalaya University, Lamsai Sub-District, Wangnoi District, Phra Nakhon Si Ayutthaya Province, 13170, Thailand. ${pronounCap} will study in the ${degreeProgramEn}, Major in ${majorEn}, Academic Year ${academicYearEn}. ${pronounPosCap} application identification reference is ${studentCode}. This letter is issued as evidence for visa application.`
+    const isNewStudent = isNewStudentAdmission(meta);
+    const isFacultyStaff = isFacultyOrStaffApplicant(meta);
+    const isLecturer = meta.applicantType === "FACULTY_LECTURER" || (/^T\d{5}$/i.test(studentCode) && meta.applicantType !== "STAFF_MEMBER");
+    const refCode = meta.applicationNo?.trim() || studentCode;
+
+    const positionEn =
+      meta.staffPosition?.trim() ||
+      (isLecturer ? "Lecturer / Visiting Instructor" : "Administrative & Academic Support Staff");
+    const departmentEn =
+      meta.staffDepartment?.trim() ||
+      (isLecturer ? `Department of ${majorEn}` : "Office of the Dean, Faculty of Buddhism");
+    const coursesClauseEn =
+      isLecturer && meta.taughtCourses?.trim()
+        ? ` ${pronounCap} has been officially appointed to teach the following course(s): ${meta.taughtCourses.trim()} in the Academic Year ${academicYearEn}.`
+        : "";
+
+    const defaultEngP1 = isFacultyStaff
+      ? `This is to certify that ${fullName}${passportClause} (Personnel / Faculty ID: ${studentCode}) is currently serving as ${positionEn} at ${departmentEn}, Faculty of Buddhism, Mahachulalongkornrajavidyalaya University, Lamsai Sub-District, Wangnoi District, Phra Nakhon Si Ayutthaya Province, 13170, Thailand.${coursesClauseEn}`
+      : isNewStudent
+      ? `This is to certify that ${fullName}, whose age is ${age} years old, ${nationality} Nationality${passportClause} has passed the entrance selection and been officially accepted for admission to study at the Faculty of Buddhism, Mahachulalongkornrajavidyalaya University, Lamsai Sub-District, Wangnoi District, Phra Nakhon Si Ayutthaya Province, 13170, Thailand. ${pronounCap} will study in the ${degreeProgramEn}, Major in ${majorEn}, Academic Year ${academicYearEn}. ${pronounPosCap} admission reference / temporary student ID is ${refCode}. This Certificate of Admission is issued as official evidence to support ${pronounPosCap.toLowerCase()} application for a Non-Immigrant ED Visa (Non-ED Visa) to enter the Kingdom of Thailand.`
       : `This is to certify that ${fullName}, whose age is ${age} years old, ${nationality} Nationality${passportClause} is currently enrolled as a student of the Faculty of Buddhism, Mahachulalongkornrajavidyalaya University, Lamsai Sub-District, Wangnoi District, Phra Nakhon Si Ayutthaya Province, 13170, Thailand. ${pronounCap} is studying in the ${degreeProgramEn}, Major in ${majorEn}, Year ${yearNum}, in the ${semesterEn} of an Academic Year ${academicYearEn}, ${pronounPosCap} student identification is ${studentCode}.`;
 
     const p1 = meta.customBodyText?.trim() || defaultEngP1;
 
     return {
       template,
+      isNewStudent,
+      isFacultyOrStaff: isFacultyStaff,
+      documentTitleTh: isFacultyStaff
+        ? isLecturer
+          ? "หนังสือรับรองการปฏิบัติหน้าที่อาจารย์"
+          : "หนังสือรับรองการปฏิบัติงานบุคลากร"
+        : isNewStudent
+        ? "หนังสือรับรองการเป็นผู้ผ่านการคัดเลือกเข้าศึกษา"
+        : "หนังสือรับรอง",
+      documentTitleEn: isNewStudent
+        ? "CERTIFICATE OF ADMISSION"
+        : "TO WHOM IT MAY CONCERN",
       docNo,
       issueDateTh: defaultDateTh,
       issueDateEn: defaultDateEn,
       paragraph1: p1,
-      paragraph2: "This letter of certification is therefore issued as evidence.",
+      paragraph2: isNewStudent
+        ? "This Certificate of Admission is therefore issued as official evidence for Non-ED Visa application."
+        : "This letter of certification is therefore issued as evidence.",
       signerName: meta.signerNameEn || "(Asst. Prof. Phrakhru Sirirattanabundit, Ph.D.)",
       signerTitle: meta.signerTitleEn || "Vice Dean, Faculty of Buddhism",
       signerOrg: "Mahachulalongkornrajavidyalaya University",
@@ -239,26 +302,38 @@ export function buildCertificateDocumentText(meta: CertificateRequestMetadata): 
   }
 
   if (template === "BANK_LETTER") {
-    const bankAction = meta.bankActionTh?.trim() || "อัพเดตการใช้ Mobile Banking ให้แก่นิสิต";
+    const isFacultyStaff = isFacultyOrStaffApplicant(meta);
+    const isLecturer = meta.applicantType === "FACULTY_LECTURER" || (/^T\d{5}$/i.test(studentCode) && meta.applicantType !== "STAFF_MEMBER");
+    const defaultBankAction = isFacultyStaff
+      ? "เปิดบัญชีเงินฝากธนาคารและสมัครใช้บริการ Mobile Banking สำหรับบุคลากรคณะพุทธศาสตร์"
+      : "อัพเดตการใช้ Mobile Banking ให้แก่นิสิต";
+    const bankAction = meta.bankActionTh?.trim() || defaultBankAction;
     const bankTarget = meta.bankTargetTh?.trim() || "ผู้จัดการธนาคารกรุงไทย สาขาโลตัส นวนคร";
     const passportPart = !isThaiNational && passportNo
       ? `สัญชาติ ${nationality} ประเทศ${country} ถือหนังสือเดินทางเลขที่ ${passportNo} `
       : `สัญชาติ ${nationality} `;
+    const posTh = meta.staffPosition?.trim() || (isLecturer ? "อาจารย์ประจำ/อาจารย์พิเศษ" : "เจ้าหน้าที่สายสนับสนุน");
+    const deptTh = meta.staffDepartment?.trim() || `ภาควิชา${deptShortTh} คณะพุทธศาสตร์`;
 
     const p1 =
       meta.customBodyText?.trim() ||
-      `เนื่องด้วย ${fullName} ${passportPart}รหัสนิสิต ${studentCode} เป็นนิสิต${curriculumFullTh} ชั้นปีที่ ${yearNum} ${majorFullTh} ภาควิชา${deptShortTh} คณะพุทธศาสตร์ มีความประสงค์จะทำธุรกรรมกับธนาคาร เพื่ออำนวยความสะดวกในการทำธุรกรรมกับมหาวิทยาลัยในระหว่างที่กำลังศึกษาอยู่ในภาควิชา${deptShortTh} คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย ตำบลลำไทร อำเภอวังน้อย จังหวัดพระนครศรีอยุธยา`;
+      (isFacultyStaff
+        ? `เนื่องด้วย ${fullName} ${passportPart}รหัสบุคลากร ${studentCode} ปัจจุบันปฏิบัติหน้าที่ในตำแหน่ง${posTh} สังกัด${deptTh} มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย มีความประสงค์จะทำธุรกรรมกับธนาคาร เพื่ออำนวยความสะดวกในการรับค่าตอบแทนและทำธุรกรรมทางการเงินในระหว่างปฏิบัติงาน ณ คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย ตำบลลำไทร อำเภอวังน้อย จังหวัดพระนครศรีอยุธยา`
+        : `เนื่องด้วย ${fullName} ${passportPart}รหัสนิสิต ${studentCode} เป็นนิสิต${curriculumFullTh} ชั้นปีที่ ${yearNum} ${majorFullTh} ภาควิชา${deptShortTh} คณะพุทธศาสตร์ มีความประสงค์จะทำธุรกรรมกับธนาคาร เพื่ออำนวยความสะดวกในการทำธุรกรรมกับมหาวิทยาลัยในระหว่างที่กำลังศึกษาอยู่ในภาควิชา${deptShortTh} คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย ตำบลลำไทร อำเภอวังน้อย จังหวัดพระนครศรีอยุธยา`);
 
     const p2 = `จึงเจริญพรมาเพื่อให้ความอนุเคราะห์ในเรื่องการ${bankAction}ดังกล่าว จะขอบคุณยิ่ง`;
 
     return {
       template,
+      isFacultyOrStaff: isFacultyStaff,
       docNo: meta.docNo?.trim() || "8002/ 077",
       issueDateTh: meta.issueDateTh?.trim() || "14 ตุลาคม 2569",
       issueDateEn: defaultDateEn,
       subjectTh: `ขอความอนุเคราะห์${bankAction}`,
       recipientTh: bankTarget,
-      attachmentTh: "หนังสือรับรองนิสิต          จำนวน 1 ฉบับ",
+      attachmentTh: isFacultyStaff
+        ? "หนังสือรับรองการปฏิบัติงาน          จำนวน 1 ฉบับ"
+        : "หนังสือรับรองนิสิต          จำนวน 1 ฉบับ",
       paragraph1: p1,
       paragraph2: p2,
       signerName: meta.signerNameTh || "(พระครูสิริรัตนบัณฑิต, ผศ.ดร.)",
@@ -299,20 +374,57 @@ export function buildCertificateDocumentText(meta: CertificateRequestMetadata): 
     };
   }
 
-  // Default: THAI_CERT (หนังสือรับรองนิสิต ภาษาไทย)
+  // Default: THAI_CERT (หนังสือรับรอง ภาษาไทย - นิสิต / อาจารย์ / เจ้าหน้าที่)
+  const isNewStudent = isNewStudentAdmission(meta);
+  const isFacultyStaff = isFacultyOrStaffApplicant(meta);
+  const isLecturer = meta.applicantType === "FACULTY_LECTURER" || (/^T\d{5}$/i.test(studentCode) && meta.applicantType !== "STAFF_MEMBER");
+
   const foreignClause = isThaiNational
     ? `สัญชาติ ไทย `
+    : isNewStudent || isFacultyStaff
+    ? `สัญชาติ ${nationality} ประเทศ ${country} ถือหนังสือเดินทางเลขที่ ${passportNo || "-"} `
     : `สัญชาติ ${nationality} ประเทศ ${country} ถือหนังสือเดินทางเลขที่ ${passportNo || "-"} และวีซ่าประเภท ${visaTypeText} `;
 
-  const isNewStudent = meta.applicantType === "NEW_STUDENT";
-  const defaultThaiP1 = isNewStudent
-    ? `โดยหนังสือนี้ขอรับรองว่า ${fullName} อายุ ${age} ปี ${foreignClause}เป็นผู้ผ่านการคัดเลือกและมีสิทธิ์เข้าศึกษาต่อในคณะพุทธศาสตร์ ${curriculumFullTh} ${majorFullTh} มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย ประจำปีการศึกษา ๒๕๖๙ (เลขที่ใบสมัคร/อ้างอิง ${studentCode}) เพื่อเป็นหลักฐาน ${purposePhraseTh} จึงออกหนังสือนี้ไว้เป็นสำคัญ`
+  const refCode = meta.applicationNo?.trim() || studentCode;
+  const newStudentPurposeTh =
+    !meta.requestPurpose ||
+    meta.requestPurpose.includes("Bonafide") ||
+    meta.requestPurpose.includes("Letter of Acceptance") ||
+    meta.requestPurpose.includes("Visa to Thailand")
+      ? "สำหรับการยื่นขอรับการตรวจลงตราประเภทคนอยู่ชั่วคราวเพื่อการศึกษา (Non-Immigrant ED Visa) เพื่อเดินทางเข้าศึกษาต่อในราชอาณาจักรไทย"
+      : purposePhraseTh;
+
+  const posTh = meta.staffPosition?.trim() || (isLecturer ? "อาจารย์ประจำ / อาจารย์พิเศษผู้สอน" : "เจ้าหน้าที่สายสนับสนุน");
+  const deptTh = meta.staffDepartment?.trim() || (isLecturer ? `ภาควิชา${deptShortTh} คณะพุทธศาสตร์` : "สำนักงานคณบดี คณะพุทธศาสตร์");
+  const coursesClauseTh =
+    isLecturer && meta.taughtCourses?.trim()
+      ? ` โดยได้รับมอบหมายให้รับผิดชอบสอนในรายวิชา ${meta.taughtCourses.trim()} ประจำปีการศึกษา ๒๕๖๙`
+      : "";
+  const staffPurposeTh =
+    !meta.requestPurpose || meta.requestPurpose.includes("Bonafide")
+      ? isLecturer
+        ? "สำหรับรับรองการปฏิบัติหน้าที่อาจารย์ผู้สอนและภาระงานทางวิชาการในคณะพุทธศาสตร์"
+        : "สำหรับรับรองการปฏิบัติงานและสังกัดคณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย"
+      : purposePhraseTh;
+
+  const defaultThaiP1 = isFacultyStaff
+    ? `โดยหนังสือนี้ขอรับรองว่า ${fullName} (รหัสบุคลากร/อาจารย์ ${studentCode}) ปัจจุบันปฏิบัติหน้าที่ในตำแหน่ง${posTh} สังกัด${deptTh} มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย${coursesClauseTh} เพื่อใช้เป็นหลักฐาน ${staffPurposeTh} จึงออกหนังสือรับรองฉบับนี้ไว้เป็นสำคัญ`
+    : isNewStudent
+    ? `โดยหนังสือนี้ขอรับรองว่า ${fullName} อายุ ${age} ปี ${foreignClause}เป็นผู้ผ่านการคัดเลือกเข้าศึกษาต่อในคณะพุทธศาสตร์ ${curriculumFullTh} ${majorFullTh} มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย ประจำปีการศึกษา ๒๕๖๙ (รหัสประจำตัวชั่วคราว/เลขที่ใบสมัคร ${refCode}) เพื่อใช้เป็นหลักฐาน ${newStudentPurposeTh} จึงออกหนังสือรับรองการเป็นผู้ผ่านการคัดเลือกเข้าศึกษา (Certificate of Admission) ฉบับนี้ไว้เป็นสำคัญ`
     : `โดยหนังสือนี้ขอรับรองว่า ${fullName} อายุ ${age} ปี ${foreignClause}เป็นนิสิตคณะพุทธศาสตร์ ${curriculumFullTh} ชั้นปีที่ ${yearNum} ${majorFullTh} มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย รหัสประจำตัวนิสิต ${studentCode} เพื่อเป็นหลักฐาน ${purposePhraseTh} จึงออกหนังสือนี้ไว้เป็นสำคัญ`;
 
   const p1 = meta.customBodyText?.trim() || defaultThaiP1;
 
   return {
     template: "THAI_CERT",
+    isNewStudent,
+    isFacultyOrStaff: isFacultyStaff,
+    documentTitleTh: isNewStudent
+      ? "หนังสือรับรองการเป็นผู้ผ่านการคัดเลือกเข้าศึกษา"
+      : "หนังสือรับรอง",
+    documentTitleEn: isNewStudent
+      ? "CERTIFICATE OF ADMISSION"
+      : "TO WHOM IT MAY CONCERN",
     docNo,
     issueDateTh: defaultDateTh,
     issueDateEn: defaultDateEn,

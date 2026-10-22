@@ -11,6 +11,9 @@ import {
   XCircle,
   Globe,
   ShieldCheck,
+  UserCheck,
+  Lock,
+  Settings2,
 } from "lucide-react";
 import { useLocale } from "@/shared/lib/i18n/client";
 import {
@@ -20,6 +23,7 @@ import {
 
 interface PortalRequestItem {
   id: string;
+  userId: string;
   certificateTypeId: string;
   typeName: string;
   status: string;
@@ -27,8 +31,17 @@ interface PortalRequestItem {
   metadata: CertificateRequestMetadata;
 }
 
+interface CurrentUserContext {
+  id: string | null;
+  email: string;
+  name: string;
+  studentCode: string;
+  isAdminOrStaff: boolean;
+}
+
 interface Props {
   initialItems: PortalRequestItem[];
+  currentUser: CurrentUserContext;
 }
 
 const TEMPLATE_INFO: Record<
@@ -81,17 +94,57 @@ const TEMPLATE_INFO: Record<
   },
 };
 
-export function PortalCertificatesClient({ initialItems }: Props) {
+export function PortalCertificatesClient({ initialItems, currentUser }: Props) {
   const locale = useLocale();
   const isEn = locale === "en";
 
   const [searchQuery, setSearchQuery] = useState("");
   const [templateFilter, setTemplateFilter] = useState<string>("ALL");
+  const [adminShowAll, setAdminShowAll] = useState<boolean>(false);
+
+  const isLoggedIn = Boolean(currentUser.id);
+  const isAdmin = currentUser.isAdminOrStaff;
+
+  const isItemOwnedByCurrentUser = (item: PortalRequestItem) => {
+    if (!currentUser.id) return false;
+    if (item.userId === currentUser.id) return true;
+    const m = item.metadata;
+    const itemCode = (m.studentCode || "").trim().toLowerCase();
+    const myCode = (currentUser.studentCode || "").trim().toLowerCase();
+    if (myCode && itemCode && itemCode === myCode) return true;
+    const itemEmail = (m.email || "").trim().toLowerCase();
+    const myEmail = (currentUser.email || "").trim().toLowerCase();
+    if (myEmail && itemEmail && itemEmail === myEmail) return true;
+    const itemName = (m.fullName || "").trim().toLowerCase();
+    const myName = (currentUser.name || "").trim().toLowerCase();
+    if (myName && itemName && itemName === myName) return true;
+    return false;
+  };
 
   const filteredItems = useMemo(() => {
     return initialItems.filter((item) => {
       const m = item.metadata;
       const tpl = m.docTemplate || "THAI_CERT";
+
+      // 1. กรองตามสิทธิ์ผู้เข้าใช้งาน (นิสิตเห็นเฉพาะของตนเอง / Admin เลือกติ๊กเปิดดูทั้งหมดได้)
+      if (isAdmin) {
+        if (!adminShowAll && !searchQuery.trim()) {
+          // หาก Admin ยังไม่ได้ติ๊ก "แสดงทั้งหมด" และไม่ได้พิมพ์ค้นหา ให้แสดงเฉพาะของตนเอง (ถ้ามี)
+          if (!isItemOwnedByCurrentUser(item)) return false;
+        }
+      } else if (isLoggedIn) {
+        // นิสิตหรือบุคลากรที่ล็อกอินแล้ว: เห็นเฉพาะคำร้องของตนเองเท่านั้น
+        if (!isItemOwnedByCurrentUser(item)) return false;
+      } else {
+        // ผู้ที่ยังไม่ได้เข้าสู่ระบบ: ต้องพิมพ์รหัสนิสิตหรือเลขพาสปอร์ตอย่างน้อย 5 ตัวอักษรจึงจะค้นหาเจอ
+        const q = searchQuery.toLowerCase().trim();
+        if (q.length < 5) return false;
+        const exactMatch =
+          (m.studentCode || "").trim().toLowerCase() === q ||
+          (m.passportNo || "").trim().toLowerCase() === q;
+        if (!exactMatch) return false;
+      }
+
       if (templateFilter !== "ALL" && tpl !== templateFilter) return false;
 
       if (searchQuery.trim()) {
@@ -113,7 +166,8 @@ export function PortalCertificatesClient({ initialItems }: Props) {
       }
       return true;
     });
-  }, [initialItems, searchQuery, templateFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialItems, searchQuery, templateFilter, isAdmin, adminShowAll, isLoggedIn, currentUser]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
@@ -140,13 +194,15 @@ export function PortalCertificatesClient({ initialItems }: Props) {
           </div>
 
           <div className="shrink-0 flex flex-wrap gap-2.5">
-            <Link
-              href="/portal/certificates/verify"
-              className="inline-flex items-center gap-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/25 px-4 py-3 text-sm font-bold text-white shadow-xs transition backdrop-blur-xs"
-            >
-              <ShieldCheck className="h-4 w-4 text-emerald-400" />
-              {isEn ? "Verify for Immigration" : "ตรวจสอบเอกสารสำหรับ ตม."}
-            </Link>
+            {isAdmin && (
+              <Link
+                href="/certificates"
+                className="inline-flex items-center gap-2 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/25 px-4 py-3 text-sm font-bold text-white shadow-xs transition backdrop-blur-xs"
+              >
+                <Settings2 className="h-4 w-4 text-amber-300" />
+                {isEn ? "Manage Certificates (Admin)" : "จัดการคำร้องหลังบ้าน (Admin)"}
+              </Link>
+            )}
             <Link
               href="/portal/certificates/request"
               className="inline-flex items-center gap-2 rounded-2xl bg-amber-400 px-5 py-3 text-sm font-bold text-slate-950 shadow-md transition hover:bg-amber-300"
@@ -191,8 +247,79 @@ export function PortalCertificatesClient({ initialItems }: Props) {
         })}
       </div>
 
+      {/* Personal Filter Status Banner & Admin Toggle Checkbox */}
+      {isAdmin ? (
+        <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50/70 px-4 py-3.5 transition hover:bg-indigo-50">
+          <div className="flex items-start gap-3">
+            <ShieldCheck className="h-5 w-5 text-indigo-600 shrink-0 mt-0.5" />
+            <div>
+              <span className="block text-sm font-bold text-slate-900">
+                {isEn
+                  ? `Show All Student Certificate Requests (${initialItems.length} total) — Admin / Staff Only`
+                  : `แสดงรายการคำร้องขอหนังสือรับรองของนิสิตทั้งหมด (${initialItems.length} รายการ) — เฉพาะผู้ดูแลระบบ / เจ้าหน้าที่`}
+              </span>
+              <span className="block text-xs text-slate-600">
+                {isEn
+                  ? "For students, the system strictly filters to show only their own requests for privacy (PDPA)."
+                  : "สำหรับนิสิต ระบบจะกรองแสดงเฉพาะคำร้องของนิสิตที่เข้าสู่ระบบท่านนั้นโดยอัตโนมัติ (ติ๊กถูกเพื่อดูรายการทั้งหมดในฐานะ Admin)"}
+              </span>
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            checked={adminShowAll}
+            onChange={(e) => setAdminShowAll(e.target.checked)}
+            className="h-4 w-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500"
+          />
+        </label>
+      ) : isLoggedIn ? (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3.5">
+          <div className="flex items-center gap-2.5">
+            <UserCheck className="h-5 w-5 text-emerald-600 shrink-0" />
+            <div className="text-xs sm:text-sm text-emerald-950">
+              <span className="font-bold">
+                {isEn ? "Showing only your certificate requests:" : "กำลังแสดงเฉพาะรายการคำร้องขอหนังสือรับรองของท่าน:"}
+              </span>{" "}
+              <span className="font-semibold">{currentUser.name}</span>{" "}
+              {currentUser.studentCode && (
+                <span className="ml-1 rounded-md bg-emerald-600/15 px-2 py-0.5 font-mono text-xs font-bold text-emerald-800">
+                  {currentUser.studentCode}
+                </span>
+              )}
+            </div>
+          </div>
+          <span className="text-[11px] font-medium text-emerald-700">
+            🔒 {isEn ? "Personal Privacy Protected (PDPA)" : "ข้อมูลส่วนบุคคลเฉพาะบัญชีของท่าน"}
+          </span>
+        </div>
+      ) : (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3.5">
+          <div className="flex items-center gap-2.5">
+            <Lock className="h-5 w-5 text-amber-600 shrink-0" />
+            <div className="text-xs text-amber-950">
+              <span className="font-bold">
+                {isEn
+                  ? "Please log in with your Student ID (@mcu.ac.th) to view your certificate requests"
+                  : "กรุณาเข้าสู่ระบบด้วยรหัสนิสิต (<รหัสนิสิต>@mcu.ac.th) เพื่อดูรายการคำร้องของท่าน"}
+              </span>{" "}
+              <span>
+                {isEn
+                  ? "or enter your exact Student ID / Passport No. below to check status."
+                  : "หรือพิมพ์รหัสนิสิต / เลขที่ Passport ของท่านในช่องค้นหาด้านล่างเพื่อตรวจสอบสถานะ"}
+              </span>
+            </div>
+          </div>
+          <Link
+            href="/login"
+            className="shrink-0 inline-flex items-center justify-center rounded-xl bg-amber-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-amber-500 transition"
+          >
+            {isEn ? "Student Login →" : "เข้าสู่ระบบนิสิต →"}
+          </Link>
+        </div>
+      )}
+
       {/* Search & Filter Bar */}
-      <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs sm:flex-row sm:items-center">
+      <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
@@ -201,8 +328,8 @@ export function PortalCertificatesClient({ initialItems }: Props) {
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder={
               isEn
-                ? "Search by Student ID, Student Name, Passport No, or Major..."
-                : "ค้นหาด้วยรหัสนิสิต (Student ID), ชื่อ-ฉายา, เลขที่ Passport หรือสาขาวิชา..."
+                ? "Search your requests by Student ID, Passport No, or Purpose..."
+                : "ค้นหาคำร้องด้วยรหัสนิสิต (Student ID), เลขที่ Passport หรือวัตถุประสงค์..."
             }
             className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-xs text-slate-900 focus:border-indigo-500 focus:bg-white focus:outline-none"
           />
@@ -233,15 +360,15 @@ export function PortalCertificatesClient({ initialItems }: Props) {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
         <h2 className="text-base font-bold text-slate-900">
           {isEn
-            ? `Certificate Requests (${filteredItems.length} items)`
+            ? `My Certificate Requests (${filteredItems.length} items)`
             : `รายการคำร้องขอหนังสือรับรอง (${filteredItems.length} รายการ)`}
         </h2>
         <div className="inline-flex items-center gap-1.5 text-xs text-slate-500">
           <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
           <span>
             {isEn
-              ? "PDPA Protected: Sensitive passport details are kept confidential. Official copies are stamped at Dean's Office."
-              : "คุ้มครองข้อมูลส่วนบุคคล (PDPA): ไม่แสดงเลขที่ Passport สาธารณะ รับเอกสารฉบับจริงพร้อมตราประทับ ณ สำนักงานคณบดี"}
+              ? "PDPA Protected: Only your personal requests are displayed."
+              : "คุ้มครองข้อมูลส่วนบุคคล (PDPA): แสดงเฉพาะคำร้องของนิสิตที่เข้าสู่ระบบ รับฉบับจริงพร้อมตราประทับ ณ สำนักงานคณบดี"}
           </span>
         </div>
       </div>
@@ -252,12 +379,18 @@ export function PortalCertificatesClient({ initialItems }: Props) {
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center">
             <FileBadge className="mx-auto h-10 w-10 text-slate-300" />
             <h3 className="mt-3 text-sm font-bold text-slate-800">
-              {isEn ? "No certificate requests found" : "ไม่พบรายการคำร้องที่ค้นหา"}
+              {isAdmin && !adminShowAll
+                ? isEn
+                  ? "Tick the Admin checkbox above to view all student requests"
+                  : "คุณยังไม่มีคำร้องส่วนตัว (สามารถติ๊กถูกที่กล่องผู้ดูแลระบบด้านบนเพื่อดูคำร้องของนิสิตทั้งหมด)"
+                : isEn
+                  ? "No certificate requests found for your account"
+                  : "ยังไม่มีรายการคำร้องขอหนังสือรับรองในบัญชีของท่าน"}
             </h3>
             <p className="mt-1 text-xs text-slate-500">
               {isEn
-                ? "Try adjusting your search query or template filter."
-                : "ลองเปลี่ยนคำค้นหาหรือตัวกรองประเภทหนังสือ"}
+                ? "Click 'Apply for New Certificate' above to submit a new request."
+                : "สามารถกดปุ่ม 'ยื่นคำร้องขอหนังสือรับรองใหม่' ด้านบนเพื่อส่งคำขอได้ทันที"}
             </p>
           </div>
         ) : (
@@ -351,21 +484,11 @@ export function PortalCertificatesClient({ initialItems }: Props) {
                   </span>
 
                   {item.status === "APPROVED" ? (
-                    <>
-                      <span className="text-[11px] font-medium text-emerald-600 text-right">
-                        {isEn
-                          ? "✓ Collect official sealed copy at Dean's Office"
-                          : "✓ ติดต่อรับฉบับจริงพร้อมตราประทับที่สำนักงานคณบดี"}
-                      </span>
-                      <Link
-                        href={`/portal/certificates/verify/${item.id}`}
-                        target="_blank"
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[11px] font-bold transition shadow-2xs mt-1"
-                      >
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>{isEn ? "Verify for Immigration →" : "ตรวจสอบสถานะสำหรับ ตม. →"}</span>
-                      </Link>
-                    </>
+                    <span className="text-[11px] font-medium text-emerald-600 text-right">
+                      {isEn
+                        ? "✓ Collect official sealed copy at Dean's Office"
+                        : "✓ ติดต่อรับฉบับจริงพร้อมตราประทับที่สำนักงานคณบดี"}
+                    </span>
                   ) : item.status === "REJECTED" ? (
                     <span className="text-[11px] font-medium text-rose-500 text-right">
                       {isEn

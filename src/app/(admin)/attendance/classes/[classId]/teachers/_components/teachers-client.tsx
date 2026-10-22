@@ -5,6 +5,7 @@ import {
   GraduationCap,
   Users,
   Calendar,
+  Search,
   FileSpreadsheet,
   Plus,
   Trash2,
@@ -48,7 +49,8 @@ export function TeachersClient({
   const router = useRouter();
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState("");
-  const [selectedRole, setSelectedRole] = useState<"PRIMARY_TEACHER" | "CO_TEACHER" | "TEACHING_ASSISTANT">("CO_TEACHER");
+  const [selectedRole, setSelectedRole] = useState<"PRIMARY_TEACHER" | "CO_TEACHER" | "GUEST_LECTURER" | "TEACHING_ASSISTANT">("CO_TEACHER");
+  const [teacherSearch, setTeacherSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
 
@@ -60,6 +62,12 @@ export function TeachersClient({
   const unassignedTeachers = availableTeachers.filter(
     (t) => !assignedUserIds.has(t.id)
   );
+
+  const filteredTeachersToAssign = unassignedTeachers.filter((t) => {
+    if (!teacherSearch.trim()) return true;
+    const q = teacherSearch.toLowerCase();
+    return t.name.toLowerCase().includes(q) || t.email.toLowerCase().includes(q);
+  });
 
   async function handleAssignTeacher() {
     if (!selectedUserId) {
@@ -83,6 +91,28 @@ export function TeachersClient({
       }
     } catch (err: any) {
       toast.error(err.message || "เกิดข้อผิดพลาดในการมอบหมายผู้สอน");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handlePromoteToPrimary(userId: string, teacherName: string) {
+    if (!confirm(`คุณต้องการตั้ง "${teacherName}" เป็นอาจารย์ผู้รับผิดชอบหลัก (Primary) ของวิชานี้ใช่หรือไม่?`)) {
+      return;
+    }
+    try {
+      setIsSubmitting(true);
+      const res = await assignCourseTeacherAction({
+        courseId: course.id,
+        userId,
+        role: "PRIMARY_TEACHER",
+      });
+      if (res.success) {
+        toast.success(`ตั้ง "${teacherName}" เป็นอาจารย์ผู้รับผิดชอบหลักเรียบร้อยแล้ว`);
+        router.refresh();
+      }
+    } catch (err: any) {
+      toast.error(err.message || "ไม่สามารถเปลี่ยนอาจารย์หลักได้");
     } finally {
       setIsSubmitting(false);
     }
@@ -217,7 +247,11 @@ export function TeachersClient({
       <LiyonCard className="overflow-hidden shadow-sm">
         <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
           <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-            รายชื่อผู้สอนที่ได้รับมอบหมายในวิชานี้ ({assignedTeachers.length + (course.primaryTeacher ? 1 : 0)} ท่าน)
+            รายชื่อผู้สอนที่ได้รับมอบหมายในวิชานี้ ({(() => {
+              const uIds = new Set(assignedTeachers.map((t) => t.userId));
+              if (course.primaryTeacherId) uIds.add(course.primaryTeacherId);
+              return uIds.size;
+            })()} ท่าน)
           </h2>
         </div>
 
@@ -254,8 +288,18 @@ export function TeachersClient({
                     จัดการได้เต็มรูปแบบ
                   </td>
                   {isPrimary && (
-                    <td className="py-3.5 px-4 text-center text-xs text-slate-400">
-                      (อาจารย์หลัก)
+                    <td className="py-3.5 px-4 text-center text-xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedRole("PRIMARY_TEACHER");
+                          setIsAssignOpen(true);
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-2xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition"
+                        title="เปลี่ยนอาจารย์ผู้รับผิดชอบหลัก"
+                      >
+                        <span>🔄 เปลี่ยนอาจารย์หลัก</span>
+                      </button>
                     </td>
                   )}
                 </tr>
@@ -303,14 +347,25 @@ export function TeachersClient({
                       </td>
                       {isPrimary && (
                         <td className="py-3.5 px-4 text-center">
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(t)}
-                            className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
-                            title="ถอดถอนผู้สอน"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handlePromoteToPrimary(t.userId, t.user.name)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition shadow-2xs"
+                              title="ตั้งเป็นอาจารย์ผู้รับผิดชอบหลัก (Primary Teacher)"
+                            >
+                              <Award className="w-3.5 h-3.5 text-amber-600" />
+                              <span>ตั้งเป็นอาจารย์หลัก</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(t)}
+                              className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition"
+                              title="ถอดถอนผู้สอนออกจากวิชานี้"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -338,23 +393,41 @@ export function TeachersClient({
         <LiyonDialogCloseButton label="ปิด" />
         <LiyonDialogBody className="space-y-4 text-sm">
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-              เลือกอาจารย์: <span className="text-red-500">*</span>
-            </label>
-            {unassignedTeachers.length === 0 ? (
-              <p className="text-xs text-slate-400 py-2">
-                อาจารย์ทุกคนในระบบได้รับการมอบหมายในวิชานี้แล้ว
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
+                เลือกอาจารย์ผู้สอน: <span className="text-red-500">*</span>
+              </label>
+              <span className="text-2xs text-slate-500">
+                อาจารย์ที่พร้อมมอบหมาย {filteredTeachersToAssign.length} ท่าน
+              </span>
+            </div>
+
+            <div className="relative mb-2">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={teacherSearch}
+                onChange={(e) => setTeacherSearch(e.target.value)}
+                placeholder="พิมพ์ค้นหาชื่อ หรืออีเมลอาจารย์..."
+                className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs focus:bg-white focus:outline-hidden"
+              />
+            </div>
+
+            {filteredTeachersToAssign.length === 0 ? (
+              <p className="text-xs text-slate-400 py-2 text-center bg-slate-50 rounded-lg">
+                {teacherSearch ? "ไม่พบอาจารย์ที่ตรงกับคำค้นหา" : "อาจารย์ทุกคนในระบบได้รับการมอบหมายในวิชานี้แล้ว"}
               </p>
             ) : (
               <select
                 value={selectedUserId}
                 onChange={(e) => setSelectedUserId(e.target.value)}
-                className="w-full p-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                size={Math.min(6, Math.max(3, filteredTeachersToAssign.length + 1))}
+                className="w-full p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
-                <option value="">-- กรุณาเลือกอาจารย์ --</option>
-                {unassignedTeachers.map((t) => (
+                <option value="">-- กรุณาเลือกอาจารย์ผู้สอน --</option>
+                {filteredTeachersToAssign.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.name} ({t.email})
+                    {t.name} {t.position ? `[${t.position}${t.department ? ` - ${t.department}` : ""}]` : ""} ({t.email})
                   </option>
                 ))}
               </select>

@@ -22,6 +22,8 @@ export const DEFAULT_ROLES: ReadonlyArray<{ code: string; nameTh: string; nameEn
   { code: SUPER_ADMIN_CODE, nameTh: "ผู้ดูแลสูงสุด", nameEn: "Super admin", isSystem: true, permissions: [] },
   { code: "ADMIN", nameTh: "ผู้ดูแลระบบ", nameEn: "Administrator", isSystem: false, permissions: [P.usersRead, P.usersManage, P.rolesManage, P.settingsManage, P.auditRead] },
   { code: "TEACHER", nameTh: "อาจารย์ผู้สอน", nameEn: "Teacher", isSystem: false, permissions: ["attendance:read", "attendance:manage"] },
+  { code: "CURRICULUM_OFFICER", nameTh: "เจ้าหน้าที่หลักสูตร", nameEn: "Curriculum Officer", isSystem: false, permissions: ["curriculum:read", "curriculum:manage", "attendance:read", "attendance:manage", "personnel:read", P.usersRead, "events:manage"] },
   { code: "STAFF", nameTh: "เจ้าหน้าที่", nameEn: "Staff", isSystem: false, permissions: [P.usersRead] },
+  { code: "STUDENT", nameTh: "นิสิต/นักศึกษา", nameEn: "Student", isSystem: false, permissions: ["certificates:portal:request", "attendance:read", "curriculum:read", "administration:read", "meetings:book"] },
   { code: "VIEWER", nameTh: "ผู้ดู", nameEn: "Viewer", isSystem: false, permissions: [P.usersRead] },
 ];

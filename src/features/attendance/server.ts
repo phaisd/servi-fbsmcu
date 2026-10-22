@@ -49,6 +49,8 @@ export {
   deleteStudent,
   generateRollingQrToken,
   getSessionScannedStudents,
+  getAvailableCoursesForStudent,
+  studentSelfEnrollCourses,
 } from "./_internal/services";
 
 export {

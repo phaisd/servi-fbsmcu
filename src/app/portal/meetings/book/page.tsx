@@ -1,22 +1,58 @@
-import { getLocale } from "@/shared/lib/i18n/server";
+import { resolvePublicTenantId } from "@/features/news/server";
+import { getPublicMeetingRooms, getMeetingFormSettings } from "@/features/meetings/server";
+import { getPersonnelListForCertificate } from "@/features/certificates/server";
 import { getSessionContext } from "@/features/identity/server";
-import { redirect } from "next/navigation";
+import { MeetingBookingFormClient } from "./_components/meeting-booking-form-client";
 
-export default async function BookMeetingPage() {
-  const session = await getSessionContext();
-  if (!session) {
-    redirect("/meetings");
-  }
-  const locale = await getLocale();
+export const dynamic = "force-dynamic";
+
+export const metadata = {
+  title: "ใบขอใช้ห้องประชุมประจำคณะพุทธศาสตร์ | มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย",
+};
+
+export default async function BookMeetingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ roomId?: string }>;
+}) {
+  const session = await getSessionContext().catch(() => null);
+  const tenantId = session?.tenantId || (await resolvePublicTenantId());
+  const resolvedParams = await searchParams;
+
+  const [rooms, personnelList, formSettings] = await Promise.all([
+    getPublicMeetingRooms(tenantId),
+    getPersonnelListForCertificate(tenantId).catch(() => []),
+    getMeetingFormSettings(tenantId).catch(() => ({
+      purposes: [
+        { id: "MEETING", label: "ประชุม (Meeting)" },
+        { id: "TRAINING", label: "อบรม (Training)" },
+        { id: "SEMINAR", label: "สัมมนา (Seminar)" },
+        { id: "OTHER", label: "อื่นๆ (Other)" },
+      ],
+      equipments: [
+        { key: "computer", label: "คอมพิวเตอร์ (Computer)", desc: "เครื่องคอมพิวเตอร์ควบคุมประจำห้อง" },
+        { key: "ledDisplay", label: "จอ LED / Projector", desc: "จอแสดงผลความละเอียดสูง" },
+        { key: "soundSystem", label: "เครื่องขยายเสียง (Sound System)", desc: "ไมโครโฟนตั้งโต๊ะและชุดลำโพง" },
+        { key: "zoomOnline", label: "Zoom Online", desc: "สัญญาณอินเทอร์เน็ตและการถ่ายทอดสด" },
+      ],
+    })),
+  ]);
+
+  const currentUser = session
+    ? {
+        id: session.userId,
+        name: session.email?.split("@")[0] || "",
+        email: session.email || "",
+      }
+    : null;
 
   return (
-    <div className="space-y-10 max-w-3xl mx-auto py-12 px-4">
-      <h1 className="text-3xl font-bold">
-        {locale === "th" ? "แบบฟอร์มจองห้องประชุม" : "Book a Meeting Room"}
-      </h1>
-      <div className="p-6 border rounded-xl bg-card text-muted-foreground">
-        <p>Form implementation goes here... (This is a placeholder for the booking form)</p>
-      </div>
-    </div>
+    <MeetingBookingFormClient
+      rooms={rooms}
+      initialRoomId={resolvedParams.roomId}
+      personnelList={personnelList}
+      currentUser={currentUser}
+      formSettings={formSettings}
+    />
   );
 }

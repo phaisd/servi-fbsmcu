@@ -18,6 +18,8 @@ import {
   getCertificateNotice,
   updateCertificateNotice,
   syncAllCertificatesToStudentDirectory,
+  getPersonnelListForCertificate,
+  lookupPersonnelDetailForCertificate,
 } from "./_internal/services";
 
 import {
@@ -41,6 +43,18 @@ export async function lookupStudentByCodeAction(query: string) {
   const session = await auth().catch(() => null);
   const tenantId = session?.tenantId || (await resolvePublicTenantId());
   return lookupStudentForCertificate(tenantId, query);
+}
+
+export async function getPersonnelListForCertificateAction() {
+  const session = await auth().catch(() => null);
+  const tenantId = session?.tenantId || (await resolvePublicTenantId());
+  return getPersonnelListForCertificate(tenantId);
+}
+
+export async function lookupPersonnelDetailForCertificateAction(personnelId: string) {
+  const session = await auth().catch(() => null);
+  const tenantId = session?.tenantId || (await resolvePublicTenantId());
+  return lookupPersonnelDetailForCertificate(tenantId, personnelId);
 }
 
 export async function createTypeAction(data: unknown) {

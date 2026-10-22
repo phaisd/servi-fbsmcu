@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Search,
   User,
@@ -19,6 +19,8 @@ import {
   TrendingUp,
   MapPin,
   FileSpreadsheet,
+  Plus,
+  Sparkles,
 } from "lucide-react";
 import {
   LiyonCard,
@@ -27,20 +29,38 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { getStudentPersonalAttendanceAction } from "@/features/attendance/actions";
+import { StudentCourseEnrollDialog } from "./student-course-enroll-dialog";
+
+interface AllClassSummaryItem {
+  id: string;
+  courseCode: string;
+  courseName: string;
+  term: string;
+  instructorName: string;
+}
 
 interface StudentAttendanceInquiryProps {
   initialStudentCode?: string;
+  canManageAttendance?: boolean;
+  allClasses?: AllClassSummaryItem[];
+  locale?: string;
 }
 
-export function StudentAttendanceInquiry({ initialStudentCode = "" }: StudentAttendanceInquiryProps) {
+export function StudentAttendanceInquiry({
+  initialStudentCode = "",
+  canManageAttendance = false,
+  allClasses = [],
+  locale = "th",
+}: StudentAttendanceInquiryProps) {
   const [studentCode, setStudentCode] = useState(initialStudentCode);
   const [isLoading, setIsLoading] = useState(false);
   const [searchResult, setSearchResult] = useState<any>(null);
   const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null);
+  const [showAllClasses, setShowAllClasses] = useState(false);
+  const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
 
-  async function handleSearch(e?: React.FormEvent) {
-    if (e) e.preventDefault();
-    const clean = studentCode.trim();
+  async function runLookup(codeToSearch: string) {
+    const clean = codeToSearch.trim();
     if (!clean) {
       toast.error("กรุณาระบุรหัสนิสิตเพื่อค้นหา");
       return;
@@ -65,6 +85,17 @@ export function StudentAttendanceInquiry({ initialStudentCode = "" }: StudentAtt
       setIsLoading(false);
     }
   }
+
+  async function handleSearch(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    await runLookup(studentCode);
+  }
+
+  useEffect(() => {
+    if (initialStudentCode && initialStudentCode.trim()) {
+      void runLookup(initialStudentCode.trim());
+    }
+  }, [initialStudentCode]);
 
   function handlePrintTranscript() {
     window.print();
@@ -108,19 +139,37 @@ export function StudentAttendanceInquiry({ initialStudentCode = "" }: StudentAtt
 
           {/* Preset Student Codes Helper */}
           <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1 text-xs text-muted-foreground">
-            <span>ตัวอย่างรหัสทดสอบ:</span>
-            {["660101", "660102", "660103"].map((code) => (
+            <span>ตัวอย่างรหัสนิสิตทดสอบ:</span>
+            {["6801203001", "6701203002", "6601203005"].map((code) => (
               <button
                 key={code}
                 type="button"
                 onClick={() => {
                   setStudentCode(code);
+                  void runLookup(code);
                 }}
                 className="px-2 py-0.5 rounded-md bg-muted hover:bg-muted/80 text-foreground font-mono transition-colors"
               >
                 {code}
               </button>
             ))}
+          </div>
+
+          <div className="pt-2 border-t border-border/40 flex justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                if (!studentCode.trim()) {
+                  toast.info("กรุณาระบุรหัสนิสิตในช่องค้นหาก่อน หรือเลือกตัวอย่างรหัสเพื่อลงทะเบียน");
+                } else {
+                  setIsEnrollDialogOpen(true);
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ ลงทะเบียนรายวิชาเข้าชั้นเรียน / นำเข้าใบลงทะเบียน</span>
+            </button>
           </div>
         </div>
       </LiyonCard>
@@ -162,6 +211,14 @@ export function StudentAttendanceInquiry({ initialStudentCode = "" }: StudentAtt
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2 self-start md:self-auto">
+                <Button
+                  size="sm"
+                  onClick={() => setIsEnrollDialogOpen(true)}
+                  className="gap-1.5 rounded-xl text-xs font-bold bg-primary text-primary-foreground shadow-2xs hover:bg-primary/90"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ ลงทะเบียน / เพิ่มรายวิชา</span>
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -220,14 +277,25 @@ export function StudentAttendanceInquiry({ initialStudentCode = "" }: StudentAtt
 
           {/* Courses List */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <h4 className="text-lg font-bold text-foreground flex items-center gap-2">
                 <BookOpen className="w-5 h-5 text-primary" />
                 รายการวิชาและสถานะสิทธิ์สอบ ({searchResult.courses.length} รายวิชา)
               </h4>
-              <span className="text-xs text-muted-foreground">
-                เกณฑ์สิทธิ์สอบ: เวลาเรียนต้องไม่น้อยกว่า 80%
-              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEnrollDialogOpen(true)}
+                  className="gap-1.5 rounded-xl text-xs font-semibold text-primary border-primary/30 hover:bg-primary/10"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>เพิ่มวิชาเรียน</span>
+                </Button>
+                <span className="text-xs text-muted-foreground hidden sm:inline">
+                  เกณฑ์สิทธิ์สอบ: เวลาเรียนต้องไม่น้อยกว่า 80%
+                </span>
+              </div>
             </div>
 
             {searchResult.courses.map((course: any) => {
@@ -451,6 +519,87 @@ export function StudentAttendanceInquiry({ initialStudentCode = "" }: StudentAtt
           </div>
         </div>
       )}
+
+      {/* Admin Only: Checkbox to Toggle All Available Classes */}
+      {canManageAttendance && (
+        <div className="pt-4 border-t border-border space-y-5">
+          <label className="flex cursor-pointer items-center justify-between rounded-2xl border border-indigo-200 bg-indigo-50/60 dark:bg-indigo-950/20 dark:border-indigo-900/50 px-4 py-3.5 transition hover:bg-indigo-50">
+            <div className="space-y-0.5">
+              <span className="block text-sm font-bold text-foreground">
+                แสดงรายวิชาทั้งหมดที่เปิดสอนในคณะ ({allClasses.length} วิชา) — เฉพาะผู้ดูแลระบบ / อาจารย์
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                ซ่อนจากหน้านิสิตเป็นค่าเริ่มต้น เพื่อให้นิสิตเห็นเฉพาะรายวิชาที่ตนเองลงทะเบียนเรียนเท่านั้น
+              </span>
+            </div>
+            <input
+              type="checkbox"
+              checked={showAllClasses}
+              onChange={(e) => setShowAllClasses(e.target.checked)}
+              className="h-4 w-4 rounded border-indigo-300 text-primary focus:ring-primary"
+            />
+          </label>
+
+          {showAllClasses && (
+            <div className="space-y-4 animate-in fade-in-50 duration-200">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight text-foreground">
+                  {locale === "th" ? "รายวิชาทั้งหมดที่เปิดสอนในระบบ" : "All Available Classes"} ({allClasses.length})
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  {locale === "th"
+                    ? "แสดงเฉพาะเมื่อผู้ดูแลระบบหรืออาจารย์ติ๊กเปิดดูข้อมูลรวม"
+                    : "Visible only when toggled on by Admin/Instructor"}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {allClasses.map((cls) => (
+                  <div
+                    key={cls.id}
+                    className="flex flex-col overflow-hidden rounded-2xl border bg-card hover:shadow-md transition-all"
+                  >
+                    <div className="p-5 flex-1">
+                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted text-muted-foreground text-[11px] font-semibold tracking-wide uppercase mb-2.5">
+                        <BookOpen className="h-3 w-3" />
+                        {cls.courseCode}
+                      </div>
+                      <h3 className="text-base font-bold text-foreground mb-3">{cls.courseName}</h3>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Clock className="h-3.5 w-3.5" />
+                          {locale === "th" ? "ภาคการศึกษา:" : "Term:"} {cls.term}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="font-medium text-foreground">
+                            {locale === "th" ? "ผู้สอน:" : "Instructor:"}
+                          </span>{" "}
+                          {cls.instructorName}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Dialog for Student Course Enrollment */}
+      <StudentCourseEnrollDialog
+        open={isEnrollDialogOpen}
+        onOpenChange={setIsEnrollDialogOpen}
+        studentCode={studentCode.trim() || initialStudentCode.trim()}
+        initialStudentData={searchResult?.student}
+        onEnrollmentSuccess={() => {
+          const code = studentCode.trim() || initialStudentCode.trim();
+          if (code) {
+            void runLookup(code);
+          }
+        }}
+      />
     </div>
   );
 }
+

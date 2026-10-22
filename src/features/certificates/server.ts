@@ -25,5 +25,7 @@ export {
   DEFAULT_CERTIFICATE_NOTICE_EN,
   syncCertificateStudentToDirectory,
   syncAllCertificatesToStudentDirectory,
+  getPersonnelListForCertificate,
+  lookupPersonnelDetailForCertificate,
 } from "./_internal/services";
 

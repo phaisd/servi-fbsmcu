@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import {
   FileText,
   Download,
@@ -12,6 +13,7 @@ import {
   FolderOpen,
   Building2,
   Calendar,
+  Settings,
 } from "lucide-react";
 import type { AdminDocument } from "@/generated/prisma";
 import { formatDate } from "@/shared/lib/format";
@@ -236,51 +238,62 @@ export function PublicDocumentsClient({ initialItems, isInternalUser, locale }: 
           )}
         </div>
 
-        {/* View Mode Toggle Tabs */}
-        <div className="flex rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xs">
-          <button
-            type="button"
-            onClick={() => setViewMode("directory")}
-            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
-              viewMode === "directory"
-                ? "bg-indigo-600 text-white shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
+        {/* View Mode Toggle Tabs & Staff Manage Shortcut */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Link
+            href="/administration"
+            className="inline-flex items-center gap-1.5 rounded-2xl border border-indigo-200 bg-indigo-50/90 px-3.5 py-2.5 text-xs font-bold text-indigo-700 shadow-xs transition hover:bg-indigo-100"
+            title="เข้าสู่หน้าจัดการทำเนียบคำสั่ง ประกาศ และแบบฟอร์มสำหรับเจ้าหน้าที่ (/administration)"
           >
-            <ScrollText className="h-4 w-4" />
-            <span>{locale === "th" ? "ทำเนียบคำสั่ง & ประกาศ" : "Orders & Announcements"}</span>
-            <span
-              className={`rounded-full px-2 py-0.2 text-[10px] font-semibold ${
-                viewMode === "directory"
-                  ? "bg-white/20 text-white"
-                  : "bg-slate-100 text-slate-600"
-              }`}
-            >
-              {orderAnnouncementCount}
-            </span>
-          </button>
+            <Settings className="h-4 w-4 text-indigo-600" />
+            <span>จัดการเอกสาร (Manage Documents ⚙️)</span>
+          </Link>
 
-          <button
-            type="button"
-            onClick={() => setViewMode("forms")}
-            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
-              viewMode === "forms"
-                ? "bg-indigo-600 text-white shadow-xs"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <FolderOpen className="h-4 w-4" />
-            <span>{locale === "th" ? "แบบฟอร์ม & คู่มือ" : "Forms & Manuals"}</span>
-            <span
-              className={`rounded-full px-2 py-0.2 text-[10px] font-semibold ${
-                viewMode === "forms"
-                  ? "bg-white/20 text-white"
-                  : "bg-slate-100 text-slate-600"
+          <div className="flex rounded-2xl border border-slate-200 bg-white p-1.5 shadow-xs">
+            <button
+              type="button"
+              onClick={() => setViewMode("directory")}
+              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
+                viewMode === "directory"
+                  ? "bg-indigo-600 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              {formManualCount}
-            </span>
-          </button>
+              <ScrollText className="h-4 w-4" />
+              <span>{locale === "th" ? "ทำเนียบคำสั่ง & ประกาศ" : "Orders & Announcements"}</span>
+              <span
+                className={`rounded-full px-2 py-0.2 text-[10px] font-semibold ${
+                  viewMode === "directory"
+                    ? "bg-white/20 text-white"
+                    : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                {orderAnnouncementCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setViewMode("forms")}
+              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition ${
+                viewMode === "forms"
+                  ? "bg-indigo-600 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <FolderOpen className="h-4 w-4" />
+              <span>{locale === "th" ? "แบบฟอร์ม & คู่มือ" : "Forms & Manuals"}</span>
+              <span
+                className={`rounded-full px-2 py-0.2 text-[10px] font-semibold ${
+                  viewMode === "forms"
+                    ? "bg-white/20 text-white"
+                    : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                {formManualCount}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
 

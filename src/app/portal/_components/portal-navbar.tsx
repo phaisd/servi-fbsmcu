@@ -16,6 +16,9 @@ import {
   LogOut,
   Settings as SettingsIcon,
   PhoneCall,
+  KeyRound,
+  GraduationCap,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { LanguageSwitcher } from "@/components/layout/language-switcher";
@@ -106,12 +109,13 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
   const configuredServices = servicesConfig?.items?.filter((s) => s.enabled !== false);
 
   const defaultServiceItems = [
+    { label: locale === "th" ? "เวลาเรียน & ลงทะเบียนวิชา" : "Class Attendance & Enroll", href: "/portal/attendance" },
     { label: locale === "th" ? "หลักสูตรการศึกษา" : "Curriculums", href: "/programs" },
     { label: locale === "th" ? "ตารางเรียน / ตารางสอน" : "Class Timetables", href: "/timetables" },
     { label: locale === "th" ? "ข่าวประชาสัมพันธ์" : "Announcements", href: "/portal/news" },
     { label: locale === "th" ? "ทำเนียบบุคลากร" : "Personnel Directory", href: "/portal/personnel" },
     { label: locale === "th" ? "เอกสารดาวน์โหลด" : "Download Documents", href: "/documents" },
-    { label: locale === "th" ? "จองห้องประชุม" : "Meeting Rooms", href: "/meetings" },
+    { label: locale === "th" ? "จองห้องประชุม" : "Meeting Rooms", href: "/portal/meetings" },
     { label: locale === "th" ? "ขอหนังสือรับรอง" : "Certificate Requests", href: "/portal/certificates" },
     { label: locale === "th" ? "กิจกรรมนิสิต" : "Student Events", href: "/portal/events" },
   ];
@@ -319,11 +323,31 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
 
                   <DropdownMenuPrimitive.Item asChild>
                     <Link
+                      href="/portal/attendance"
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--glass-hover)] transition-colors cursor-pointer"
+                    >
+                      <Clock className="h-4 w-4 opacity-80 text-amber-500" />
+                      <span>{locale === "th" ? "เวลาเรียน & ลงทะเบียนวิชา" : "Attendance & Enroll"}</span>
+                    </Link>
+                  </DropdownMenuPrimitive.Item>
+
+                  <DropdownMenuPrimitive.Item asChild>
+                    <Link
                       href="/me"
                       className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--glass-hover)] transition-colors cursor-pointer"
                     >
                       <User className="h-4 w-4 opacity-80" />
                       <span>{t("account.profile")}</span>
+                    </Link>
+                  </DropdownMenuPrimitive.Item>
+
+                  <DropdownMenuPrimitive.Item asChild>
+                    <Link
+                      href="/change-password"
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--text)] hover:bg-[var(--glass-hover)] transition-colors cursor-pointer"
+                    >
+                      <KeyRound className="h-4 w-4 opacity-80 text-amber-600" />
+                      <span>{locale === "th" ? "เปลี่ยนรหัสผ่าน" : "Change Password"}</span>
                     </Link>
                   </DropdownMenuPrimitive.Item>
 

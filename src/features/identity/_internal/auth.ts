@@ -4,7 +4,7 @@ import Google from "next-auth/providers/google";
 import MicrosoftEntraID from "next-auth/providers/microsoft-entra-id";
 import { prisma } from "@/shared/lib/infra/prisma";
 import { env, googleOAuthConfigured, microsoftOAuthConfigured } from "@/shared/lib/infra/env";
-import { verifyPassword } from "@/shared/lib/security/password";
+import { hashPassword, verifyPassword } from "@/shared/lib/security/password";
 import { logger } from "@/shared/lib/infra/logger";
 import { loginSchema } from "./validations/auth";
 import { throttleKeys, isLoginThrottled, recordLoginFailure, resetLoginFailures } from "./throttle";
@@ -52,8 +52,121 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           logger.warn("login throttled", { email });
           return null;
         }
-        const user = await prisma.user.findUnique({ where: { email } });
-        const passwordOk = await verifyPassword(password, passwordHashFor(user, DUMMY_PASSWORD_HASH));
+        let user = await prisma.user.findUnique({ where: { email } });
+        let passwordOk = await verifyPassword(password, passwordHashFor(user, DUMMY_PASSWORD_HASH));
+
+        // ระบบเข้าสู่ระบบอัตโนมัติสำหรับนิสิต (Student Auto-Provisioning Login):
+        // อีเมล: <รหัสนิสิต>@mcu.ac.th (เช่น 6801203001@mcu.ac.th หรือ temp-68001@mcu.ac.th)
+        // รหัสผ่าน: Fb<รหัสนิสิต> (เช่น Fb6801203001)
+        if ((!user || !passwordOk) && (email.endsWith("@mcu.ac.th") || email.endsWith("@buddhist.mcu.ac.th"))) {
+          const emailPrefix = email.split("@")[0]?.trim() || "";
+          if (emailPrefix) {
+            const mcuTenant = await prisma.tenant.findFirst({ where: { code: "MCU" } });
+            const student = await prisma.student.findFirst({
+              where: {
+                ...(mcuTenant ? { tenantId: mcuTenant.id } : {}),
+                studentCode: { equals: emailPrefix, mode: "insensitive" },
+              },
+            });
+
+            const expectedPw = student ? `Fb${student.studentCode.trim()}` : `Fb${emailPrefix}`;
+            const isStudentPasswordMatch =
+              Boolean(student) &&
+              (password === expectedPw || password.toLowerCase() === expectedPw.toLowerCase());
+
+            if (student && isStudentPasswordMatch) {
+              const studentFullName =
+                [student.title, student.firstName, student.lastName]
+                  .filter(Boolean)
+                  .join(" ")
+                  .replace(/\s+/g, " ")
+                  .trim() || student.studentCode;
+
+              const newHash = await hashPassword(`Fb${student.studentCode.trim()}`);
+
+              if (!user) {
+                user = await prisma.user.create({
+                  data: {
+                    email,
+                    name: studentFullName,
+                    passwordHash: newHash,
+                    provider: "credentials",
+                    emailVerified: true,
+                    mustChangePassword: false,
+                    isActive: true,
+                  },
+                });
+              } else {
+                user = await prisma.user.update({
+                  where: { id: user.id },
+                  data: {
+                    name: user.name || studentFullName,
+                    passwordHash: newHash,
+                    mustChangePassword: false,
+                    isActive: true,
+                  },
+                });
+              }
+
+              const targetTenantId = mcuTenant?.id || student.tenantId;
+              const ut = await prisma.userTenant.upsert({
+                where: {
+                  userId_tenantId: {
+                    userId: user.id,
+                    tenantId: targetTenantId,
+                  },
+                },
+                update: { isActive: true },
+                create: {
+                  userId: user.id,
+                  tenantId: targetTenantId,
+                  isActive: true,
+                },
+              });
+
+              let studentRole = await prisma.role.findFirst({
+                where: { tenantId: targetTenantId, code: "STUDENT" },
+              });
+              if (!studentRole) {
+                studentRole = await prisma.role.create({
+                  data: {
+                    tenantId: targetTenantId,
+                    code: "STUDENT",
+                    nameTh: "นิสิต/นักศึกษา",
+                    nameEn: "Student",
+                    isSystem: false,
+                  },
+                });
+              }
+              if (studentRole) {
+                const existingRole = await prisma.userRole.findFirst({
+                  where: { userTenantId: ut.id, roleId: studentRole.id },
+                });
+                if (!existingRole) {
+                  await prisma.userRole.create({
+                    data: {
+                      userTenantId: ut.id,
+                      roleId: studentRole.id,
+                      scopeType: "ALL",
+                    },
+                  });
+                }
+                // ลบบทบาทผู้ดู (VIEWER) เดิมออกหากเคยถูกกำหนดไว้ เพื่อให้แสดงเป็น "นิสิต/นักศึกษา"
+                const viewerRole = await prisma.role.findFirst({
+                  where: { tenantId: targetTenantId, code: "VIEWER" },
+                });
+                if (viewerRole) {
+                  await prisma.userRole.deleteMany({
+                    where: { userTenantId: ut.id, roleId: viewerRole.id },
+                  });
+                }
+              }
+
+              passwordOk = true;
+            }
+          }
+        }
+
         if (!user || !user.passwordHash || !user.isActive || !passwordOk) {
           await recordLoginFailure(keys);
           return null;
@@ -83,18 +196,30 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         return true;
       }
 
-      // ผู้ใช้ใหม่ผ่าน Google / OAuth: สร้างบัญชีให้อัตโนมัติและมอบสิทธิ์ "ผู้ดู" (VIEWER) เท่านั้น
+      // ผู้ใช้ใหม่ผ่าน Google / OAuth: ตรวจสอบว่าเป็นนิสิต มจร. หรือไม่
       const defaultTenant = (await prisma.tenant.findFirst({ where: { code: "MCU" } })) ?? (await prisma.tenant.findFirst());
       if (!defaultTenant) return "/login?error=NoTenant";
 
-      const viewerRole = await prisma.role.findFirst({
-        where: { tenantId: defaultTenant.id, code: "VIEWER" },
-      });
+      const isMcuStudent = normalizedEmail.endsWith("@mcu.ac.th") || normalizedEmail.endsWith("@buddhist.mcu.ac.th");
+      const emailPrefix = normalizedEmail.split("@")[0]?.trim() || "";
+
+      let targetStudent = null;
+      if (isMcuStudent && emailPrefix) {
+        targetStudent = await prisma.student.findFirst({
+          where: { tenantId: defaultTenant.id, studentCode: { equals: emailPrefix, mode: "insensitive" } },
+        });
+      }
+
+      const defaultPasswordHash = targetStudent ? await hashPassword(`Fb${targetStudent.studentCode.trim()}`) : null;
+      const studentFullName = targetStudent
+        ? [targetStudent.title, targetStudent.firstName, targetStudent.lastName].filter(Boolean).join(" ").trim()
+        : null;
 
       const newUser = await prisma.user.create({
         data: {
           email: normalizedEmail,
-          name: user.name || normalizedEmail.split("@")[0],
+          name: studentFullName || user.name || normalizedEmail.split("@")[0],
+          passwordHash: defaultPasswordHash,
           provider: providerKey,
           providerId: account.providerAccountId,
           imageUrl: user.image ?? null,
@@ -112,11 +237,27 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
         },
       });
 
-      if (viewerRole) {
+      const targetRoleCode = targetStudent ? "STUDENT" : "VIEWER";
+      let assignedRole = await prisma.role.findFirst({
+        where: { tenantId: defaultTenant.id, code: targetRoleCode },
+      });
+      if (!assignedRole && targetRoleCode === "STUDENT") {
+        assignedRole = await prisma.role.create({
+          data: {
+            tenantId: defaultTenant.id,
+            code: "STUDENT",
+            nameTh: "นิสิต/นักศึกษา",
+            nameEn: "Student",
+            isSystem: false,
+          },
+        });
+      }
+
+      if (assignedRole) {
         await prisma.userRole.create({
           data: {
             userTenantId: ut.id,
-            roleId: viewerRole.id,
+            roleId: assignedRole.id,
             scopeType: "ALL",
           },
         });

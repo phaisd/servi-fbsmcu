@@ -5,4 +5,6 @@ export {
   getPublicEvents,
   getEventById,
   getRegistrations,
+  getUserActivities,
+  seedOpeningCeremonyEvent,
 } from "./_internal/services";

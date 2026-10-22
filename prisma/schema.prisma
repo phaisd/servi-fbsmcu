@@ -899,13 +899,17 @@ model Event {
   id       String @id @default(uuid()) @db.Uuid
   tenantId String @map("tenant_id") @db.Uuid
 
-  title       String   @db.VarChar(255)
-  description String?  @db.Text
-  location    String?  @db.VarChar(255)
-  startDate   DateTime @map("start_date") @db.Timestamptz()
-  endDate     DateTime @map("end_date") @db.Timestamptz()
-  capacity    Int      @default(0) // 0 = unlimited
-  isActive    Boolean  @default(true) @map("is_active")
+  title         String   @db.VarChar(255)
+  description   String?  @db.Text
+  location      String?  @db.VarChar(255)
+  startDate     DateTime @map("start_date") @db.Timestamptz()
+  endDate       DateTime @map("end_date") @db.Timestamptz()
+  capacity      Int      @default(0) // 0 = unlimited
+  isActive      Boolean  @default(true) @map("is_active")
+  academicYear  String?  @default("2569") @map("academic_year") @db.VarChar(20)
+  activityHours Int      @default(3) @map("activity_hours")
+  eventType     String   @default("CEREMONY") @map("event_type") @db.VarChar(50)
+  targetGroup   String   @default("ALL") @map("target_group") @db.VarChar(100)
 
   registrations EventRegistration[]
 
@@ -932,6 +936,12 @@ model EventRegistration {
   studentCode String             @map("student_code") @db.VarChar(50)
   studentName String             @map("student_name") @db.VarChar(255)
   status      RegistrationStatus @default(REGISTERED)
+  role        String             @default("STUDENT") @db.VarChar(50)
+  major       String?            @db.VarChar(100)
+  yearLevel   Int?               @map("year_level")
+  department  String?            @db.VarChar(100)
+  remarks     String?            @db.VarChar(255)
+  attendedAt  DateTime?          @map("attended_at") @db.Timestamptz()
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()

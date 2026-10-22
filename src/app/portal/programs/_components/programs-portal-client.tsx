@@ -3,8 +3,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BookOpen, GraduationCap, Clock, Building2, Search, Filter, Calendar } from "lucide-react";
+import { BookOpen, GraduationCap, Clock, Building2, Search, Filter, Calendar, X, RotateCcw } from "lucide-react";
 import type { Curriculum, Department, DegreeLevel } from "@/generated/prisma";
+import { Button } from "@/components/ui/button";
 
 type CurriculumWithDept = Curriculum & { department?: Department | null };
 
@@ -30,6 +31,10 @@ export function ProgramsPortalClient({
   const [selectedDegree, setSelectedDegree] = React.useState<string>("ALL");
   const [search, setSearch] = React.useState("");
 
+  const selectedDeptObj = React.useMemo(() => {
+    return departments.find((d) => d.id === selectedDept) || null;
+  }, [departments, selectedDept]);
+
   const filteredItems = React.useMemo(() => {
     return items.filter((item) => {
       // Search
@@ -40,17 +45,28 @@ export function ProgramsPortalClient({
         const matchDept = (item.department?.nameTh || "").toLowerCase().includes(q);
         if (!matchTh && !matchEn && !matchDept) return false;
       }
-      // Department
+
+      // Department filter
       if (selectedDept !== "ALL") {
-        if (selectedDept === "NONE" && item.departmentId) return false;
-        if (selectedDept !== "NONE" && item.departmentId !== selectedDept) return false;
+        const matchesDeptId = item.departmentId === selectedDept;
+        const matchesDeptName = selectedDeptObj && item.department?.nameTh === selectedDeptObj.nameTh;
+        if (!matchesDeptId && !matchesDeptName) return false;
       }
-      // Degree
+
+      // Degree filter
       if (selectedDegree !== "ALL" && item.degree !== selectedDegree) return false;
 
       return true;
     });
-  }, [items, search, selectedDept, selectedDegree]);
+  }, [items, search, selectedDept, selectedDegree, selectedDeptObj]);
+
+  const hasActiveFilters = selectedDept !== "ALL" || selectedDegree !== "ALL" || search.trim() !== "";
+
+  const handleResetFilters = () => {
+    setSelectedDept("ALL");
+    setSelectedDegree("ALL");
+    setSearch("");
+  };
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -66,8 +82,8 @@ export function ProgramsPortalClient({
           </h1>
           <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
             {locale === "th"
-              ? "รวมหลักสูตรระดับปริญญาตรี ปริญญาโท ปริญญาเอก และประกาศนียบัตร แยกตามภาควิชาและสาขาวิชา"
-              : "Explore undergraduate, graduate, and certificate programs across all departments."}
+              ? "รวมหลักสูตรระดับปริญญาตรี ปริญญาโท ปริญญาเอก และประกาศนียบัตร แยกตามภาควิชาและสาขาวิชา คณะพุทธศาสตร์"
+              : "Explore undergraduate, graduate, and certificate programs across all departments, Faculty of Buddhism."}
           </p>
         </div>
 
@@ -86,7 +102,7 @@ export function ProgramsPortalClient({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={locale === "th" ? "ค้นหาชื่อหลักสูตร..." : "Search programs..."}
+              placeholder={locale === "th" ? "ค้นหาชื่อหลักสูตร, สาขาวิชา..." : "Search programs..."}
               className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-border bg-background shadow-xs focus:outline-hidden focus:ring-2 focus:ring-primary/20"
             />
           </div>
@@ -96,10 +112,22 @@ export function ProgramsPortalClient({
       {/* ── DEPARTMENT FILTER TABS ── */}
       {departments.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 uppercase tracking-wider">
-            <Building2 className="w-3.5 h-3.5" />
-            <span>{locale === "th" ? "เลือกดูตามภาควิชา / ส่วนงาน" : "Filter by Department"}</span>
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold text-muted-foreground flex items-center gap-1.5 uppercase tracking-wider">
+              <Building2 className="w-3.5 h-3.5 text-primary" />
+              <span>{locale === "th" ? "เลือกดูตามภาควิชา / ส่วนงาน" : "Filter by Department"}</span>
+            </p>
+            {selectedDept !== "ALL" && (
+              <button
+                type="button"
+                onClick={() => setSelectedDept("ALL")}
+                className="text-2xs text-primary hover:underline cursor-pointer"
+              >
+                {locale === "th" ? "แสดงทุกภาควิชา" : "Show all"}
+              </button>
+            )}
+          </div>
+
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -113,20 +141,29 @@ export function ProgramsPortalClient({
               {locale === "th" ? "🏛️ ทุกภาควิชา" : "All Departments"} ({items.length})
             </button>
             {departments.map((dept) => {
-              const count = items.filter((it) => it.departmentId === dept.id).length;
+              const count = items.filter(
+                (it) => it.departmentId === dept.id || it.department?.nameTh === dept.nameTh
+              ).length;
+              const isSelected = selectedDept === dept.id;
               return (
                 <button
                   key={dept.id}
                   type="button"
                   onClick={() => setSelectedDept(dept.id)}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                    selectedDept === dept.id
-                      ? "bg-primary text-primary-foreground shadow-xs"
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    isSelected
+                      ? "bg-primary text-primary-foreground shadow-xs font-bold"
                       : "bg-muted/70 hover:bg-muted text-muted-foreground"
                   }`}
                 >
                   <span>{locale === "th" ? dept.nameTh : (dept.nameEn || dept.nameTh)}</span>
-                  <span className="ml-1.5 text-[10px] opacity-80">({count})</span>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                      isSelected ? "bg-white/20 text-white" : "bg-background/80 text-foreground"
+                    }`}
+                  >
+                    {count}
+                  </span>
                 </button>
               );
             })}
@@ -135,39 +172,99 @@ export function ProgramsPortalClient({
       )}
 
       {/* ── DEGREE LEVEL FILTER PILLS ── */}
-      <div className="flex flex-wrap items-center gap-2 pt-1 border-t">
+      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border">
         <span className="text-xs text-muted-foreground mr-1 flex items-center gap-1">
-          <Filter className="w-3 h-3" />
+          <Filter className="w-3 h-3 text-primary" />
           <span>{locale === "th" ? "ระดับ:" : "Degree:"}</span>
         </span>
-        {(["ALL", "BACHELOR", "MASTER", "DOCTORATE", "CERTIFICATE"] as const).map((deg) => (
-          <button
-            key={deg}
-            type="button"
-            onClick={() => setSelectedDegree(deg)}
-            className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
-              selectedDegree === deg
-                ? "bg-foreground text-background font-semibold"
-                : "bg-muted/40 hover:bg-muted text-muted-foreground"
-            }`}
-          >
-            {deg === "ALL"
-              ? locale === "th"
-                ? "ทุกระดับ"
-                : "All Levels"
-              : locale === "th"
-              ? DEGREE_LABELS[deg]?.th
-              : DEGREE_LABELS[deg]?.en}
-          </button>
-        ))}
+        {(["ALL", "BACHELOR", "MASTER", "DOCTORATE", "CERTIFICATE"] as const).map((deg) => {
+          const isSelected = selectedDegree === deg;
+          return (
+            <button
+              key={deg}
+              type="button"
+              onClick={() => setSelectedDegree(deg)}
+              className={`px-3 py-1 rounded-lg text-xs transition-colors cursor-pointer ${
+                isSelected
+                  ? "bg-foreground text-background font-bold shadow-2xs"
+                  : "bg-muted/40 hover:bg-muted text-muted-foreground"
+              }`}
+            >
+              {deg === "ALL"
+                ? locale === "th"
+                  ? "ทุกระดับ"
+                  : "All Levels"
+                : locale === "th"
+                ? DEGREE_LABELS[deg]?.th
+                : DEGREE_LABELS[deg]?.en}
+            </button>
+          );
+        })}
       </div>
+
+      {/* ── ACTIVE FILTER BAR ── */}
+      {hasActiveFilters && (
+        <div className="flex flex-wrap items-center gap-2 bg-muted/30 border border-border/80 px-3 py-2 rounded-xl text-xs text-muted-foreground">
+          <span className="font-semibold text-foreground">ตัวกรองปัจจุบัน:</span>
+          {selectedDeptObj && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+              <Building2 className="w-3 h-3" />
+              <span>{selectedDeptObj.nameTh}</span>
+              <button
+                type="button"
+                onClick={() => setSelectedDept("ALL")}
+                className="hover:text-primary/70 ml-1 cursor-pointer"
+                title="ลบตัวกรองภาควิชา"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {selectedDegree !== "ALL" && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+              <GraduationCap className="w-3 h-3" />
+              <span>{DEGREE_LABELS[selectedDegree as DegreeLevel]?.th || selectedDegree}</span>
+              <button
+                type="button"
+                onClick={() => setSelectedDegree("ALL")}
+                className="hover:text-primary/70 ml-1 cursor-pointer"
+                title="ลบตัวกรองระดับปริญญา"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          {search.trim() && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+              <Search className="w-3 h-3" />
+              <span>&quot;{search}&quot;</span>
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="hover:text-primary/70 ml-1 cursor-pointer"
+                title="ล้างคำค้นหา"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleResetFilters}
+            className="text-xs text-primary hover:underline ml-auto flex items-center gap-1 cursor-pointer font-medium"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>รีเซ็ตตัวกรองทั้งหมด ({filteredItems.length}/{items.length} หลักสูตร)</span>
+          </button>
+        </div>
+      )}
 
       {/* ── PROGRAM CARDS GRID ── */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredItems.map((item) => (
           <div
             key={item.id}
-            className="flex flex-col overflow-hidden rounded-2xl border bg-card hover:shadow-xl transition-all duration-300 group hover:-translate-y-0.5"
+            className="flex flex-col overflow-hidden rounded-2xl border border-border bg-card hover:shadow-xl transition-all duration-300 group hover:-translate-y-0.5"
           >
             {item.imageUrl && (
               <div className="h-44 w-full overflow-hidden bg-muted relative">
@@ -192,7 +289,7 @@ export function ProgramsPortalClient({
                   </span>
 
                   {item.department && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-muted text-muted-foreground text-[11px] font-medium">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-muted text-muted-foreground text-[11px] font-medium border border-border">
                       <Building2 className="h-3 w-3 text-primary" />
                       <span>
                         {locale === "th"
@@ -220,7 +317,7 @@ export function ProgramsPortalClient({
               </div>
 
               {/* Card Footer */}
-              <div className="pt-4 border-t flex items-center justify-between text-xs text-muted-foreground">
+              <div className="pt-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
                 <div className="flex items-center gap-1.5 font-medium">
                   <Clock className="h-4 w-4 text-primary" />
                   <span>
@@ -240,16 +337,29 @@ export function ProgramsPortalClient({
         ))}
 
         {filteredItems.length === 0 && (
-          <div className="col-span-full py-20 text-center text-muted-foreground rounded-2xl border border-dashed p-8">
-            <BookOpen className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
-            <p className="text-base font-semibold">
-              {locale === "th" ? "ไม่พบข้อมูลหลักสูตรที่ตรงกับเงื่อนไข" : "No programs found matching the filters."}
+          <div className="col-span-full py-16 text-center text-muted-foreground rounded-2xl border border-dashed border-border p-8 space-y-3 bg-card">
+            <BookOpen className="w-10 h-10 mx-auto text-muted-foreground/40" />
+            <p className="text-base font-bold text-foreground">
+              {locale === "th" ? "ไม่พบข้อมูลหลักสูตรที่ตรงกับเงื่อนไขตัวกรอง" : "No programs found matching the filters."}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {locale === "th"
-                ? "ลองเปลี่ยนตัวกรองภาควิชา หรือระดับการศึกษาอื่น"
-                : "Try selecting a different department or degree level."}
+            <p className="text-xs text-muted-foreground max-w-md mx-auto">
+              {selectedDept !== "ALL" && selectedDegree !== "ALL"
+                ? `ใน "${selectedDeptObj?.nameTh || "ภาควิชาที่เลือก"}" อาจไม่มีหลักสูตรระดับ "${DEGREE_LABELS[selectedDegree as DegreeLevel]?.th || selectedDegree}" ลองเลือก "ทุกระดับ" เพื่อดูหลักสูตรทั้งหมดของภาควิชา`
+                : "ลองเปลี่ยนตัวกรองภาควิชา หรือระดับการศึกษาอื่น"}
             </p>
+            {hasActiveFilters && (
+              <div className="pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResetFilters}
+                  className="text-xs gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>ล้างตัวกรองและแสดงหลักสูตรทั้งหมด ({items.length})</span>
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </div>

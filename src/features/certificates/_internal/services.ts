@@ -105,74 +105,277 @@ export async function ensureCertificateDefaults(tenantId: string) {
 }
 
 // ==========================================
-// Student Directory Lookup for Auto-fill
+// Student, Faculty Lecturer & Staff Lookup for Auto-fill
 // ==========================================
 export async function lookupStudentForCertificate(tenantId: string, query: string) {
   const q = query.trim();
   if (!q) return null;
 
-  const student = await db.student.findFirst({
+  const isExplicitTeacherOrStaffCode =
+    /^T\d{4,6}$/i.test(q) || q.toUpperCase().startsWith("STAFF-");
+
+  if (!isExplicitTeacherOrStaffCode) {
+    const student = await db.student.findFirst({
+      where: {
+        tenantId,
+        OR: [
+          { studentCode: { equals: q, mode: "insensitive" } },
+          { studentCode: { contains: q, mode: "insensitive" } },
+          { firstName: { contains: q, mode: "insensitive" } },
+        ],
+      },
+    });
+
+    if (student) {
+      const fullName = [student.title, student.firstName, student.lastName]
+        .filter(Boolean)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+
+      const isEngCurr =
+        (student.curriculumName || "").includes("อังกฤษ") ||
+        (student.curriculumName || "").toLowerCase().includes("english") ||
+        (student.department || "").toLowerCase().includes("english");
+
+      const yearMap: Record<number, string> = {
+        1: "ปีที่ 1 (First year)",
+        2: "ปีที่ 2 (Second year)",
+        3: "ปีที่ 3 (Third year)",
+        4: "ปีที่ 4 (Fourth year)",
+      };
+
+      let degreeLevel = "ป.ตรี (B.A. English Program)";
+      if ((student.degree || "").includes("เอก")) {
+        degreeLevel = "ป.เอก (Ph.D.)";
+      } else if ((student.degree || "").includes("โท")) {
+        degreeLevel = "ป.โท (M.A.)";
+      } else if (!isEngCurr) {
+        degreeLevel = "ป.ตรี (B.A. Thai Program)";
+      }
+
+      let major = student.major || student.department || "Buddhist Studies";
+      if (isEngCurr) {
+        if (major.includes("พระพุทธศาสนา") || major.toLowerCase().includes("buddhist")) {
+          major = "Buddhist Studies";
+        } else if (major.includes("ศาสนา") || major.includes("ปรัชญา") || major.toLowerCase().includes("philosophy")) {
+          major = "Religion and Philosophy";
+        }
+      }
+
+      const isNewStudent =
+        student.studentCode.trim().toUpperCase().startsWith("TEMP-") ||
+        (student.studyStatus || "").includes("นิสิตใหม่");
+
+      return {
+        applicantType: isNewStudent
+          ? ("NEW_STUDENT" as const)
+          : ("CURRENT_STUDENT" as const),
+        studentCode: student.studentCode,
+        fullName,
+        classYear: yearMap[student.yearLevel] || `ปีที่ ${student.yearLevel}`,
+        degreeLevel,
+        major,
+        sex: student.gender === "หญิง" || student.gender === "F" ? "F" : "M",
+        email: student.email || `${student.studentCode}@mcu.ac.th`,
+        phone: student.phoneNumber || "",
+        nationality: student.nationality || "",
+        country: student.country || "",
+        address: student.address || "",
+        studyStatus: student.studyStatus || "ปกติ",
+        isNewStudent,
+        staffPosition: "",
+        staffDepartment: "",
+        taughtCourses: "",
+        language: isEngCurr ? ("In English language" as const) : ("In Thai language" as const),
+      };
+    }
+  }
+
+  // Fallback 1: Search Teacher User Account (e.g. T69001..T69041 or instructor name)
+  const teacherUser = await db.user.findFirst({
     where: {
-      tenantId,
       OR: [
-        { studentCode: { equals: q, mode: "insensitive" } },
-        { studentCode: { contains: q, mode: "insensitive" } },
-        { firstName: { contains: q, mode: "insensitive" } },
+        { email: { startsWith: `${q.toLowerCase()}@`, mode: "insensitive" } },
+        { email: { equals: q, mode: "insensitive" } },
+        { name: { contains: q, mode: "insensitive" } },
       ],
     },
   });
 
-  if (!student) return null;
+  if (teacherUser) {
+    const courses = await db.course.findMany({
+      where: {
+        tenantId,
+        OR: [
+          { primaryTeacherId: teacherUser.id },
+          { teachers: { some: { userId: teacherUser.id } } },
+        ],
+      },
+      orderBy: { courseCode: "asc" },
+    });
 
-  const fullName = [student.title, student.firstName, student.lastName]
-    .filter(Boolean)
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
+    const uniqueCourseMap = new Map<string, string>();
+    for (const c of courses) {
+      const code = c.courseCode.trim();
+      if (!uniqueCourseMap.has(code)) {
+        uniqueCourseMap.set(code, `${code} ${c.courseName}`);
+      }
+    }
+    const taughtCoursesStr = Array.from(uniqueCourseMap.values()).slice(0, 6).join(", ");
+    const emailPrefix = teacherUser.email.split("@")[0].toUpperCase();
+    const staffCode = /^T\d+/i.test(emailPrefix) ? emailPrefix : q.toUpperCase();
 
-  const isEngCurr =
-    (student.curriculumName || "").includes("อังกฤษ") ||
-    (student.curriculumName || "").toLowerCase().includes("english") ||
-    (student.department || "").toLowerCase().includes("english");
-
-  const yearMap: Record<number, string> = {
-    1: "ปีที่ 1 (First year)",
-    2: "ปีที่ 2 (Second year)",
-    3: "ปีที่ 3 (Third year)",
-    4: "ปีที่ 4 (Fourth year)",
-  };
-
-  let degreeLevel = "ป.ตรี (B.A. English Program)";
-  if ((student.degree || "").includes("เอก")) {
-    degreeLevel = "ป.เอก (Ph.D.)";
-  } else if ((student.degree || "").includes("โท")) {
-    degreeLevel = "ป.โท (M.A.)";
-  } else if (!isEngCurr) {
-    degreeLevel = "ป.ตรี (B.A. Thai Program)";
+    return {
+      applicantType: "FACULTY_LECTURER" as const,
+      studentCode: staffCode,
+      fullName: teacherUser.name || q,
+      classYear: "อาจารย์ผู้สอน (Faculty Lecturer)",
+      degreeLevel: "คณาจารย์คณะพุทธศาสตร์",
+      major: "พระพุทธศาสนา",
+      sex: "M",
+      email: teacherUser.email,
+      phone: "",
+      nationality: "ไทย",
+      country: "ไทย",
+      address: "คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย ตำบลลำไทร อำเภอวังน้อย จังหวัดพระนครศรีอยุธยา",
+      studyStatus: "ปฏิบัติงานปกติ",
+      isNewStudent: false,
+      staffPosition: courses.length > 0 ? "อาจารย์ประจำ / อาจารย์พิเศษผู้สอน" : "อาจารย์ประจำคณะพุทธศาสตร์",
+      staffDepartment: "คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย",
+      taughtCourses: taughtCoursesStr,
+      language: "In Thai language" as const,
+    };
   }
 
-  let major = student.major || student.department || "Buddhist Studies";
-  if (isEngCurr) {
-    if (major.includes("พระพุทธศาสนา") || major.toLowerCase().includes("buddhist")) {
-      major = "Buddhist Studies";
-    } else if (major.includes("ศาสนา") || major.includes("ปรัชญา") || major.toLowerCase().includes("philosophy")) {
-      major = "Religion and Philosophy";
+  // Fallback 2: Search Personnel Directory (Academic & Support Staff)
+  const person = await db.personnel.findFirst({
+    where: {
+      tenantId,
+      OR: [
+        { firstNameTh: { contains: q, mode: "insensitive" } },
+        { lastNameTh: { contains: q, mode: "insensitive" } },
+        { firstNameEn: { contains: q, mode: "insensitive" } },
+        { email: { contains: q, mode: "insensitive" } },
+      ],
+    },
+    include: {
+      department: true,
+    },
+  });
+
+  if (person) {
+    const fullName = [person.firstNameTh, person.lastNameTh].filter(Boolean).join(" ").trim();
+    const isSupport = person.type === "SUPPORT";
+    return {
+      applicantType: isSupport ? ("STAFF_MEMBER" as const) : ("FACULTY_LECTURER" as const),
+      studentCode: isSupport ? `STAFF-${person.orderIndex || "001"}` : `T69${String(person.orderIndex || 1).padStart(3, "0")}`,
+      fullName,
+      classYear: isSupport ? "เจ้าหน้าที่สายสนับสนุน" : "คณาจารย์ประจำคณะ",
+      degreeLevel: "บุคลากรคณะพุทธศาสตร์",
+      major: person.department?.nameTh || "สำนักงานคณบดี คณะพุทธศาสตร์",
+      sex: "M",
+      email: person.email || "",
+      phone: person.phoneNumber || "",
+      nationality: "ไทย",
+      country: "ไทย",
+      address: "คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย",
+      studyStatus: "ปฏิบัติงานปกติ",
+      isNewStudent: false,
+      staffPosition: person.positionTh || (isSupport ? "เจ้าหน้าที่บริหารงานทั่วไป" : "อาจารย์ประจำ"),
+      staffDepartment: person.department?.nameTh || "สำนักงานคณบดี คณะพุทธศาสตร์",
+      taughtCourses: "",
+      language: "In Thai language" as const,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * ดึงรายชื่อบุคลากรและคณาจารย์ทั้งหมดจากทำเนียบบุคลากร (Personnel Directory) สำหรับเลือกขอหนังสือรับรอง
+ */
+export async function getPersonnelListForCertificate(tenantId: string) {
+  const personnel = await db.personnel.findMany({
+    where: { tenantId, isActive: true },
+    include: { department: true },
+    orderBy: [{ type: "asc" }, { orderIndex: "asc" }, { firstNameTh: "asc" }],
+  });
+
+  return personnel.map((p) => ({
+    id: p.id,
+    fullNameTh: `${p.firstNameTh} ${p.lastNameTh}`.trim(),
+    fullNameEn: p.firstNameEn && p.lastNameEn ? `${p.firstNameEn} ${p.lastNameEn}`.trim() : "",
+    type: p.type, // "ACADEMIC" | "SUPPORT"
+    positionTh: p.positionTh || (p.type === "SUPPORT" ? "เจ้าหน้าที่บริหารงานทั่วไป" : "อาจารย์ประจำ"),
+    positionEn: p.positionEn || "",
+    departmentNameTh: p.department?.nameTh || "สำนักงานคณบดี คณะพุทธศาสตร์",
+    departmentNameEn: p.department?.nameEn || "Faculty of Buddhism",
+    email: p.email || "",
+    phoneNumber: p.phoneNumber || "",
+    orderIndex: p.orderIndex,
+  }));
+}
+
+/**
+ * ดึงข้อมูลเจาะลึกของบุคลากรรายบุคคลพร้อมวิชาที่สอน เพื่อกรอกในใบรับรองอัตโนมัติ
+ */
+export async function lookupPersonnelDetailForCertificate(tenantId: string, personnelId: string) {
+  const person = await db.personnel.findFirst({
+    where: { id: personnelId, tenantId },
+    include: { department: true },
+  });
+
+  if (!person) return null;
+
+  const isSupport = person.type === "SUPPORT";
+  const fullNameTh = `${person.firstNameTh} ${person.lastNameTh}`.trim();
+  const fullNameEn = person.firstNameEn && person.lastNameEn ? `${person.firstNameEn} ${person.lastNameEn}`.trim() : "";
+
+  // ค้นหารายวิชาที่สอน (ถ้าเป็นอาจารย์) โดยค้นหาจากชื่อหรืออีเมล
+  let taughtCoursesStr = "";
+  if (!isSupport) {
+    const courses = await db.course.findMany({
+      where: {
+        tenantId,
+        OR: [
+          ...(person.email ? [{ primaryTeacher: { email: { equals: person.email, mode: "insensitive" as const } } }] : []),
+          { primaryTeacher: { name: { contains: person.firstNameTh, mode: "insensitive" as const } } },
+        ],
+      },
+      orderBy: { courseCode: "asc" },
+      take: 6,
+    });
+
+    if (courses.length > 0) {
+      taughtCoursesStr = courses.map((c) => `${c.courseCode} ${c.courseName}`).join(", ");
     }
   }
 
+  const staffCode = isSupport
+    ? `STAFF-${String(person.orderIndex || "001").padStart(3, "0")}`
+    : `T69${String(person.orderIndex || 1).padStart(3, "0")}`;
+
   return {
-    studentCode: student.studentCode,
-    fullName,
-    classYear: yearMap[student.yearLevel] || `ปีที่ ${student.yearLevel}`,
-    degreeLevel,
-    major,
-    sex: student.gender === "หญิง" || student.gender === "F" ? "F" : "M",
-    email: student.email || `${student.studentCode}@mcu.ac.th`,
-    phone: student.phoneNumber || "",
-    nationality: student.nationality || "",
-    country: student.country || "",
-    address: student.address || "",
-    language: isEngCurr ? ("In English language" as const) : ("In Thai language" as const),
+    applicantType: isSupport ? ("STAFF_MEMBER" as const) : ("FACULTY_LECTURER" as const),
+    studentCode: staffCode,
+    fullName: fullNameTh,
+    fullNameEn,
+    classYear: isSupport ? "เจ้าหน้าที่สายสนับสนุน" : "คณาจารย์ประจำคณะ",
+    degreeLevel: "บุคลากรคณะพุทธศาสตร์",
+    major: person.department?.nameTh || "สำนักงานคณบดี คณะพุทธศาสตร์",
+    sex: "M" as const,
+    email: person.email || "",
+    phone: person.phoneNumber || "",
+    nationality: "ไทย",
+    country: "ไทย",
+    address: "คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย ตำบลลำไทร อำเภอวังน้อย จังหวัดพระนครศรีอยุธยา",
+    studyStatus: "ปฏิบัติงานปกติ",
+    isNewStudent: false,
+    staffPosition: person.positionTh || (isSupport ? "เจ้าหน้าที่บริหารงานทั่วไป" : "อาจารย์ประจำ"),
+    staffDepartment: person.department?.nameTh ? `${person.department.nameTh} คณะพุทธศาสตร์` : "สำนักงานคณบดี คณะพุทธศาสตร์",
+    taughtCourses: taughtCoursesStr,
+    language: "In Thai language" as const,
   };
 }
 
@@ -764,8 +967,86 @@ export async function updateCertificateNotice(
 }
 
 // ==========================================
+// Sync Personnel Profile to Personnel Directory (ทำเนียบบุคลากร)
+// สำหรับอาจารย์ผู้สอนและเจ้าหน้าที่ (แยกจากทะเบียนนิสิต)
+// ==========================================
+
+export async function syncCertificatePersonnelToDirectory(
+  tenantId: string,
+  meta: Partial<CertificateRequestMetadata>
+) {
+  const rawName = meta.fullName?.trim() || "";
+  if (!rawName) return null;
+
+  const parts = rawName.split(/\s+/);
+  const firstNameTh = parts[0] || rawName;
+  const lastNameTh = parts.slice(1).join(" ") || "-";
+
+  const isSupport =
+    meta.applicantType === "STAFF_MEMBER" || (meta.staffPosition || "").includes("เจ้าหน้าที่");
+  const personnelType = isSupport ? "SUPPORT" : "ACADEMIC";
+
+  let deptId: string | null = null;
+  if (meta.staffDepartment || meta.major) {
+    const deptSearch = meta.staffDepartment || meta.major || "";
+    const dept = await db.department.findFirst({
+      where: {
+        tenantId,
+        OR: [
+          { nameTh: { contains: deptSearch } },
+          { nameEn: { contains: deptSearch, mode: "insensitive" } },
+        ],
+      },
+    });
+    if (dept) deptId = dept.id;
+  }
+
+  // Check if exists in personnel directory
+  const existing = await db.personnel.findFirst({
+    where: {
+      tenantId,
+      OR: [
+        meta.email ? { email: { equals: meta.email.trim(), mode: "insensitive" } } : undefined,
+        {
+          AND: [
+            { firstNameTh: { contains: firstNameTh.replace(/^(พระครู|พระมหา|พระ|ดร\.|ผศ\.|รศ\.)/g, "").trim(), mode: "insensitive" } },
+            { lastNameTh: { contains: lastNameTh.trim(), mode: "insensitive" } },
+          ],
+        },
+      ].filter(Boolean) as any,
+    },
+  });
+
+  if (existing) {
+    return db.personnel.update({
+      where: { id: existing.id },
+      data: {
+        positionTh: meta.staffPosition || existing.positionTh,
+        email: meta.email || existing.email,
+        phoneNumber: meta.phone || existing.phoneNumber,
+        departmentId: deptId || existing.departmentId,
+      },
+    });
+  }
+
+  return db.personnel.create({
+    data: {
+      tenantId,
+      firstNameTh,
+      lastNameTh,
+      positionTh: meta.staffPosition || (isSupport ? "เจ้าหน้าที่" : "อาจารย์ประจำคณะพุทธศาสตร์"),
+      type: personnelType,
+      email: meta.email || null,
+      phoneNumber: meta.phone || null,
+      departmentId: deptId,
+      isActive: true,
+    },
+  });
+}
+
+// ==========================================
 // Sync Student Profile to Student Directory
-// (เพศ, สัญชาติ, เชื้อชาติ/ประเทศ, ที่อยู่)
+// (เฉพาะนิสิตเท่านั้น - เพศ, สัญชาติ, เชื้อชาติ/ประเทศ, ที่อยู่)
 // ==========================================
 
 export async function syncCertificateStudentToDirectory(
@@ -773,6 +1054,22 @@ export async function syncCertificateStudentToDirectory(
   meta: Partial<CertificateRequestMetadata>
 ) {
   const code = meta.studentCode?.trim();
+  if (!code && !meta.fullName) return null;
+
+  // ตรวจสอบอย่างชัดเจน: หากเป็นอาจารย์หรือเจ้าหน้าที่ ให้แยกไปอัปเดตที่ "ทำเนียบบุคลากร"
+  const isFacultyOrStaff =
+    meta.applicantType === "FACULTY_LECTURER" ||
+    meta.applicantType === "STAFF_MEMBER" ||
+    (code && /^T\d+/i.test(code)) ||
+    (code && code.toUpperCase().startsWith("STAFF-")) ||
+    Boolean(meta.staffPosition) ||
+    meta.classYear?.includes("อาจารย์") ||
+    meta.classYear?.includes("เจ้าหน้าที่");
+
+  if (isFacultyOrStaff) {
+    return syncCertificatePersonnelToDirectory(tenantId, meta);
+  }
+
   if (!code) return null;
 
   const genderStr =

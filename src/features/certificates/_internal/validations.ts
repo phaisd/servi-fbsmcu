@@ -94,11 +94,37 @@ export const CERTIFICATE_PURPOSES = [
     purposePhraseTh: "สำหรับการขอทำหนังสือเดินทางเล่มใหม่ (Renew Passport)",
     defaultTemplate: "ENG_CERT" as CertificateTemplateType,
   },
+  {
+    value: "Teaching & Lecturer Certificate (รับรองการเป็นอาจารย์ประจำ/อาจารย์พิเศษ)",
+    labelTh: "รับรองการเป็นอาจารย์ประจำ / อาจารย์พิเศษผู้สอน (Teaching & Lecturer Certificate)",
+    labelEn: "Teaching & Visiting Lecturer Certificate",
+    purposePhraseTh: "สำหรับรับรองการปฏิบัติหน้าที่อาจารย์ผู้สอนและภาระงานทางวิชาการในคณะพุทธศาสตร์",
+    defaultTemplate: "THAI_CERT" as CertificateTemplateType,
+  },
+  {
+    value: "Faculty & Staff Employment Certificate (รับรองการปฏิบัติงานอาจารย์/เจ้าหน้าที่)",
+    labelTh: "รับรองการปฏิบัติงานบุคลากร / เจ้าหน้าที่คณะ (Faculty & Staff Employment Certificate)",
+    labelEn: "Faculty & Staff Employment Certificate",
+    purposePhraseTh: "สำหรับรับรองการปฏิบัติงานและสังกัดคณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย",
+    defaultTemplate: "THAI_CERT" as CertificateTemplateType,
+  },
 ] as const;
+
+export const CERTIFICATE_APPLICANT_TYPES = [
+  "CURRENT_STUDENT",
+  "NEW_STUDENT",
+  "FACULTY_LECTURER",
+  "STAFF_MEMBER",
+] as const;
+
+export type CertificateApplicantType = (typeof CERTIFICATE_APPLICANT_TYPES)[number];
 
 export const certificateMetadataSchema = z.object({
   seqNo: z.number().optional(),
-  applicantType: z.enum(["CURRENT_STUDENT", "NEW_STUDENT"]).optional().default("CURRENT_STUDENT"),
+  applicantType: z.enum(CERTIFICATE_APPLICANT_TYPES).optional().default("CURRENT_STUDENT"),
+  staffPosition: z.string().trim().optional().default(""),
+  staffDepartment: z.string().trim().optional().default(""),
+  taughtCourses: z.string().trim().optional().default(""),
   applicationNo: z.string().trim().optional().default(""),
   admissionProofUrl: z.string().trim().optional().default(""),
   studentCode: z.string().trim().default(""),
@@ -148,6 +174,7 @@ export const certificateMetadataSchema = z.object({
   customBodyText: z.string().optional().default(""),
   showSignatureGraphic: z.boolean().optional().default(true),
   showPhotoBox: z.boolean().optional().default(true),
+  showVerificationQr: z.boolean().optional().default(true),
   fontSizePt: z.number().min(10).max(28).optional(),
   lineHeight: z.number().min(1.1).max(3.0).optional().default(1.85),
   marginTopMm: z.number().min(10).max(60).optional().default(24),

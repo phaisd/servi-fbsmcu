@@ -93,7 +93,7 @@ export const unlockSessionSchema = z.object({
 export const assignTeacherSchema = z.object({
   courseId: z.string().uuid(),
   userId: z.string().uuid(),
-  role: z.enum(["PRIMARY_TEACHER", "CO_TEACHER", "TEACHING_ASSISTANT"]).default("CO_TEACHER"),
+  role: z.enum(["PRIMARY_TEACHER", "CO_TEACHER", "GUEST_LECTURER", "TEACHING_ASSISTANT"]).default("CO_TEACHER"),
 });
 
 export const attendanceRecordSchema = z.object({

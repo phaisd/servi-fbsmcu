@@ -173,4 +173,7 @@ export const MESSAGES: Dictionary = {
   "me.localeEn": { th: "English", en: "English" },
   "me.saveOk": { th: "บันทึกโปรไฟล์แล้ว", en: "Profile saved" },
   "me.passwordTitle": { th: "เปลี่ยนรหัสผ่าน", en: "Change password" },
+  // audit
+  "audit.title": { th: "บันทึกประวัติระบบ (Audit Logs)", en: "System Audit Logs" },
+  "audit.nav": { th: "บันทึกประวัติระบบ", en: "Audit Logs" },
 };
