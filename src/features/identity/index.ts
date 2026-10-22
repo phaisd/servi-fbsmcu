@@ -22,6 +22,7 @@ export type {
   NewsSectionSettings,
   FacultyBannerSettings,
   FooterSettings,
+  FooterLink,
   SmtpSettings,
 } from "./_internal/validations/settings";
 export {
@@ -32,6 +33,8 @@ export {
   DEFAULT_NEWS_SECTION_SETTINGS,
   DEFAULT_FACULTY_BANNER_SETTINGS,
   DEFAULT_FOOTER_SETTINGS,
+  DEFAULT_FOOTER_QUICK_LINKS,
+  DEFAULT_FOOTER_SYSTEM_LINKS,
   DEFAULT_SMTP_SETTINGS,
   smtpSettingsSchema,
 } from "./_internal/validations/settings";

@@ -10,6 +10,8 @@ import {
   DEFAULT_NEWS_SECTION_SETTINGS,
   DEFAULT_FACULTY_BANNER_SETTINGS,
   DEFAULT_FOOTER_SETTINGS,
+  DEFAULT_FOOTER_QUICK_LINKS,
+  DEFAULT_FOOTER_SYSTEM_LINKS,
   DEFAULT_SMTP_SETTINGS,
   type TenantSettings,
   type HeroSettings,
@@ -20,6 +22,7 @@ import {
   type NewsSectionSettings,
   type FacultyBannerSettings,
   type FooterSettings,
+  type FooterLink,
   type SmtpSettings,
 } from "../validations/settings";
 
@@ -33,6 +36,7 @@ export type {
   NewsSectionSettings,
   FacultyBannerSettings,
   FooterSettings,
+  FooterLink,
   SmtpSettings,
 };
 export {
@@ -41,6 +45,8 @@ export {
   DEFAULT_NEWS_SECTION_SETTINGS,
   DEFAULT_FACULTY_BANNER_SETTINGS,
   DEFAULT_FOOTER_SETTINGS,
+  DEFAULT_FOOTER_QUICK_LINKS,
+  DEFAULT_FOOTER_SYSTEM_LINKS,
   DEFAULT_SMTP_SETTINGS,
 };
 
@@ -107,6 +113,14 @@ async function readTenantSettings(tenantId: string, db: Db): Promise<TenantSetti
   const footer: FooterSettings = {
     ...DEFAULT_FOOTER_SETTINGS,
     ...rawFooter,
+    quickLinks:
+      rawFooter.quickLinks && Array.isArray(rawFooter.quickLinks) && rawFooter.quickLinks.length > 0
+        ? rawFooter.quickLinks
+        : DEFAULT_FOOTER_QUICK_LINKS,
+    systemLinks:
+      rawFooter.systemLinks && Array.isArray(rawFooter.systemLinks) && rawFooter.systemLinks.length > 0
+        ? rawFooter.systemLinks
+        : DEFAULT_FOOTER_SYSTEM_LINKS,
   };
 
   const rawSmtp = (settingsObj.smtp as Partial<SmtpSettings>) ?? {};

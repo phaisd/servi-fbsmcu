@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { resolveTenantSettings } from "@/features/identity/server";
-import { DEFAULT_FOOTER_SETTINGS } from "@/features/identity";
+import {
+  DEFAULT_FOOTER_SETTINGS,
+  DEFAULT_FOOTER_QUICK_LINKS,
+  DEFAULT_FOOTER_SYSTEM_LINKS,
+} from "@/features/identity";
 import { getLocale } from "@/shared/lib/i18n/server";
 import {
   Phone,
@@ -41,6 +45,13 @@ export async function PortalFooter() {
   const quickLinksTitle = locale === "th" ? footer.quickLinksTitleTh : footer.quickLinksTitleEn;
   const systemsTitle = locale === "th" ? footer.systemsTitleTh : footer.systemsTitleEn;
   const mainWebsiteText = locale === "th" ? footer.mainWebsiteTextTh : footer.mainWebsiteTextEn;
+
+  const quickLinks = (footer.quickLinks ?? DEFAULT_FOOTER_QUICK_LINKS).filter(
+    (l) => l.enabled !== false
+  );
+  const systemLinks = (footer.systemLinks ?? DEFAULT_FOOTER_SYSTEM_LINKS).filter(
+    (l) => l.enabled !== false
+  );
 
   return (
     <footer className="mt-16 w-full border-t border-white/10">
@@ -94,36 +105,13 @@ export async function PortalFooter() {
         <div>
           <h4>{quickLinksTitle}</h4>
           <ul className="space-y-2 text-sm">
-            <li>
-              <Link href="/portal/news" className="transition-colors hover:underline">
-                {locale === "th" ? "ข่าวสารและประกาศ" : "News & Announcements"}
-              </Link>
-            </li>
-            <li>
-              <Link href="/portal/programs" className="transition-colors hover:underline">
-                {locale === "th" ? "หลักสูตรการศึกษา" : "Academic Programs"}
-              </Link>
-            </li>
-            <li>
-              <Link href="/portal/personnel" className="transition-colors hover:underline">
-                {locale === "th" ? "คณาจารย์และบุคลากร" : "Faculty & Staff"}
-              </Link>
-            </li>
-            <li>
-              <Link href="/portal/events" className="transition-colors hover:underline">
-                {locale === "th" ? "กิจกรรมและปฏิทิน" : "Events & Calendar"}
-              </Link>
-            </li>
-            <li>
-              <Link href="/portal/documents" className="transition-colors hover:underline">
-                {locale === "th" ? "ดาวน์โหลดเอกสาร / แบบฟอร์ม" : "Downloads & Forms"}
-              </Link>
-            </li>
-            <li>
-              <Link href="/portal/certificates/request" className="transition-colors hover:underline">
-                {locale === "th" ? "ยื่นขอหนังสือรับรอง / คำร้อง" : "Certificate Requests"}
-              </Link>
-            </li>
+            {quickLinks.map((link) => (
+              <li key={link.id || link.href}>
+                <Link href={link.href} className="transition-colors hover:underline">
+                  {locale === "th" ? link.labelTh || link.labelEn : link.labelEn || link.labelTh}
+                </Link>
+              </li>
+            ))}
           </ul>
         </div>
 
@@ -131,16 +119,13 @@ export async function PortalFooter() {
         <div>
           <h4>{systemsTitle}</h4>
           <ul className="space-y-2 text-sm">
-            <li>
-              <Link href="/meetings" className="transition-colors hover:underline">
-                {locale === "th" ? "ระบบจองห้องประชุมออนไลน์" : "Online Room Booking"}
-              </Link>
-            </li>
-            <li>
-              <Link href="/portal/attendance" className="transition-colors hover:underline">
-                {locale === "th" ? "ระบบเช็คชื่อและประเมินผล" : "Attendance & Evaluation"}
-              </Link>
-            </li>
+            {systemLinks.map((link) => (
+              <li key={link.id || link.href}>
+                <Link href={link.href} className="transition-colors hover:underline">
+                  {locale === "th" ? link.labelTh || link.labelEn : link.labelEn || link.labelTh}
+                </Link>
+              </li>
+            ))}
             {footer.mainWebsiteUrl && (
               <li>
                 <a

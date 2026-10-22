@@ -192,6 +192,78 @@ export const facultyBannerSchema = z.object({
   circle3Text: z.string().default("ปัญญา"),
 });
 
+export const footerLinkSchema = z.object({
+  id: z.string(),
+  labelTh: z.string().default(""),
+  labelEn: z.string().default(""),
+  href: z.string().default("#"),
+  enabled: z.boolean().default(true),
+});
+
+export type FooterLink = z.infer<typeof footerLinkSchema>;
+
+export const DEFAULT_FOOTER_QUICK_LINKS: FooterLink[] = [
+  {
+    id: "link-news",
+    labelTh: "ข่าวสารและประกาศ",
+    labelEn: "News & Announcements",
+    href: "/portal/news",
+    enabled: true,
+  },
+  {
+    id: "link-programs",
+    labelTh: "หลักสูตรการศึกษา",
+    labelEn: "Academic Programs",
+    href: "/portal/programs",
+    enabled: true,
+  },
+  {
+    id: "link-personnel",
+    labelTh: "คณาจารย์และบุคลากร",
+    labelEn: "Faculty & Staff",
+    href: "/portal/personnel",
+    enabled: true,
+  },
+  {
+    id: "link-events",
+    labelTh: "กิจกรรมและปฏิทิน",
+    labelEn: "Events & Calendar",
+    href: "/portal/events",
+    enabled: true,
+  },
+  {
+    id: "link-documents",
+    labelTh: "ดาวน์โหลดเอกสาร / แบบฟอร์ม",
+    labelEn: "Downloads & Forms",
+    href: "/portal/documents",
+    enabled: true,
+  },
+  {
+    id: "link-certificates",
+    labelTh: "ยื่นขอหนังสือรับรอง / คำร้อง",
+    labelEn: "Certificate Requests",
+    href: "/portal/certificates/request",
+    enabled: true,
+  },
+];
+
+export const DEFAULT_FOOTER_SYSTEM_LINKS: FooterLink[] = [
+  {
+    id: "sys-meetings",
+    labelTh: "ระบบจองห้องประชุมออนไลน์",
+    labelEn: "Online Room Booking",
+    href: "/meetings",
+    enabled: true,
+  },
+  {
+    id: "sys-attendance",
+    labelTh: "ระบบเช็คชื่อและประเมินผล",
+    labelEn: "Attendance & Evaluation",
+    href: "/portal/attendance",
+    enabled: true,
+  },
+];
+
 export const footerSchema = z.object({
   enabled: z.boolean().default(true),
   descTh: z.string().default(
@@ -220,6 +292,8 @@ export const footerSchema = z.object({
   mainWebsiteTextTh: z.string().default("เว็บไซต์หลัก มหาวิทยาลัย มจร"),
   mainWebsiteTextEn: z.string().default("MCU Main Website"),
   showStaffConsole: z.boolean().default(true),
+  quickLinks: z.array(footerLinkSchema).optional().default(DEFAULT_FOOTER_QUICK_LINKS),
+  systemLinks: z.array(footerLinkSchema).optional().default(DEFAULT_FOOTER_SYSTEM_LINKS),
 });
 
 export const smtpSettingsSchema = z.object({
@@ -489,6 +563,8 @@ export const DEFAULT_FOOTER_SETTINGS: FooterSettings = {
   mainWebsiteTextTh: "เว็บไซต์หลัก มหาวิทยาลัย มจร",
   mainWebsiteTextEn: "MCU Main Website",
   showStaffConsole: true,
+  quickLinks: DEFAULT_FOOTER_QUICK_LINKS,
+  systemLinks: DEFAULT_FOOTER_SYSTEM_LINKS,
 };
 
 export interface TenantSettings {

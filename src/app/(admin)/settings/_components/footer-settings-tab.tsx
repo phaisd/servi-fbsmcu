@@ -9,9 +9,19 @@ import {
   Info,
   ShieldCheck,
   PanelBottom,
+  Plus,
+  Trash2,
+  RotateCcw,
+  ListOrdered,
+  Layers,
 } from "lucide-react";
 import { LiyonCard, LiyonField, LiyonSwitch } from "@/shared/components/liyon";
-import type { FooterSettings } from "@/features/identity";
+import {
+  type FooterSettings,
+  type FooterLink,
+  DEFAULT_FOOTER_QUICK_LINKS,
+  DEFAULT_FOOTER_SYSTEM_LINKS,
+} from "@/features/identity";
 
 interface FooterSettingsTabProps {
   value: FooterSettings;
@@ -21,6 +31,64 @@ interface FooterSettingsTabProps {
 export function FooterSettingsTab({ value, onChange }: FooterSettingsTabProps) {
   const update = <K extends keyof FooterSettings>(key: K, val: FooterSettings[K]) => {
     onChange({ ...value, [key]: val });
+  };
+
+  const quickLinks: FooterLink[] =
+    value.quickLinks && value.quickLinks.length > 0
+      ? value.quickLinks
+      : DEFAULT_FOOTER_QUICK_LINKS;
+
+  const systemLinks: FooterLink[] =
+    value.systemLinks && value.systemLinks.length > 0
+      ? value.systemLinks
+      : DEFAULT_FOOTER_SYSTEM_LINKS;
+
+  const updateQuickLink = (id: string, patch: Partial<FooterLink>) => {
+    const next = quickLinks.map((l) => (l.id === id ? { ...l, ...patch } : l));
+    update("quickLinks", next);
+  };
+
+  const addQuickLink = () => {
+    const newLink: FooterLink = {
+      id: `link-${Date.now()}`,
+      labelTh: "เมนูใหม่",
+      labelEn: "New Menu",
+      href: "/portal",
+      enabled: true,
+    };
+    update("quickLinks", [...quickLinks, newLink]);
+  };
+
+  const removeQuickLink = (id: string) => {
+    update("quickLinks", quickLinks.filter((l) => l.id !== id));
+  };
+
+  const resetQuickLinks = () => {
+    update("quickLinks", DEFAULT_FOOTER_QUICK_LINKS);
+  };
+
+  const updateSystemLink = (id: string, patch: Partial<FooterLink>) => {
+    const next = systemLinks.map((l) => (l.id === id ? { ...l, ...patch } : l));
+    update("systemLinks", next);
+  };
+
+  const addSystemLink = () => {
+    const newLink: FooterLink = {
+      id: `sys-${Date.now()}`,
+      labelTh: "ระบบใหม่",
+      labelEn: "New System",
+      href: "/portal",
+      enabled: true,
+    };
+    update("systemLinks", [...systemLinks, newLink]);
+  };
+
+  const removeSystemLink = (id: string) => {
+    update("systemLinks", systemLinks.filter((l) => l.id !== id));
+  };
+
+  const resetSystemLinks = () => {
+    update("systemLinks", DEFAULT_FOOTER_SYSTEM_LINKS);
   };
 
   return (
@@ -242,11 +310,251 @@ export function FooterSettingsTab({ value, onChange }: FooterSettingsTabProps) {
         </div>
       </LiyonCard>
 
-      {/* ── CARD 4: แถบล่างสุด & ข้อมูลลิขสิทธิ์ (Footer Bottom Bar) ── */}
+      {/* ── CARD 4: รายการเมนูลัด & บริการนิสิต (Quick Links) ── */}
+      <LiyonCard>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3 mb-4">
+          <div className="flex items-center gap-2">
+            <ListOrdered className="w-5 h-5 text-primary" />
+            <div>
+              <h2 className="text-lg font-bold">4. จัดการรายการเมนูลัด & บริการนิสิต (Quick Links)</h2>
+              <p className="text-xs text-muted-foreground">
+                สามารถเปิด/ปิดการแสดงผลแต่ละเมนู (เช่น ซ่อนเมนูที่ยังพัฒนาไม่เสร็จ) หรือแก้ไขชื่อและ URL ได้ทันที
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={resetQuickLinks}
+              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-muted-foreground transition"
+              title="คืนค่าเริ่มต้นของเมนูลัดทั้งหมด"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>คืนค่าเริ่มต้น</span>
+            </button>
+            <button
+              type="button"
+              onClick={addQuickLink}
+              className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>เพิ่มเมนูลัด</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {quickLinks.map((link, index) => (
+            <div
+              key={link.id}
+              className={`p-3.5 rounded-xl border transition-all ${
+                link.enabled
+                  ? "bg-card border-border shadow-xs"
+                  : "bg-muted/30 border-dashed border-muted-foreground/30 opacity-60"
+              }`}
+            >
+              <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                <div className="flex items-center justify-between lg:justify-start gap-2 shrink-0">
+                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                    #{index + 1}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <LiyonSwitch
+                      checked={link.enabled}
+                      onCheckedChange={(checked) => updateQuickLink(link.id, { enabled: checked })}
+                    />
+                    <span className={`text-xs font-medium ${link.enabled ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-muted-foreground"}`}>
+                      {link.enabled ? "เปิดแสดง" : "ปิดซ่อน"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
+                  <div>
+                    <label className="text-[11px] font-medium text-muted-foreground block mb-0.5">
+                      ชื่อเมนู (ไทย)
+                    </label>
+                    <input
+                      type="text"
+                      value={link.labelTh}
+                      onChange={(e) => updateQuickLink(link.id, { labelTh: e.target.value })}
+                      placeholder="เช่น ข่าวสารและประกาศ"
+                      className="input w-full text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium text-muted-foreground block mb-0.5">
+                      ชื่อเมนู (อังกฤษ)
+                    </label>
+                    <input
+                      type="text"
+                      value={link.labelEn}
+                      onChange={(e) => updateQuickLink(link.id, { labelEn: e.target.value })}
+                      placeholder="เช่น News & Announcements"
+                      className="input w-full text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium text-muted-foreground block mb-0.5">
+                      ลิงก์ปลายทาง (URL / Path)
+                    </label>
+                    <input
+                      type="text"
+                      value={link.href}
+                      onChange={(e) => updateQuickLink(link.id, { href: e.target.value })}
+                      placeholder="เช่น /portal/news"
+                      className="input w-full text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end shrink-0 pt-2 lg:pt-0">
+                  <button
+                    type="button"
+                    onClick={() => removeQuickLink(link.id)}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition"
+                    title="ลบเมนูนี้"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {quickLinks.length === 0 && (
+            <div className="text-center py-6 text-muted-foreground text-xs border border-dashed rounded-xl">
+              ไม่มีเมนูลัดในระบบ สามารถคลิก &quot;เพิ่มเมนูลัด&quot; หรือ &quot;คืนค่าเริ่มต้น&quot; ได้
+            </div>
+          )}
+        </div>
+      </LiyonCard>
+
+      {/* ── CARD 5: รายการระบบสารสนเทศ (System Links) ── */}
+      <LiyonCard>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3 mb-4">
+          <div className="flex items-center gap-2">
+            <Layers className="w-5 h-5 text-primary" />
+            <div>
+              <h2 className="text-lg font-bold">5. จัดการรายการระบบสารสนเทศ (Systems)</h2>
+              <p className="text-xs text-muted-foreground">
+                ลิงก์ระบบสารสนเทศองค์กรในคอลัมน์ที่ 3 เช่น ระบบจองห้องประชุม, ระบบเช็คชื่อ
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={resetSystemLinks}
+              className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-border bg-background hover:bg-muted text-muted-foreground transition"
+              title="คืนค่าเริ่มต้นของระบบสารสนเทศทั้งหมด"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>คืนค่าเริ่มต้น</span>
+            </button>
+            <button
+              type="button"
+              onClick={addSystemLink}
+              className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>เพิ่มระบบ</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {systemLinks.map((link, index) => (
+            <div
+              key={link.id}
+              className={`p-3.5 rounded-xl border transition-all ${
+                link.enabled
+                  ? "bg-card border-border shadow-xs"
+                  : "bg-muted/30 border-dashed border-muted-foreground/30 opacity-60"
+              }`}
+            >
+              <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                <div className="flex items-center justify-between lg:justify-start gap-2 shrink-0">
+                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-muted text-muted-foreground">
+                    #{index + 1}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <LiyonSwitch
+                      checked={link.enabled}
+                      onCheckedChange={(checked) => updateSystemLink(link.id, { enabled: checked })}
+                    />
+                    <span className={`text-xs font-medium ${link.enabled ? "text-emerald-600 dark:text-emerald-400 font-semibold" : "text-muted-foreground"}`}>
+                      {link.enabled ? "เปิดแสดง" : "ปิดซ่อน"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
+                  <div>
+                    <label className="text-[11px] font-medium text-muted-foreground block mb-0.5">
+                      ชื่อระบบ (ไทย)
+                    </label>
+                    <input
+                      type="text"
+                      value={link.labelTh}
+                      onChange={(e) => updateSystemLink(link.id, { labelTh: e.target.value })}
+                      placeholder="เช่น ระบบจองห้องประชุมออนไลน์"
+                      className="input w-full text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium text-muted-foreground block mb-0.5">
+                      ชื่อระบบ (อังกฤษ)
+                    </label>
+                    <input
+                      type="text"
+                      value={link.labelEn}
+                      onChange={(e) => updateSystemLink(link.id, { labelEn: e.target.value })}
+                      placeholder="เช่น Online Room Booking"
+                      className="input w-full text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-medium text-muted-foreground block mb-0.5">
+                      ลิงก์ปลายทาง (URL / Path)
+                    </label>
+                    <input
+                      type="text"
+                      value={link.href}
+                      onChange={(e) => updateSystemLink(link.id, { href: e.target.value })}
+                      placeholder="เช่น /meetings"
+                      className="input w-full text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end shrink-0 pt-2 lg:pt-0">
+                  <button
+                    type="button"
+                    onClick={() => removeSystemLink(link.id)}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition"
+                    title="ลบระบบนี้"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {systemLinks.length === 0 && (
+            <div className="text-center py-6 text-muted-foreground text-xs border border-dashed rounded-xl">
+              ไม่มีระบบสารสนเทศในรายการ สามารถคลิก &quot;เพิ่มระบบ&quot; หรือ &quot;คืนค่าเริ่มต้น&quot; ได้
+            </div>
+          )}
+        </div>
+      </LiyonCard>
+
+      {/* ── CARD 6: แถบล่างสุด & ข้อมูลลิขสิทธิ์ (Footer Bottom Bar) ── */}
       <LiyonCard>
         <div className="flex items-center gap-2 border-b pb-3 mb-4">
           <Info className="w-5 h-5 text-primary" />
-          <h2 className="text-lg font-bold">4. แถบล่างสุด & ลิขสิทธิ์ (Copyright & Bottom Bar)</h2>
+          <h2 className="text-lg font-bold">6. แถบล่างสุด & ลิขสิทธิ์ (Copyright & Bottom Bar)</h2>
         </div>
 
         <div className="space-y-4">
