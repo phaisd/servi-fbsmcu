@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   FileText,
+  FileSpreadsheet,
   Printer,
   Plus,
   Download,
@@ -363,7 +364,21 @@ export function RequestsAdminClient({
     });
   };
 
-  // Export CSV matching original Excel structure
+  // Helper to extract signer and officer details
+  const getCertificateSignerAndOfficer = (m: CertificateRequestMetadata) => {
+    const isEng = m.language === "In English language" || m.docTemplate === "ENG_CERT";
+    const signerName = isEng
+      ? m.signerNameEn || m.signerNameTh || "(Asst. Prof. Phrakhru Sirirattanabundit, Ph.D.)"
+      : m.signerNameTh || m.signerNameEn || "(พระครูสิริรัตนบัณฑิต, ผศ.ดร.)";
+    const signerTitle = isEng
+      ? m.signerTitleEn || m.signerTitleTh || "Vice Dean, Faculty of Buddhism"
+      : m.signerTitleTh || m.signerTitleEn || "รักษาการแทนรองคณบดีฝ่ายวิชาการ คณะพุทธศาสตร์";
+    const officerName = m.officerName || m.coordinatorNameTh || "นายดวงดี โอฐสู";
+    const officerPosition = m.officerPosition || "นักวิชาการศึกษา / เจ้าหน้าที่บริการการศึกษา";
+    return { signerName, signerTitle, officerName, officerPosition };
+  };
+
+  // Export CSV matching original Excel structure with Signer & Officer fields
   const handleExportExcelCsv = () => {
     const headers = [
       "Created At",
@@ -389,6 +404,10 @@ export function RequestsAdminClient({
       "Font Size (pt)",
       "Document No.",
       "Status",
+      "Signer Name (ชื่อผู้ลงนาม)",
+      "Signer Title (ตำแหน่งผู้ลงนาม)",
+      "Officer Name (ชื่อเจ้าหน้าที่ผู้ออกเอกสาร/พิมพ์)",
+      "Officer Position (ตำแหน่งเจ้าหน้าที่ผู้ออกเอกสาร/พิมพ์)",
     ];
 
     const escapeCsv = (val: string | number | undefined | null) => {
@@ -398,6 +417,8 @@ export function RequestsAdminClient({
 
     const rows = filteredItems.map((item) => {
       const m = item.metadata;
+      const { signerName, signerTitle, officerName, officerPosition } = getCertificateSignerAndOfficer(m);
+
       return [
         item.createdAt,
         m.email || item.userEmail,
@@ -422,6 +443,10 @@ export function RequestsAdminClient({
         m.fontSizePt,
         m.docNo,
         item.status,
+        signerName,
+        signerTitle,
+        officerName,
+        officerPosition,
       ]
         .map(escapeCsv)
         .join(",");
@@ -435,7 +460,107 @@ export function RequestsAdminClient({
     a.download = `mcu_certificates_requests_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    notify(`ส่งออกไฟล์ Excel (.csv) จำนวน ${filteredItems.length} รายการเรียบร้อยแล้ว`);
+    notify(`ส่งออกไฟล์ CSV จำนวน ${filteredItems.length} รายการเรียบร้อยแล้ว`);
+  };
+
+  // Export Excel (.xls HTML table format)
+  const handleExportExcelXml = () => {
+    const headers = [
+      "ลำดับ",
+      "วันที่ยื่นคำขอ",
+      "รหัสนิสิต",
+      "ชื่อ-สกุล",
+      "อีเมล",
+      "ระดับการศึกษา",
+      "สาขาวิชา",
+      "ชั้นปี",
+      "วัตถุประสงค์",
+      "ภาษา",
+      "เลขที่เอกสาร",
+      "รูปแบบเอกสาร",
+      "สถานะคำขอ",
+      "ชื่อผู้ลงนาม",
+      "ตำแหน่งผู้ลงนาม",
+      "ชื่อเจ้าหน้าที่ผู้ออกเอกสาร",
+      "ตำแหน่งเจ้าหน้าที่",
+    ];
+
+    const escapeXml = (val: string | number | undefined | null) =>
+      String(val ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+    const rowsHtml = filteredItems
+      .map((item, idx) => {
+        const m = item.metadata;
+        const { signerName, signerTitle, officerName, officerPosition } = getCertificateSignerAndOfficer(m);
+
+        const statusTh =
+          item.status === "APPROVED"
+            ? "อนุมัติแล้ว"
+            : item.status === "PENDING"
+            ? "รออนุมัติ"
+            : item.status === "REJECTED"
+            ? "ไม่อนุมัติ"
+            : "ยกเลิก";
+
+        return `<tr>
+          <td style="text-align:center;">${idx + 1}</td>
+          <td style="text-align:center;">${escapeXml(new Date(item.createdAt).toLocaleDateString("th-TH"))}</td>
+          <td style="text-align:center; font-family:monospace;">${escapeXml(m.studentCode)}</td>
+          <td><b>${escapeXml(m.fullName || item.userName)}</b></td>
+          <td>${escapeXml(m.email || item.userEmail)}</td>
+          <td>${escapeXml(m.degreeLevel)}</td>
+          <td>${escapeXml(m.major)}</td>
+          <td>${escapeXml(m.classYear)}</td>
+          <td>${escapeXml(m.requestPurpose)}</td>
+          <td style="text-align:center;">${escapeXml(m.language)}</td>
+          <td style="text-align:center; font-family:monospace;">${escapeXml(m.docNo || "-")}</td>
+          <td style="text-align:center;">${escapeXml(m.docTemplate || "-")}</td>
+          <td style="text-align:center;">${escapeXml(statusTh)}</td>
+          <td><b>${escapeXml(signerName)}</b></td>
+          <td>${escapeXml(signerTitle)}</td>
+          <td><b>${escapeXml(officerName)}</b></td>
+          <td>${escapeXml(officerPosition)}</td>
+        </tr>`;
+      })
+      .join("\n");
+
+    const excelHtml = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="content-type" content="application/vnd.ms-excel; charset=UTF-8">
+        <style>
+          table { border-collapse: collapse; width: 100%; font-family: 'Sarabun', 'Segoe UI', Tahoma, sans-serif; font-size: 13px; }
+          th { background-color: #047857; color: #ffffff; border: 1px solid #065f46; padding: 10px 8px; font-weight: bold; }
+          td { border: 1px solid #cbd5e1; padding: 6px 8px; vertical-align: middle; }
+          tr:nth-child(even) { background-color: #f8fafc; }
+          .title-banner { font-size: 16px; font-weight: bold; color: #065f46; margin-bottom: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="title-banner">รายงานคำร้องขอหนังสือรับรอง คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย</div>
+        <table border="1">
+          <thead>
+            <tr>${headers.map((h) => `<th>${escapeXml(h)}</th>`).join("")}</tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([excelHtml], { type: "application/vnd.ms-excel;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `mcu_certificates_report_${new Date().toISOString().slice(0, 10)}.xls`;
+    a.click();
+    URL.revokeObjectURL(url);
+    notify(`ส่งออกไฟล์ Excel (.xls) จำนวน ${filteredItems.length} รายการเรียบร้อยแล้ว`);
   };
 
   // Import CSV from Excel
@@ -500,6 +625,10 @@ export function RequestsAdminClient({
     const idxCountry = findIdx(["country", "ประเทศ"]);
     const idxAddr = findIdx(["address", "ที่อยู่"]);
     const idxEmail = findIdx(["email", "อีเมล"]);
+    const idxSignerName = findIdx(["signer name", "ชื่อผู้ลงนาม"]);
+    const idxSignerTitle = findIdx(["signer title", "ตำแหน่งผู้ลงนาม"]);
+    const idxOfficerName = findIdx(["officer name", "ชื่อเจ้าหน้าที่"]);
+    const idxOfficerPos = findIdx(["officer position", "ตำแหน่งเจ้าหน้าที่"]);
 
     const records: Partial<CertificateRequestMetadata>[] = [];
     for (let i = 1; i < lines.length; i++) {
@@ -538,6 +667,10 @@ export function RequestsAdminClient({
         email: idxEmail >= 0 ? cols[idxEmail] : "",
         docTemplate: tpl,
         fontSizePt: tpl === "ENG_CERT" ? 12.5 : 16,
+        signerNameTh: idxSignerName >= 0 && cols[idxSignerName] ? cols[idxSignerName] : undefined,
+        signerTitleTh: idxSignerTitle >= 0 && cols[idxSignerTitle] ? cols[idxSignerTitle] : undefined,
+        officerName: idxOfficerName >= 0 && cols[idxOfficerName] ? cols[idxOfficerName] : undefined,
+        officerPosition: idxOfficerPos >= 0 && cols[idxOfficerPos] ? cols[idxOfficerPos] : undefined,
       });
     }
 
@@ -635,11 +768,22 @@ export function RequestsAdminClient({
 
           <button
             type="button"
+            onClick={handleExportExcelXml}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-300 bg-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-xs hover:bg-emerald-500 transition"
+            title="ส่งออกรายงานเป็นไฟล์ Excel (.xls) พร้อมจัดรูปแบบตารางและสีสันสวยงาม"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            ส่งออก Excel (.xls)
+          </button>
+
+          <button
+            type="button"
             onClick={handleExportExcelCsv}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 transition"
+            title="ส่งออกไฟล์ข้อมูล CSV (UTF-8 BOM) รองรับภาษาไทยบน Excel"
           >
             <Download className="h-4 w-4" />
-            ส่งออก Excel (.CSV)
+            ส่งออก CSV (.csv)
           </button>
 
           <input

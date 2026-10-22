@@ -171,6 +171,8 @@ export const certificateMetadataSchema = z.object({
   signerTitleTh: z.string().trim().optional().default("รักษาการแทนรองคณบดีฝ่ายวิชาการ คณะพุทธศาสตร์"),
   signerNameEn: z.string().trim().optional().default("(Asst. Prof. Phrakhru Sirirattanabundit, Ph.D.)"),
   signerTitleEn: z.string().trim().optional().default("Vice Dean, Faculty of Buddhism"),
+  officerName: z.string().trim().optional().default("นายดวงดี โอฐสู"),
+  officerPosition: z.string().trim().optional().default("นักวิชาการศึกษา / เจ้าหน้าที่บริการการศึกษา"),
   customBodyText: z.string().optional().default(""),
   showSignatureGraphic: z.boolean().optional().default(true),
   showPhotoBox: z.boolean().optional().default(true),

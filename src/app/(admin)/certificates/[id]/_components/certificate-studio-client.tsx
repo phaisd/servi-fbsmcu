@@ -1496,6 +1496,40 @@ export function CertificateStudioClient({ request, suggestedNextDocNo = "8002 / 
                     </>
                   )}
 
+                  {/* Officer / Issuer Info */}
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+                    <div className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                      <UserCheck className="w-3.5 h-3.5 text-amber-700" />
+                      <span>เจ้าหน้าที่ผู้ออกเอกสาร / ผู้พิมพ์ (Officer / Issuer)</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-slate-700">
+                          ชื่อเจ้าหน้าที่ผู้ออกเอกสาร/พิมพ์
+                        </label>
+                        <input
+                          type="text"
+                          value={meta.officerName ?? "นายดวงดี โอฐสู"}
+                          onChange={(e) => updateField("officerName", e.target.value)}
+                          placeholder="เช่น นายดวงดี โอฐสู"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-[11px] font-semibold text-slate-700">
+                          ตำแหน่งเจ้าหน้าที่
+                        </label>
+                        <input
+                          type="text"
+                          value={meta.officerPosition ?? "นักวิชาการศึกษา / เจ้าหน้าที่บริการการศึกษา"}
+                          onChange={(e) => updateField("officerPosition", e.target.value)}
+                          placeholder="เช่น นักวิชาการศึกษา / เจ้าหน้าที่บริการการศึกษา"
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-900"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="pt-2">
                     <label className="mb-1 block text-xs font-semibold text-slate-700">
                       สถานะคำขอ
