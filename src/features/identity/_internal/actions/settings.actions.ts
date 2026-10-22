@@ -11,6 +11,7 @@ import { errors } from "@/shared/lib/errors";
 import { updateSettingsSchema } from "../validations/settings";
 import { prisma } from "@/shared/lib/infra/prisma";
 import { getTenantSettings, updateTenantSettings, type TenantSettings } from "../services/tenant.service";
+import { testGeminiApiKey } from "@/shared/lib/ai/gemini";
 
 export async function getSettingsAction(): Promise<ActionResult<TenantSettings>> {
   return runAction(async () => getTenantSettings((await requirePermission(P.settingsManage)).tenantId));
@@ -183,3 +184,23 @@ export async function testSmtpAction(input: unknown): Promise<ActionResult<{ mes
   });
 }
 
+
+export async function testGeminiApiKeyAction(input: {
+  apiKey: string;
+  model?: string;
+}): Promise<ActionResult<{ ok: boolean; model: string; message: string }>> {
+  return runAction(async () => {
+    await requirePermission(P.settingsManage);
+    if (!input.apiKey?.trim()) {
+      throw errors.validation("Gemini API Key missing", {
+        apiKey: ["กรุณาระบุ Gemini API Key"],
+      });
+    }
+    const res = await testGeminiApiKey(input.apiKey, input.model);
+    return {
+      ok: true,
+      model: res.model,
+      message: `เชื่อมต่อ Google Gemini API (${res.model}) สำเร็จเรียบร้อยแล้ว`,
+    };
+  });
+}

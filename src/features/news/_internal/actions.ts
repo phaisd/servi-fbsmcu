@@ -5,6 +5,8 @@ import { runAction, type ActionResult } from "@/shared/lib/result";
 import { getLocale } from "@/shared/lib/i18n/server";
 import { zodErrorMap } from "@/shared/lib/i18n/zod-locale";
 import { requirePermission } from "@/features/identity/server";
+import { errors } from "@/shared/lib/errors";
+import { translateNewsWithGemini } from "@/shared/lib/ai/gemini";
 import { NEWS_P } from "../permissions";
 import {
   createNewsArticleSchema,
@@ -114,5 +116,21 @@ export async function deleteNewsArticleAction(
     const ctx = await requirePermission(NEWS_P.newsDelete);
     await deleteNewsArticle(ctx.tenantId, ctx.userId, id);
     revalidatePath("/news");
+  });
+}
+
+export async function translateNewsWithAiAction(input: {
+  titleTh: string;
+  summaryTh?: string | null;
+  contentTh: string;
+}): Promise<ActionResult<{ titleEn: string; summaryEn: string; contentEn: string }>> {
+  return runAction(async () => {
+    const ctx = await requirePermission(NEWS_P.newsCreate);
+    if (!input.titleTh?.trim() || !input.contentTh?.trim()) {
+      throw errors.validation("validation_failed", {
+        titleTh: ["กรุณากรอกหัวข้อข่าวและเนื้อหาข่าวภาษาไทยให้เรียบร้อยก่อนให้ AI แปล"],
+      });
+    }
+    return translateNewsWithGemini(ctx.tenantId, input);
   });
 }

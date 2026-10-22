@@ -14,6 +14,8 @@ import {
   Archive,
   Send,
   Search,
+  Sparkles,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useT, useLocale } from "@/shared/lib/i18n/client";
@@ -42,6 +44,7 @@ import {
   getNewsArticlesAction,
   changeNewsStatusAction,
   togglePinNewsAction,
+  translateNewsWithAiAction,
 } from "@/features/news/actions";
 
 interface Props {
@@ -100,6 +103,49 @@ export function NewsAdminClient({
   const [formContentEn, setFormContentEn] = useState("");
   const [formCoverImageUrl, setFormCoverImageUrl] = useState("");
   const [formIsPinned, setFormIsPinned] = useState(false);
+  const [formLangTab, setFormLangTab] = useState<"th" | "en">("th");
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  const handleTranslateWithAi = async () => {
+    if (!formTitleTh.trim() || !formContentTh.trim()) {
+      toast.warning("กรุณากรอกหัวข้อข่าวและเนื้อหาข่าวภาษาไทยให้เรียบร้อยก่อนสั่งให้ AI แปล");
+      setFormLangTab("th");
+      return;
+    }
+
+    setIsTranslating(true);
+    try {
+      const res = await translateNewsWithAiAction({
+        titleTh: formTitleTh.trim(),
+        summaryTh: formSummaryTh.trim() || null,
+        contentTh: formContentTh.trim(),
+      });
+
+      if (!res.ok) {
+        const errorMsg =
+          (res.error.fieldErrors && Object.values(res.error.fieldErrors).flat()[0]) ||
+          res.error.message ||
+          "ไม่สามารถแปลข่าวด้วย Gemini ได้";
+        toast.error(errorMsg, { duration: 6000 });
+        return;
+      }
+
+      setFormTitleEn(res.data.titleEn);
+      setFormSummaryEn(res.data.summaryEn);
+      setFormContentEn(res.data.contentEn);
+      setFormLangTab("en");
+      toast.success("✨ แปลและเรียบเรียงภาษาอังกฤษด้วย Gemini AI สำเร็จแล้ว", {
+        description: "สลับมาที่แท็บ English (EN) ให้ตรวจสอบและปรับแต่งได้ตามต้องการ",
+        duration: 5000,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการเชื่อมต่อ AI";
+      toast.error(msg);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
 
   const refreshItems = async () => {
     const res = await getNewsArticlesAction({
@@ -132,6 +178,7 @@ export function NewsAdminClient({
     setFormContentEn("");
     setFormCoverImageUrl("");
     setFormIsPinned(false);
+    setFormLangTab("th");
     setFormOpen(true);
   };
 
@@ -148,6 +195,7 @@ export function NewsAdminClient({
     setFormContentEn(item.contentEn ?? "");
     setFormCoverImageUrl(item.coverImageUrl ?? "");
     setFormIsPinned(item.isPinned);
+    setFormLangTab("th");
     setFormOpen(true);
   };
 
@@ -506,118 +554,212 @@ export function NewsAdminClient({
         />
         <LiyonDialogBody>
           <div className="space-y-4 py-2">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <LiyonField label={t("news.titleTh")} htmlFor="news-title-th">
-                <input
-                  id="news-title-th"
-                  value={formTitleTh}
-                  onChange={(e) => {
-                    setFormTitleTh(e.target.value);
-                    if (!editingItem && !formSlug) {
-                      setFormSlug(generateSlug(e.target.value));
-                    }
-                  }}
-                  placeholder="เช่น มหาวิทยาลัยเปิดรับสมัครนิสิตใหม่..."
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                  required
-                />
-              </LiyonField>
+            {/* ส่วนสลับแท็บภาษา TH/EN และปุ่มสั่ง AI แปล */}
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2 rounded-lg bg-muted/40 border border-border/60">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setFormLangTab("th")}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    formLangTab === "th"
+                      ? "bg-background text-foreground shadow-sm border border-border/80"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <span>🇹🇭</span>
+                  <span>ฉบับภาษาไทย (TH)</span>
+                  {formTitleTh.trim() && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormLangTab("en")}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    formLangTab === "en"
+                      ? "bg-background text-foreground shadow-sm border border-border/80"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <span>🇬🇧</span>
+                  <span>English (EN)</span>
+                  {formTitleEn.trim() ? (
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  ) : (
+                    <span className="text-[10px] text-muted-foreground font-normal">(ยังไม่ระบุ)</span>
+                  )}
+                </button>
+              </div>
 
-              <LiyonField label={t("news.titleEn")} htmlFor="news-title-en">
-                <input
-                  id="news-title-en"
-                  value={formTitleEn}
-                  onChange={(e) => setFormTitleEn(e.target.value)}
-                  placeholder="e.g. Faculty admission is now open..."
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-              </LiyonField>
+              {/* ปุ่ม AI Translate */}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={isTranslating || !formTitleTh.trim() || !formContentTh.trim()}
+                onClick={handleTranslateWithAi}
+                className="gap-1.5 text-xs h-8 bg-amber-500/10 text-amber-800 dark:text-amber-200 border-amber-500/30 hover:bg-amber-500/20 cursor-pointer"
+                title="ใช้ Google Gemini API ช่วยแปลและเรียบเรียงเนื้อหาเป็นภาษาอังกฤษอัตโนมัติ"
+              >
+                {isTranslating ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600 dark:text-amber-400" />
+                ) : (
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                )}
+                <span>{isTranslating ? "กำลังประมวลผล Gemini AI..." : "✨ แปลงเป็นภาษาอังกฤษด้วย Gemini AI"}</span>
+              </Button>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <LiyonField label={t("news.slug")} htmlFor="news-slug">
+            {/* TAB THAI */}
+            {formLangTab === "th" ? (
+              <div className="space-y-4">
+                <LiyonField label={t("news.titleTh")} htmlFor="news-title-th">
+                  <input
+                    id="news-title-th"
+                    value={formTitleTh}
+                    onChange={(e) => {
+                      setFormTitleTh(e.target.value);
+                      if (!editingItem && !formSlug) {
+                        setFormSlug(generateSlug(e.target.value));
+                      }
+                    }}
+                    placeholder="เช่น คณะพุทธศาสตร์ มจร จัดประชุมวิชาการนานาชาติ..."
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring font-medium"
+                    required
+                  />
+                </LiyonField>
+
+                <LiyonField label={t("news.summaryTh")} htmlFor="news-summary-th" hint="คำโปรยสรุปย่อ 1-2 ประโยคสำหรับแสดงบนหน้าการ์ดข่าวสาร">
+                  <textarea
+                    id="news-summary-th"
+                    rows={2}
+                    value={formSummaryTh}
+                    onChange={(e) => setFormSummaryTh(e.target.value)}
+                    placeholder="คำโปรยสรุปสาระสำคัญสั้น ๆ..."
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </LiyonField>
+
+                <LiyonField label={t("news.contentTh")} htmlFor="news-content-th">
+                  <textarea
+                    id="news-content-th"
+                    rows={7}
+                    value={formContentTh}
+                    onChange={(e) => setFormContentTh(e.target.value)}
+                    placeholder="เนื้อหาข่าวแบบละเอียดฉบับเต็ม..."
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed"
+                    required
+                  />
+                </LiyonField>
+              </div>
+            ) : (
+              /* TAB ENGLISH */
+              <div className="space-y-4">
+                <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/20 px-3 py-2 rounded border border-border/40">
+                  <span>ข้อมูลภาษาอังกฤษสำหรับแสดงผลเมื่อผู้เข้าชมสลับภาษาเป็น English</span>
+                  {formTitleEn.trim() && (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                      <CheckCircle className="w-3.5 h-3.5" /> มีข้อมูลแล้ว
+                    </span>
+                  )}
+                </div>
+
+                <LiyonField label={t("news.titleEn")} htmlFor="news-title-en">
+                  <input
+                    id="news-title-en"
+                    value={formTitleEn}
+                    onChange={(e) => setFormTitleEn(e.target.value)}
+                    placeholder="e.g. Faculty of Buddhism hosts international symposium..."
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring font-medium"
+                  />
+                </LiyonField>
+
+                <LiyonField label="Executive Summary (English)" htmlFor="news-summary-en" hint="A concise 1-2 sentence overview for portal news cards">
+                  <textarea
+                    id="news-summary-en"
+                    rows={2}
+                    value={formSummaryEn}
+                    onChange={(e) => setFormSummaryEn(e.target.value)}
+                    placeholder="Brief news highlight or executive summary in English..."
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </LiyonField>
+
+                <LiyonField label="Full Content (English)" htmlFor="news-content-en">
+                  <textarea
+                    id="news-content-en"
+                    rows={7}
+                    value={formContentEn}
+                    onChange={(e) => setFormContentEn(e.target.value)}
+                    placeholder="Full English news content (you can type manually or click the Gemini AI button above to auto-translate)..."
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed"
+                  />
+                </LiyonField>
+              </div>
+            )}
+
+            {/* ส่วนการตั้งค่าระบบ (General Settings) */}
+            <div className="pt-3 border-t border-[var(--glass-border)] space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <LiyonField label={t("news.slug")} htmlFor="news-slug">
+                  <input
+                    id="news-slug"
+                    value={formSlug}
+                    onChange={(e) => setFormSlug(e.target.value)}
+                    placeholder="admission-2569"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-ring"
+                    required
+                  />
+                </LiyonField>
+
+                <LiyonField label={t("news.category")} htmlFor="news-category">
+                  <LiyonSelect
+                    id="news-category"
+                    value={formCategory}
+                    onChange={(e) => setFormCategory(e.target.value as NewsCategory)}
+                  >
+                    <option value="GENERAL">{t("news.cat.GENERAL")}</option>
+                    <option value="ACADEMIC">{t("news.cat.ACADEMIC")}</option>
+                    <option value="EVENT">{t("news.cat.EVENT")}</option>
+                    <option value="PROCUREMENT">{t("news.cat.PROCUREMENT")}</option>
+                    <option value="BUDDHIST_AFFAIRS">{t("news.cat.BUDDHIST_AFFAIRS")}</option>
+                  </LiyonSelect>
+                </LiyonField>
+
+                <LiyonField label={t("news.status")} htmlFor="news-status">
+                  <LiyonSelect
+                    id="news-status"
+                    value={formStatus}
+                    onChange={(e) => setFormStatus(e.target.value as NewsStatus)}
+                  >
+                    <option value="DRAFT">{t("news.status.DRAFT")}</option>
+                    <option value="PENDING_REVIEW">{t("news.status.PENDING_REVIEW")}</option>
+                    <option value="PUBLISHED">{t("news.status.PUBLISHED")}</option>
+                    <option value="ARCHIVED">{t("news.status.ARCHIVED")}</option>
+                  </LiyonSelect>
+                </LiyonField>
+              </div>
+
+              <LiyonField label={t("news.coverImageUrl")} htmlFor="news-cover">
                 <input
-                  id="news-slug"
-                  value={formSlug}
-                  onChange={(e) => setFormSlug(e.target.value)}
-                  placeholder="admission-2569"
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-ring"
-                  required
+                  id="news-cover"
+                  value={formCoverImageUrl}
+                  onChange={(e) => setFormCoverImageUrl(e.target.value)}
+                  placeholder="https://example.com/cover.jpg"
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </LiyonField>
 
-              <LiyonField label={t("news.category")} htmlFor="news-category">
-                <LiyonSelect
-                  id="news-category"
-                  value={formCategory}
-                  onChange={(e) => setFormCategory(e.target.value as NewsCategory)}
-                >
-                  <option value="GENERAL">{t("news.cat.GENERAL")}</option>
-                  <option value="ACADEMIC">{t("news.cat.ACADEMIC")}</option>
-                  <option value="EVENT">{t("news.cat.EVENT")}</option>
-                  <option value="PROCUREMENT">{t("news.cat.PROCUREMENT")}</option>
-                  <option value="BUDDHIST_AFFAIRS">{t("news.cat.BUDDHIST_AFFAIRS")}</option>
-                </LiyonSelect>
-              </LiyonField>
-
-              <LiyonField label={t("news.status")} htmlFor="news-status">
-                <LiyonSelect
-                  id="news-status"
-                  value={formStatus}
-                  onChange={(e) => setFormStatus(e.target.value as NewsStatus)}
-                >
-                  <option value="DRAFT">{t("news.status.DRAFT")}</option>
-                  <option value="PENDING_REVIEW">{t("news.status.PENDING_REVIEW")}</option>
-                  <option value="PUBLISHED">{t("news.status.PUBLISHED")}</option>
-                  <option value="ARCHIVED">{t("news.status.ARCHIVED")}</option>
-                </LiyonSelect>
-              </LiyonField>
-            </div>
-
-            <LiyonField label={t("news.coverImageUrl")} htmlFor="news-cover">
-              <input
-                id="news-cover"
-                value={formCoverImageUrl}
-                onChange={(e) => setFormCoverImageUrl(e.target.value)}
-                placeholder="https://example.com/cover.jpg"
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-            </LiyonField>
-
-            <LiyonField label={t("news.summaryTh")} htmlFor="news-summary-th">
-              <textarea
-                id="news-summary-th"
-                rows={2}
-                value={formSummaryTh}
-                onChange={(e) => setFormSummaryTh(e.target.value)}
-                placeholder="คำโปรยสรุปสาระสำคัญสั้น ๆ..."
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-            </LiyonField>
-
-            <LiyonField label={t("news.contentTh")} htmlFor="news-content-th">
-              <textarea
-                id="news-content-th"
-                rows={6}
-                value={formContentTh}
-                onChange={(e) => setFormContentTh(e.target.value)}
-                placeholder="เนื้อหาข่าวแบบละเอียด..."
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                required
-              />
-            </LiyonField>
-
-            <div className="flex items-center gap-2 pt-1">
-              <input
-                type="checkbox"
-                id="news-pinned"
-                checked={formIsPinned}
-                onChange={(e) => setFormIsPinned(e.target.checked)}
-                className="h-4 w-4 rounded border-input"
-              />
-              <label htmlFor="news-pinned" className="text-sm font-medium text-foreground cursor-pointer">
-                {t("news.isPinned")} (Featured)
-              </label>
+              <div className="flex items-center gap-2 pt-1">
+                <input
+                  type="checkbox"
+                  id="news-pinned"
+                  checked={formIsPinned}
+                  onChange={(e) => setFormIsPinned(e.target.checked)}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <label htmlFor="news-pinned" className="text-sm font-medium text-foreground cursor-pointer">
+                  {t("news.isPinned")} (Featured)
+                </label>
+              </div>
             </div>
           </div>
         </LiyonDialogBody>

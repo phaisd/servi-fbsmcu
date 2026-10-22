@@ -13,7 +13,9 @@ import {
   DEFAULT_FOOTER_QUICK_LINKS,
   DEFAULT_FOOTER_SYSTEM_LINKS,
   DEFAULT_SMTP_SETTINGS,
+  DEFAULT_GEMINI_SETTINGS,
   type TenantSettings,
+  type GeminiSettings,
   type HeroSettings,
   type HeroNavLink,
   type HeroSocialLink,
@@ -38,6 +40,7 @@ export type {
   FooterSettings,
   FooterLink,
   SmtpSettings,
+  GeminiSettings,
 };
 export {
   DEFAULT_HERO_SETTINGS,
@@ -48,6 +51,7 @@ export {
   DEFAULT_FOOTER_QUICK_LINKS,
   DEFAULT_FOOTER_SYSTEM_LINKS,
   DEFAULT_SMTP_SETTINGS,
+  DEFAULT_GEMINI_SETTINGS,
 };
 
 async function readTenantSettings(tenantId: string, db: Db): Promise<TenantSettings> {
@@ -62,6 +66,7 @@ async function readTenantSettings(tenantId: string, db: Db): Promise<TenantSetti
     facultyBanner?: unknown;
     footer?: unknown;
     smtp?: unknown;
+    gemini?: unknown;
   }) ?? {};
   const p = settingsObj.palette;
   const rawFontSize = settingsObj.fontSize as string;
@@ -129,6 +134,12 @@ async function readTenantSettings(tenantId: string, db: Db): Promise<TenantSetti
     ...rawSmtp,
   };
 
+  const rawGemini = (settingsObj.gemini as Partial<GeminiSettings>) ?? {};
+  const gemini: GeminiSettings = {
+    ...DEFAULT_GEMINI_SETTINGS,
+    ...rawGemini,
+  };
+
   return {
     code: t.code,
     nameTh: t.nameTh,
@@ -142,6 +153,7 @@ async function readTenantSettings(tenantId: string, db: Db): Promise<TenantSetti
     facultyBanner,
     footer,
     smtp,
+    gemini,
   };
 }
 
@@ -166,6 +178,7 @@ export async function updateTenantSettings(input: { tenantId: string; actorId: s
       ...(input.facultyBanner ? { facultyBanner: input.facultyBanner } : {}),
       ...(input.footer ? { footer: input.footer } : {}),
       ...(input.smtp ? { smtp: input.smtp } : {}),
+      ...(input.gemini ? { gemini: input.gemini } : {}),
     };
     await tx.tenant.update({
       where: { id: input.tenantId },

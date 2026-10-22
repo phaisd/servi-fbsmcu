@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Building, Sparkles, Grid, Newspaper, PanelBottom } from "lucide-react";
+import { Building, Sparkles, Grid, Newspaper, PanelBottom, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/shared/lib/i18n/client";
 import { cn } from "@/shared/lib/utils";
@@ -15,22 +15,25 @@ import {
   DEFAULT_FACULTY_BANNER_SETTINGS,
   DEFAULT_FOOTER_SETTINGS,
   DEFAULT_SMTP_SETTINGS,
+  DEFAULT_GEMINI_SETTINGS,
   type TenantSettings,
   type FontSizePreference,
 } from "@/features/identity";
 import { updateSettingsAction } from "@/features/identity/actions";
-import { Mail } from "lucide-react";
 import { GeneralSettingsTab } from "./general-settings-tab";
 import { HeroSettingsTab } from "./hero-settings-tab";
 import { ServicesSettingsTab } from "./services-settings-tab";
 import { PortalContentSettingsTab } from "./portal-content-settings-tab";
 import { FooterSettingsTab } from "./footer-settings-tab";
 import { SmtpSettingsTab } from "./smtp-settings-tab";
+import { GeminiSettingsTab } from "./gemini-settings-tab";
 
 export function SettingsForm({ initial }: { initial: TenantSettings }) {
   const t = useT();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"general" | "hero" | "services" | "content" | "footer" | "smtp">("general");
+  const [activeTab, setActiveTab] = useState<
+    "general" | "hero" | "services" | "content" | "footer" | "smtp" | "gemini"
+  >("general");
   const [form, setForm] = useState({
     nameTh: initial.nameTh,
     nameEn: initial.nameEn,
@@ -43,6 +46,7 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
     facultyBanner: initial.facultyBanner ?? DEFAULT_FACULTY_BANNER_SETTINGS,
     footer: initial.footer ?? DEFAULT_FOOTER_SETTINGS,
     smtp: initial.smtp ?? DEFAULT_SMTP_SETTINGS,
+    gemini: initial.gemini ?? DEFAULT_GEMINI_SETTINGS,
   });
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [pending, start] = useTransition();
@@ -69,12 +73,12 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
       </header>
 
       {/* Tabs navigation */}
-      <div className="flex items-center gap-2 border-b border-border/80 mb-6 px-1 max-w-5xl">
+      <div className="flex items-center gap-2 border-b border-border/80 mb-6 px-1 max-w-5xl overflow-x-auto scrollbar-thin">
         <button
           type="button"
           onClick={() => setActiveTab("general")}
           className={cn(
-            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px",
+            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px shrink-0",
             activeTab === "general"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -87,46 +91,46 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
           type="button"
           onClick={() => setActiveTab("hero")}
           className={cn(
-            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px",
+            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px shrink-0",
             activeTab === "hero"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
           <Sparkles className="w-4 h-4" />
-          <span>ปรับแต่ง Hero Section (หน้าแรก Portal)</span>
+          <span>ปรับแต่ง Hero Section</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("services")}
           className={cn(
-            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px",
+            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px shrink-0",
             activeTab === "services"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
           <Grid className="w-4 h-4" />
-          <span>บริการสำคัญ & หลักสูตร (Quick Services)</span>
+          <span>เมนูบริการ (Services)</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("content")}
           className={cn(
-            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px",
+            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px shrink-0",
             activeTab === "content"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
           )}
         >
           <Newspaper className="w-4 h-4" />
-          <span>ข่าวสาร & แบนเนอร์คณาจารย์</span>
+          <span>ข่าวสาร & แบนเนอร์</span>
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("footer")}
           className={cn(
-            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px",
+            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px shrink-0",
             activeTab === "footer"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -139,7 +143,7 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
           type="button"
           onClick={() => setActiveTab("smtp")}
           className={cn(
-            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px",
+            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px shrink-0",
             activeTab === "smtp"
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -147,6 +151,19 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
         >
           <Mail className="w-4 h-4" />
           <span>อีเมล & SMTP (Gmail)</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("gemini")}
+          className={cn(
+            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px shrink-0",
+            activeTab === "gemini"
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Sparkles className="w-4 h-4 text-amber-500" />
+          <span>AI & Gemini API</span>
         </button>
       </div>
 
@@ -178,6 +195,12 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
             smtp={form.smtp}
             errors={errors}
             onChange={(s) => setForm((prev) => ({ ...prev, smtp: s }))}
+          />
+        ) : activeTab === "gemini" ? (
+          <GeminiSettingsTab
+            gemini={form.gemini}
+            errors={errors}
+            onChange={(g) => setForm((prev) => ({ ...prev, gemini: g }))}
           />
         ) : (
           <GeneralSettingsTab

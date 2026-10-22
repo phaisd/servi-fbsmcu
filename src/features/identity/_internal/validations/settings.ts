@@ -323,6 +323,19 @@ export const DEFAULT_SMTP_SETTINGS: SmtpSettings = {
   fromEmail: "",
 };
 
+export const geminiSettingsSchema = z.object({
+  apiKey: z.string().trim().default(""),
+  model: z.string().trim().default("gemini-2.5-flash"),
+});
+
+export type GeminiSettingsInput = z.infer<typeof geminiSettingsSchema>;
+export type GeminiSettings = GeminiSettingsInput;
+
+export const DEFAULT_GEMINI_SETTINGS: GeminiSettings = {
+  apiKey: "",
+  model: "gemini-2.5-flash",
+};
+
 export const FONT_SIZES = ["small", "normal", "medium", "large", "xlarge"] as const;
 export type FontSizePreference = (typeof FONT_SIZES)[number];
 
@@ -346,6 +359,7 @@ export const updateSettingsSchema = z.object({
   facultyBanner: facultyBannerSchema.optional(),
   footer: footerSchema.optional(),
   smtp: smtpSettingsSchema.optional(),
+  gemini: geminiSettingsSchema.optional(),
 });
 export const updateProfileSchema = z.object({ name: z.string().trim().min(1).max(255), locale: z.enum(["th", "en"]) });
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
@@ -580,6 +594,7 @@ export interface TenantSettings {
   facultyBanner: FacultyBannerSettings;
   footer: FooterSettings;
   smtp: SmtpSettings;
+  gemini: GeminiSettings;
 }
 
 
