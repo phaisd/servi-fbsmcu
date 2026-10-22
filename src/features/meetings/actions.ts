@@ -13,6 +13,7 @@ import {
   createOfficialBooking,
   reviewOfficialBooking,
   approveOrRejectOfficialBooking,
+  updateOfficialBookingApprover,
   updateBookingStatus,
   deleteMeetingBooking,
   getMeetingFormSettings,
@@ -118,6 +119,26 @@ export async function approveOrRejectOfficialBookingAction(
   const session = await requireSession();
   await requirePermission(MEETINGS_P.manage);
   const res = await approveOrRejectOfficialBooking(
+    session.tenantId,
+    session.userId,
+    bookingId,
+    data
+  );
+  revalidatePath("/meetings/bookings");
+  revalidatePath("/portal/meetings");
+  return res;
+}
+
+export async function updateOfficialBookingApproverAction(
+  bookingId: string,
+  data: {
+    approverSignName: string;
+    approverPosition: string;
+  }
+) {
+  const session = await requireSession();
+  await requirePermission(MEETINGS_P.manage);
+  const res = await updateOfficialBookingApprover(
     session.tenantId,
     session.userId,
     bookingId,

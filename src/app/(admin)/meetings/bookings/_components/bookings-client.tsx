@@ -23,22 +23,71 @@ import {
   Check,
   Building2,
   ChevronRight,
+  PenTool,
+  RotateCcw,
+  Save,
+  UserCheck,
 } from "lucide-react";
 import type { MeetingBooking, MeetingRoom, User, BookingStatus } from "@/generated/prisma";
 import {
   MeetingBookingA4Document,
   parseBookingRemark,
   type MeetingBookingMetadata,
+  type MeetingFormSettings,
 } from "@/features/meetings";
 import {
   reviewOfficialBookingAction,
   approveOrRejectOfficialBookingAction,
+  updateOfficialBookingApproverAction,
   deleteMeetingBookingAction,
 } from "@/features/meetings/actions";
 
 type BookingWithRelations = MeetingBooking & { room: MeetingRoom; requester: User };
 
-export function BookingsClient({ initialItems }: { initialItems: BookingWithRelations[] }) {
+export interface PersonnelItem {
+  id: string;
+  fullNameTh: string;
+  positionTh: string;
+  departmentNameTh: string;
+  email: string;
+  phoneNumber: string;
+}
+
+interface Props {
+  initialItems: BookingWithRelations[];
+  personnelList?: PersonnelItem[];
+  formSettings?: MeetingFormSettings | null;
+}
+
+const APPROVER_POSITION_PRESETS = [
+  {
+    label: "เลขานุการสำนักงานคณบดี",
+    name: "พระครูปลัดสมเกียรติ กิตฺติญาโณ",
+    position: "เลขานุการสำนักงานคณบดีคณะพุทธศาสตร์",
+  },
+  {
+    label: "ปฏิบัติหน้าที่แทนเลขานุการฯ",
+    name: "",
+    position: "ปฏิบัติหน้าที่แทนเลขานุการสำนักงานคณบดีคณะพุทธศาสตร์",
+  },
+  {
+    label: "รักษาการแทนเลขานุการฯ",
+    name: "",
+    position: "รักษาการแทนเลขานุการสำนักงานคณบดีคณะพุทธศาสตร์",
+  },
+  {
+    label: "รองคณบดี ปฏิบัติหน้าที่แทน",
+    name: "",
+    position: "รองคณบดีฝ่ายบริหาร ปฏิบัติหน้าที่แทนคณบดีคณะพุทธศาสตร์",
+  },
+  {
+    label: "คณบดีคณะพุทธศาสตร์",
+    name: "",
+    position: "คณบดีคณะพุทธศาสตร์",
+  },
+];
+
+export function BookingsClient({ initialItems, personnelList = [], formSettings }: Props) {
   const router = useRouter();
   const [items, setItems] = useState<BookingWithRelations[]>(initialItems);
   const [isPending, startTransition] = useTransition();
@@ -50,6 +99,11 @@ export function BookingsClient({ initialItems }: { initialItems: BookingWithRela
 
   // Modals state
   const [previewBooking, setPreviewBooking] = useState<BookingWithRelations | null>(null);
+  const [previewApproverName, setPreviewApproverName] = useState("พระครูปลัดสมเกียรติ กิตฺติญาโณ");
+  const [previewApproverPosition, setPreviewApproverPosition] = useState("เลขานุการสำนักงานคณบดีคณะพุทธศาสตร์");
+  const [showPreviewCustomizer, setShowPreviewCustomizer] = useState(false);
+  const [isSavingApprover, setIsSavingApprover] = useState(false);
+
   const [reviewBooking, setReviewBooking] = useState<BookingWithRelations | null>(null);
   const [approvalBooking, setApprovalBooking] = useState<BookingWithRelations | null>(null);
 
@@ -67,6 +121,37 @@ export function BookingsClient({ initialItems }: { initialItems: BookingWithRela
   const notify = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
+  };
+
+  // Open Preview Modal with live customizer
+  const handleOpenPreview = (b: BookingWithRelations) => {
+    const meta = parseBookingRemark(b.remark);
+    setPreviewBooking(b);
+    setPreviewApproverName(meta.approverSignName || "พระครูปลัดสมเกียรติ กิตฺติญาโณ");
+    setPreviewApproverPosition(meta.approverPosition || "เลขานุการสำนักงานคณบดีคณะพุทธศาสตร์");
+    setShowPreviewCustomizer(false);
+  };
+
+  // Save Approver Info from Preview Modal
+  const handleSavePreviewApprover = () => {
+    if (!previewBooking) return;
+    setIsSavingApprover(true);
+    startTransition(async () => {
+      try {
+        const res = await updateOfficialBookingApproverAction(previewBooking.id, {
+          approverSignName: previewApproverName,
+          approverPosition: previewApproverPosition,
+        });
+        setItems((prev) => prev.map((item) => (item.id === res.id ? (res as BookingWithRelations) : item)));
+        setPreviewBooking(res as BookingWithRelations);
+        notify("บันทึกชื่อและตำแหน่งผู้อนุมัติ/ผู้ปฏิบัติหน้าที่แทนเรียบร้อยแล้ว");
+        router.refresh();
+      } catch (err: unknown) {
+        notify((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการบันทึกข้อมูลผู้อนุมัติ");
+      } finally {
+        setIsSavingApprover(false);
+      }
+    });
   };
 
   // Open Officer Review modal
@@ -354,10 +439,20 @@ export function BookingsClient({ initialItems }: { initialItems: BookingWithRela
                     {/* Status Pill */}
                     <td className="p-4 whitespace-nowrap">
                       {b.status === "APPROVED" ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-bold text-emerald-800">
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                          <span>อนุมัติแล้ว</span>
-                        </span>
+                        <div className="space-y-1">
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-bold text-emerald-800">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                            <span>อนุมัติแล้ว</span>
+                          </span>
+                          <div className="text-[10.5px] text-slate-700 font-semibold truncate max-w-[190px]" title={meta.approverSignName}>
+                            ลงนาม: {meta.approverSignName || "พระครูปลัดสมเกียรติ กิตฺติญาโณ"}
+                          </div>
+                          {meta.approverPosition && (
+                            <div className="text-[9.5px] text-slate-400 truncate max-w-[190px]" title={meta.approverPosition}>
+                              {meta.approverPosition}
+                            </div>
+                          )}
+                        </div>
                       ) : b.status === "PENDING" ? (
                         <div className="space-y-1">
                           <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-[11px] font-bold text-amber-800">
@@ -389,9 +484,9 @@ export function BookingsClient({ initialItems }: { initialItems: BookingWithRela
                         {/* A4 Preview & Print */}
                         <button
                           type="button"
-                          onClick={() => setPreviewBooking(b)}
+                          onClick={() => handleOpenPreview(b)}
                           className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
-                          title="พรีวิว / พิมพ์ใบขอใช้ห้องประชุม A4"
+                          title="พรีวิว / พิมพ์ใบขอใช้ห้องประชุม A4 (ปรับแก้ชื่อและตำแหน่งผู้อนุมัติได้)"
                         >
                           <Printer className="h-3.5 w-3.5 text-indigo-600" />
                           <span className="hidden sm:inline">พิมพ์ A4</span>
@@ -408,15 +503,19 @@ export function BookingsClient({ initialItems }: { initialItems: BookingWithRela
                           <span className="hidden sm:inline">ตรวจห้อง</span>
                         </button>
 
-                        {/* Approver Decision button */}
+                        {/* Approver Decision / Edit button */}
                         <button
                           type="button"
                           onClick={() => handleOpenApproval(b)}
-                          className="inline-flex items-center gap-1 rounded-xl bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800 transition shadow-2xs"
-                          title="พิจารณาอนุมัติ / ไม่อนุมัติ (เลขานุการสำนักงานคณบดี)"
+                          className={`inline-flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-bold transition shadow-2xs ${
+                            b.status === "APPROVED"
+                              ? "bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300"
+                              : "bg-slate-900 text-white hover:bg-slate-800"
+                          }`}
+                          title="พิจารณาอนุมัติ / แก้ไขข้อมูลผู้อนุมัติและผู้ปฏิบัติหน้าที่แทน"
                         >
                           <Check className="h-3.5 w-3.5 text-amber-400" />
-                          <span>อนุมัติ</span>
+                          <span>{b.status === "APPROVED" ? "แก้ผู้อนุมัติ" : "อนุมัติ"}</span>
                         </button>
 
                         {/* Delete button */}
@@ -453,11 +552,24 @@ export function BookingsClient({ initialItems }: { initialItems: BookingWithRela
             <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white">
               <div className="flex items-center gap-2">
                 <FileText className="h-4 w-4 text-amber-400" />
-                <span className="text-sm font-bold">
+                <span className="text-sm font-bold truncate max-w-xs sm:max-w-md">
                   ใบขอใช้ห้องประชุมประจำคณะพุทธศาสตร์ — {previewBooking.title}
                 </span>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPreviewCustomizer((v) => !v)}
+                  className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition border ${
+                    showPreviewCustomizer
+                      ? "bg-amber-400 text-slate-900 border-amber-300 font-bold shadow-xs"
+                      : "bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700"
+                  }`}
+                  title="แก้ไข/เพิ่มเติม ชื่อและตำแหน่งผู้อนุมัติหรือผู้ปฏิบัติหน้าที่แทน"
+                >
+                  <PenTool className="h-3.5 w-3.5" />
+                  <span>{showPreviewCustomizer ? "ซ่อนแถบตั้งค่า" : "✏️ ปรับแต่งผู้อนุมัติ"}</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => window.print()}
@@ -476,10 +588,127 @@ export function BookingsClient({ initialItems }: { initialItems: BookingWithRela
               </div>
             </div>
 
+            {/* Live Customizer Toolbar */}
+            {showPreviewCustomizer && (
+              <div className="bg-amber-50/95 border-b border-amber-200 p-4 space-y-3 print:hidden animate-in fade-in">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
+                    <UserCheck className="h-4 w-4 text-amber-700 shrink-0" />
+                    <span>ปรับแต่งชื่อและตำแหน่งผู้อนุมัติ / ผู้ปฏิบัติหน้าที่แทน (แก้ไขแบบ Real-time ก่อนสั่งพิมพ์)</span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isSavingApprover}
+                    onClick={handleSavePreviewApprover}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-slate-800 transition disabled:opacity-50 self-start sm:self-auto shadow-xs"
+                    title="บันทึกชื่อและตำแหน่งนี้ลงในฐานข้อมูลสำหรับคำขอนี้"
+                  >
+                    {isSavingApprover ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5 text-amber-400" />}
+                    <span>💾 บันทึกลงคำขอนี้</span>
+                  </button>
+                </div>
+
+                {/* Presets Chips */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[11px] text-slate-500 font-semibold">เลือกตำแหน่งด่วน:</span>
+                  {APPROVER_POSITION_PRESETS.map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => {
+                        if (p.name) setPreviewApproverName(p.name);
+                        setPreviewApproverPosition(p.position);
+                      }}
+                      className={`text-[10.5px] px-2.5 py-1 rounded-lg border font-medium transition ${
+                        previewApproverPosition === p.position
+                          ? "bg-amber-200 border-amber-400 text-amber-950 font-bold ring-1 ring-amber-400/50"
+                          : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPreviewApproverName("พระครูปลัดสมเกียรติ กิตฺติญาโณ");
+                      setPreviewApproverPosition("เลขานุการสำนักงานคณบดีคณะพุทธศาสตร์");
+                    }}
+                    className="inline-flex items-center gap-1 text-[10.5px] px-2 py-1 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-slate-800"
+                    title="รีเซ็ตเป็นค่าเริ่มต้น"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    <span>รีเซ็ต</span>
+                  </button>
+                </div>
+
+                {/* Personnel directory picker */}
+                {personnelList.length > 0 && (
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <label className="text-[11px] text-slate-600 shrink-0 font-medium">
+                      เลือกจากทำเนียบบุคลากรในคณะ:
+                    </label>
+                    <select
+                      onChange={(e) => {
+                        const person = personnelList.find((pl) => pl.id === e.target.value);
+                        if (person) {
+                          setPreviewApproverName(person.fullNameTh);
+                          if (!previewApproverPosition.includes("ปฏิบัติหน้าที่แทน") && !previewApproverPosition.includes("รักษาการ")) {
+                            setPreviewApproverPosition(`${person.positionTh} ปฏิบัติหน้าที่แทนเลขานุการสำนักงานคณบดีคณะพุทธศาสตร์`);
+                          }
+                        }
+                      }}
+                      defaultValue=""
+                      className="rounded-xl border border-slate-300 px-3 py-1.5 text-xs text-slate-700 bg-white flex-1 max-w-lg"
+                    >
+                      <option value="">-- เลือกอาจารย์ / เจ้าหน้าที่ เพื่อดึงชื่อและตำแหน่ง --</option>
+                      {personnelList.map((pl) => (
+                        <option key={pl.id} value={pl.id}>
+                          {pl.fullNameTh} ({pl.positionTh})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Direct Text Inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      ชื่อ-ฉายา / นามสกุล ผู้อนุมัติ *
+                    </label>
+                    <input
+                      type="text"
+                      value={previewApproverName}
+                      onChange={(e) => setPreviewApproverName(e.target.value)}
+                      placeholder="เช่น พระครูปลัดสมเกียรติ กิตฺติญาโณ"
+                      className="w-full rounded-xl border border-slate-300 px-3.5 py-1.5 text-xs font-semibold bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      ตำแหน่งผู้อนุมัติ *
+                    </label>
+                    <input
+                      type="text"
+                      value={previewApproverPosition}
+                      onChange={(e) => setPreviewApproverPosition(e.target.value)}
+                      placeholder="เช่น เลขานุการสำนักงานคณบดีคณะพุทธศาสตร์ หรือ ปฏิบัติหน้าที่แทน..."
+                      className="w-full rounded-xl border border-slate-300 px-3.5 py-1.5 text-xs bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="p-4 sm:p-8 overflow-x-auto flex justify-center bg-slate-200/80">
               <div className="scale-90 sm:scale-100 origin-top">
                 <MeetingBookingA4Document
-                  metadata={parseBookingRemark(previewBooking.remark)}
+                  metadata={{
+                    ...parseBookingRemark(previewBooking.remark),
+                    approverSignName: previewApproverName,
+                    approverPosition: previewApproverPosition,
+                  }}
                   roomName={previewBooking.room.name}
                   roomCapacity={previewBooking.room.capacity}
                 />
@@ -607,7 +836,7 @@ export function BookingsClient({ initialItems }: { initialItems: BookingWithRela
       {/* MODAL 3: APPROVER DECISION (ความเห็นผู้อนุมัติ: เลขานุการสำนักงานคณบดีคณะพุทธศาสตร์) */}
       {approvalBooking && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl space-y-4">
+          <div className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b pb-3">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-indigo-600" />
@@ -631,7 +860,7 @@ export function BookingsClient({ initialItems }: { initialItems: BookingWithRela
               </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div>
                 <label className="mb-1.5 block text-xs font-semibold text-slate-700">
                   ผลการพิจารณา (ความเห็น) *
@@ -671,29 +900,111 @@ export function BookingsClient({ initialItems }: { initialItems: BookingWithRela
                 </div>
               </div>
 
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  ลงชื่อผู้อนุมัติ (Authorized Signatory) *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={approverSignName}
-                  onChange={(e) => setApproverSignName(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs font-semibold"
-                />
-              </div>
+              {/* Approver Signatory & Acting Role */}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    <UserCheck className="h-4 w-4 text-indigo-600" />
+                    <span>ผู้มีอำนาจอนุมัติ / ผู้ปฏิบัติหน้าที่แทน *</span>
+                  </label>
+                  <span className="text-[11px] text-slate-500 font-medium">เลือกตำแหน่งสำเร็จรูป:</span>
+                </div>
 
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  ตำแหน่งผู้อนุมัติ
-                </label>
-                <input
-                  type="text"
-                  value={approverPosition}
-                  onChange={(e) => setApproverPosition(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs"
-                />
+                {/* Presets Chips */}
+                <div className="flex flex-wrap gap-1.5">
+                  {APPROVER_POSITION_PRESETS.map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => {
+                        if (p.name) setApproverSignName(p.name);
+                        setApproverPosition(p.position);
+                      }}
+                      className={`text-[10.5px] px-2.5 py-1 rounded-lg border font-medium transition ${
+                        approverPosition === p.position
+                          ? "bg-indigo-50 border-indigo-400 text-indigo-950 font-bold"
+                          : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setApproverSignName("พระครูปลัดสมเกียรติ กิตฺติญาโณ");
+                      setApproverPosition("เลขานุการสำนักงานคณบดีคณะพุทธศาสตร์");
+                    }}
+                    className="inline-flex items-center gap-1 text-[10.5px] px-2 py-1 rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-slate-800"
+                    title="รีเซ็ตเป็นค่าเริ่มต้น"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    <span>รีเซ็ต</span>
+                  </button>
+                </div>
+
+                {/* Personnel directory picker */}
+                {personnelList.length > 0 && (
+                  <div>
+                    <label className="block text-[11px] text-slate-600 font-medium mb-1">
+                      เลือกจากทำเนียบบุคลากร (อาจารย์/เจ้าหน้าที่) เพื่อดึงชื่อและตำแหน่ง:
+                    </label>
+                    <select
+                      onChange={(e) => {
+                        const person = personnelList.find((pl) => pl.id === e.target.value);
+                        if (person) {
+                          setApproverSignName(person.fullNameTh);
+                          if (!approverPosition.includes("ปฏิบัติหน้าที่แทน") && !approverPosition.includes("รักษาการ")) {
+                            setApproverPosition(`${person.positionTh} ปฏิบัติหน้าที่แทนเลขานุการสำนักงานคณบดีคณะพุทธศาสตร์`);
+                          }
+                        }
+                      }}
+                      defaultValue=""
+                      className="w-full rounded-xl border border-slate-300 px-3 py-1.5 text-xs text-slate-700 bg-white"
+                    >
+                      <option value="">-- เลือกอาจารย์ / เจ้าหน้าที่ --</option>
+                      {personnelList.map((pl) => (
+                        <option key={pl.id} value={pl.id}>
+                          {pl.fullNameTh} ({pl.positionTh})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      ลงชื่อผู้อนุมัติ (Authorized Signatory) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={approverSignName}
+                      onChange={(e) => setApproverSignName(e.target.value)}
+                      placeholder="เช่น พระครูปลัดสมเกียรติ กิตฺติญาโณ"
+                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs font-semibold bg-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      ตำแหน่งผู้อนุมัติ *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={approverPosition}
+                      onChange={(e) => setApproverPosition(e.target.value)}
+                      placeholder="เช่น เลขานุการสำนักงานคณบดีคณะพุทธศาสตร์ หรือ ปฏิบัติหน้าที่แทน..."
+                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-xs bg-white"
+                    />
+                  </div>
+                </div>
+
+                <p className="text-[10.5px] text-slate-500">
+                  💡 สามารถพิมพ์แก้ไขหรือระบุชื่อและตำแหน่งได้อิสระ กรณีมีผู้ปฏิบัติหน้าที่แทน รักษาการแทน หรือผู้มีอำนาจท่านอื่น
+                </p>
               </div>
 
               <div>

@@ -409,6 +409,51 @@ export async function approveOrRejectOfficialBooking(
   return result;
 }
 
+/**
+ * แก้ไข/ปรับปรุงชื่อและตำแหน่งของผู้อนุมัติ (เช่น มีผู้ปฏิบัติหน้าที่แทน หรือรักษาการแทน)
+ */
+export async function updateOfficialBookingApprover(
+  tenantId: string,
+  actorId: string,
+  bookingId: string,
+  data: {
+    approverSignName: string;
+    approverPosition: string;
+  }
+) {
+  const before = await db.meetingBooking.findUnique({
+    where: { id: bookingId, tenantId },
+  });
+  if (!before) throw new Error("ไม่พบคำขอจองห้องประชุม");
+
+  const meta = parseBookingRemark(before.remark);
+  const updatedMeta: MeetingBookingMetadata = {
+    ...meta,
+    approverSignName: data.approverSignName?.trim() || "พระครูปลัดสมเกียรติ กิตฺติญาโณ",
+    approverPosition: data.approverPosition?.trim() || "เลขานุการสำนักงานคณบดีคณะพุทธศาสตร์",
+  };
+
+  const result = await db.meetingBooking.update({
+    where: { id: bookingId, tenantId },
+    data: {
+      remark: serializeBookingRemark(updatedMeta),
+    },
+    include: { room: true, requester: true },
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "meetings.booking.update_approver",
+    entity: "MeetingBooking",
+    entityId: bookingId,
+    before,
+    after: result,
+  });
+
+  return result;
+}
+
 export async function updateBookingStatus(
   tenantId: string,
   actorId: string,

@@ -13,6 +13,7 @@ export {
   createOfficialBooking,
   reviewOfficialBooking,
   approveOrRejectOfficialBooking,
+  updateOfficialBookingApprover,
   updateBookingStatus,
   deleteMeetingBooking,
   getMeetingFormSettings,

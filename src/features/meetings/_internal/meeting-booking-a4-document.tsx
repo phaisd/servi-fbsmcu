@@ -343,7 +343,7 @@ export function MeetingBookingA4Document({
 
           <div className="mt-3 text-center space-y-0.5">
             <div>
-              ลงชื่อ <span className="underline underline-offset-4 decoration-dotted font-semibold">{metadata.approverSignName ? metadata.approverSignName : "......................................................"}</span>
+              ลงชื่อ <span className="underline underline-offset-4 decoration-dotted font-semibold">{metadata.approverDecision === "APPROVED" && metadata.approverSignName ? metadata.approverSignName : "......................................................"}</span>
             </div>
             <div className="font-semibold">
               ({metadata.approverSignName || "พระครูปลัดสมเกียรติ กิตฺติญาโณ"})
