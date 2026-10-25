@@ -377,6 +377,8 @@ export interface ImportPersonnelItem {
   positionTh: string;
   positionEn?: string | null;
   academicPosition?: string | null;
+  academicPositionEn?: string | null;
+  titlePlacement?: "PREFIX" | "SUFFIX" | string | null;
   type?: "EXECUTIVE" | "ACADEMIC" | "SUPPORT";
   departmentId?: string | null;
   departmentName?: string | null;
@@ -455,6 +457,8 @@ export async function importPersonnelBatch(
       positionTh: item.positionTh.trim(),
       positionEn: item.positionEn?.trim() || null,
       academicPosition: item.academicPosition?.trim() || null,
+      academicPositionEn: item.academicPositionEn?.trim() || null,
+      titlePlacement: item.titlePlacement || "PREFIX",
       type: item.type || "ACADEMIC",
       departmentId,
       email: item.email?.trim() || null,

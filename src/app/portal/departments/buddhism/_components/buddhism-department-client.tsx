@@ -29,6 +29,7 @@ import {
   LiyonDialogCloseButton,
 } from "@/shared/components/liyon";
 import { Button } from "@/components/ui/button";
+import { formatPersonnelName } from "@/features/personnel";
 import type { Curriculum, Department } from "@/generated/prisma";
 import type { PersonnelItem, ResearchPub } from "@/app/portal/personnel/_components/portal-personnel-client";
 import {
@@ -418,8 +419,8 @@ export function BuddhismDepartmentClient({
 
                         <Link href={`/portal/personnel/${person.id}`}>
                           <h3 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors cursor-pointer">
-                            {person.academicPosition ? `${person.academicPosition} ` : ""}
-                            {person.firstNameTh} {person.lastNameTh}
+
+                            {formatPersonnelName(person)}
                           </h3>
                         </Link>
                         {person.firstNameEn && (
@@ -808,7 +809,7 @@ export function BuddhismDepartmentClient({
         {selectedPerson && (
           <>
             <LiyonDialogHeader
-              title={`${selectedPerson.academicPosition ? selectedPerson.academicPosition + " " : ""}${selectedPerson.firstNameTh} ${selectedPerson.lastNameTh}`}
+              title={formatPersonnelName(selectedPerson)}
               description="อาจารย์ประจำภาควิชาพระพุทธศาสนา คณะพุทธศาสตร์ มจร"
             />
             <LiyonDialogBody>
@@ -842,8 +843,8 @@ export function BuddhismDepartmentClient({
                       )}
                     </div>
                     <h3 className="text-base sm:text-lg font-bold text-foreground">
-                      {selectedPerson.academicPosition ? `${selectedPerson.academicPosition} ` : ""}
-                      {selectedPerson.firstNameTh} {selectedPerson.lastNameTh}
+
+                      {formatPersonnelName(selectedPerson)}
                     </h3>
                     <p className="text-xs text-muted-foreground">{selectedPerson.positionTh}</p>
                   </div>

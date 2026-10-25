@@ -27,7 +27,9 @@ import {
   Award,
   Scissors,
   FileDown,
+  Building2,
 } from "lucide-react";
+import { printHandoverDocument, type HandoverViewMode } from "./print-handover";
 import {
   LiyonCard,
   StatusPill,
@@ -402,9 +404,10 @@ export function ClassesClient({
   const [isHandoverModalOpen, setIsHandoverModalOpen] = useState(false);
   const [syncResult, setSyncResult] = useState<any | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
-  const [handoverViewMode, setHandoverViewMode] = useState<"slips" | "table">("slips");
+  const [handoverViewMode, setHandoverViewMode] = useState<HandoverViewMode>("slips4");
   const [handoverSearch, setHandoverSearch] = useState("");
   const [singlePrintEmail, setSinglePrintEmail] = useState<string | null>(null);
+  const [handoverIssuerText, setHandoverIssuerText] = useState("ฝ่ายวิชาการ คณะพุทธศาสตร์ มจร.");
 
   const filteredTeacherCredentials = useMemo(() => {
     let list = syncResult?.teacherCredentials || [];
@@ -582,18 +585,14 @@ export function ClassesClient({
   }
 
   function handlePrintHandover(teacherEmail?: string) {
-    if (teacherEmail) {
-      setSinglePrintEmail(teacherEmail);
-      setTimeout(() => {
-        window.print();
-        setTimeout(() => setSinglePrintEmail(null), 500);
-      }, 100);
-    } else {
-      setSinglePrintEmail(null);
-      setTimeout(() => {
-        window.print();
-      }, 50);
-    }
+    printHandoverDocument({
+      viewMode: handoverViewMode,
+      credentials: filteredTeacherCredentials,
+      issuerText: handoverIssuerText,
+      semesterText: "ภาคการศึกษาที่ 2/2569 (Semester 2/2026)",
+      loginUrl: "http://localhost:3010/login",
+      singleEmail: teacherEmail || null,
+    });
   }
 
   function handleOpenAllTeacherHandover() {
@@ -1759,152 +1758,230 @@ export function ClassesClient({
         <LiyonDialogBody className="space-y-4 max-h-[75vh] overflow-y-auto print:max-h-none print:overflow-visible print:p-0">
           {/* แถบควบคุมและเครื่องมือ (ซ่อนตอนพิมพ์) */}
           <div className="space-y-3 print:hidden">
-            {/* สรุปผลภาพรวม */}
-            <div className="p-3.5 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800/60 flex items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2.5">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                <div>
-                  <span className="font-bold text-emerald-950 dark:text-emerald-100 text-sm">
-                    พร้อมส่งมอบ {syncResult?.teacherCredentials?.length || 0} บัญชีอาจารย์
-                  </span>
-                  <span className="text-emerald-700 dark:text-emerald-300 ml-2">
-                    (ครอบคลุม {syncResult?.importedCount || items.length} รายวิชา 16 คาบเรียน)
-                  </span>
-                </div>
-              </div>
-
-              {/* สลับมุมมอง Slips vs Table */}
-              <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setHandoverViewMode("slips")}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                    handoverViewMode === "slips"
-                      ? "bg-primary text-white shadow-xs"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-                  }`}
-                >
-                  <Scissors className="w-3.5 h-3.5" />
-                  <span>ใบตัดแจกรายบุคคล (4 ใบ/หน้า)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHandoverViewMode("table")}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                    handoverViewMode === "table"
-                      ? "bg-primary text-white shadow-xs"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-                  }`}
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  <span>ตารางสรุปภาพรวม</span>
-                </button>
+            {/* แถวบน: สรุปผลภาพรวมจำนวนบัญชีอาจารย์และรายวิชา */}
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800/60 flex items-center gap-2.5 text-xs shadow-2xs">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="font-bold text-emerald-950 dark:text-emerald-100 text-sm">
+                  พร้อมส่งมอบ {syncResult?.teacherCredentials?.length || 0} บัญชีอาจารย์
+                </span>
+                <span className="text-emerald-700 dark:text-emerald-300 font-medium">
+                  (ครอบคลุม {syncResult?.importedCount || items.length} รายวิชา 16 คาบเรียน)
+                </span>
               </div>
             </div>
 
-            {/* ช่องค้นหาอาจารย์ */}
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={handoverSearch}
-                onChange={(e) => setHandoverSearch(e.target.value)}
-                placeholder="ค้นหาชื่ออาจารย์, อีเมล, หรือรหัสรายวิชา..."
-                className="w-full pl-9 pr-24 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs focus:ring-2 focus:ring-primary focus:outline-none"
-              />
-              {handoverSearch && (
-                <button
-                  type="button"
-                  onClick={() => setHandoverSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 hover:text-slate-600"
-                >
-                  ล้างคำค้น
-                </button>
-              )}
+            {/* แถวต่อมา: สลับมุมมองการพิมพ์ (ใบตัดแจก 4 ใบ, 6 ใบ, 8 ใบ, ตารางสรุปภาพรวม) */}
+            <div className="flex items-center gap-1.5 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700/80 overflow-x-auto scrollbar-thin">
+              <button
+                type="button"
+                onClick={() => setHandoverViewMode("slips4")}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
+                  handoverViewMode === "slips4" || handoverViewMode === "slips"
+                    ? "bg-primary text-white shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/60 dark:hover:bg-slate-700"
+                }`}
+                title="พิมพ์ 4 ใบต่อหน้า A4 ขนาดใหญ่ อ่านง่าย สบายตา ช่องเซ็นชื่อกว้าง"
+              >
+                <Scissors className="w-3.5 h-3.5" />
+                <span>ใบตัดแจก (4 ใบ/หน้า)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setHandoverViewMode("slips6")}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
+                  handoverViewMode === "slips6"
+                    ? "bg-primary text-white shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/60 dark:hover:bg-slate-700"
+                }`}
+                title="พิมพ์ 6 ใบต่อหน้า A4 ขนาด 2 คอลัมน์ x 3 แถว ประหยัดกระดาษ 33%"
+              >
+                <Scissors className="w-3.5 h-3.5 text-amber-500" />
+                <span>ใบตัดแจก (6 ใบ/หน้า)</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[10px] font-bold">
+                  ประหยัด 33%
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setHandoverViewMode("slips8")}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
+                  handoverViewMode === "slips8"
+                    ? "bg-primary text-white shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/60 dark:hover:bg-slate-700"
+                }`}
+                title="พิมพ์ 8 ใบต่อหน้า A4 ขนาด 2 คอลัมน์ x 4 แถว ประหยัดกระดาษ 50%"
+              >
+                <Scissors className="w-3.5 h-3.5 text-emerald-500" />
+                <span>ใบตัดแจก (8 ใบ/หน้า)</span>
+                <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                  ประหยัด 50%
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setHandoverViewMode("table")}
+                className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition cursor-pointer whitespace-nowrap ${
+                  handoverViewMode === "table"
+                    ? "bg-primary text-white shadow-xs"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-white/60 dark:hover:bg-slate-700"
+                }`}
+                title="ตารางสรุปภาพรวม สำหรับฝ่ายวิชาการเก็บเข้าแฟ้มควบคุมภายใน"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>ตารางสรุปภาพรวม</span>
+              </button>
+            </div>
+
+            {/* ปรับแต่งข้อความหน่วยงานออกเอกสาร & ช่องค้นหาอาจารย์ */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+              {/* ช่องแก้ไขข้อความผู้ส่งมอบ / หน่วยงานออกเอกสาร */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-primary" />
+                    <span>ข้อความหน่วยงานออกเอกสาร (มุมขวาล่างของใบส่งมอบ):</span>
+                  </span>
+                  {handoverIssuerText !== "ฝ่ายวิชาการ คณะพุทธศาสตร์ มจร." && (
+                    <button
+                      type="button"
+                      onClick={() => setHandoverIssuerText("ฝ่ายวิชาการ คณะพุทธศาสตร์ มจร.")}
+                      className="text-[10px] text-primary hover:underline font-semibold cursor-pointer"
+                    >
+                      คืนค่าเดิม
+                    </button>
+                  )}
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={handoverIssuerText}
+                    onChange={(e) => setHandoverIssuerText(e.target.value)}
+                    placeholder="เช่น ฝ่ายวิชาการ คณะพุทธศาสตร์ มจร."
+                    className="w-full px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs focus:ring-2 focus:ring-primary focus:outline-none font-medium text-slate-900 dark:text-slate-100 shadow-2xs"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  * ข้อความนี้จะปรากฏใต้ช่องลงชื่อวันที่ในทุกใบตัดแจกและตารางสรุปโดยอัตโนมัติ
+                </p>
+              </div>
+
+              {/* ช่องค้นหาอาจารย์ */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <Search className="w-3.5 h-3.5 text-primary" />
+                  <span>ค้นหาอาจารย์ในรายการ:</span>
+                </label>
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={handoverSearch}
+                    onChange={(e) => setHandoverSearch(e.target.value)}
+                    placeholder="ค้นหาชื่ออาจารย์, อีเมล, หรือรหัสวิชา..."
+                    className="w-full pl-8 pr-16 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs focus:ring-2 focus:ring-primary focus:outline-none text-slate-900 dark:text-slate-100 shadow-2xs"
+                  />
+                  {handoverSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setHandoverSearch("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 hover:text-slate-600 font-semibold cursor-pointer"
+                    >
+                      ล้างคำค้น
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  แสดง {filteredTeacherCredentials.length} จาก {syncResult?.teacherCredentials?.length || 0} ท่าน
+                </p>
+              </div>
             </div>
           </div>
 
           {/* พื้นที่พิมพ์เอกสาร (Handover Printable Area) */}
           <div className="handover-printable-area space-y-4">
             {/* โหมดที่ 1: สลิปใบส่งมอบรายบุคคล (Slips View - 4 ใบต่อหน้า A4 มีเส้นประตัด) */}
-            {handoverViewMode === "slips" ? (
+            {handoverViewMode === "slips4" || handoverViewMode === "slips" ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 print:gap-4">
-                  {filteredTeacherCredentials.map((cred: any, idx: number) => (
+                  {filteredTeacherCredentials.map((cred: any, _idx: number) => (
                     <div
                       key={cred.email}
-                      className="handover-slip-card border-2 border-dashed border-slate-300 dark:border-slate-700 print:border-slate-400 rounded-2xl p-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 print:bg-white print:text-black shadow-xs flex flex-col justify-between relative overflow-hidden break-inside-avoid"
+                      className="handover-slip-card border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs flex flex-col justify-between relative overflow-hidden"
                     >
-                      {/* สัญลักษณ์กรรไกรและเส้นตัดมุมบน */}
-                      <div className="absolute top-2.5 right-3 flex items-center gap-1 text-[10px] text-slate-400 print:text-slate-500 font-mono">
-                        <Scissors className="w-3 h-3" />
-                        <span>ตัดตามรอยปรุ</span>
-                      </div>
-
                       <div>
+                        {/* แถบรอยปรุตัดแยกส่วนบน ชัดเจนไม่ทับตัวหนังสือ */}
+                        <div className="flex items-center justify-between pb-1.5 border-b border-dashed border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 font-mono">
+                          <span className="font-semibold text-slate-500 dark:text-slate-400">ใบส่งมอบบัญชีอาจารย์ผู้สอน (4 ใบ/หน้า)</span>
+                          <span className="flex items-center gap-1 text-slate-400">
+                            <Scissors className="w-3 h-3" />
+                            <span>ตัดตามรอยปรุ</span>
+                          </span>
+                        </div>
+
                         {/* หัวแบบฟอร์มทางการ มจร. */}
-                        <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-200 dark:border-slate-800 print:border-slate-300">
-                          <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300 print:text-black flex items-center justify-center shrink-0 font-bold text-xs border border-amber-500/20">
+                        <div className="flex items-center gap-2.5 py-2">
+                          <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 font-bold text-xs border border-amber-500/20">
                             มจร
                           </div>
-                          <div>
-                            <div className="font-bold text-[11px] leading-tight text-slate-800 dark:text-slate-200 print:text-black">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-bold text-[11px] leading-tight text-slate-800 dark:text-slate-200 truncate">
                               มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย • คณะพุทธศาสตร์
                             </div>
-                            <div className="text-xs font-bold text-primary dark:text-indigo-400 print:text-black leading-tight">
+                            <div className="text-xs font-bold text-primary dark:text-indigo-400 leading-tight">
                               ใบส่งมอบบัญชีผู้ใช้ระบบสารสนเทศอาจารย์ผู้สอน
                             </div>
-                            <div className="text-[10px] text-slate-500 dark:text-slate-400 print:text-slate-600">
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400">
                               ภาคการศึกษาที่ 2/2569 (Semester 2/2026)
                             </div>
                           </div>
                         </div>
 
                         {/* ข้อมูลประจำตัวอาจารย์และรหัสผ่าน */}
-                        <div className="mt-2.5 space-y-2 text-xs">
+                        <div className="mt-1 pt-1.5 border-t border-slate-100 dark:border-slate-800 space-y-2 text-xs">
                           <div>
-                            <span className="text-[10px] text-slate-500 dark:text-slate-400 print:text-slate-600">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400">
                               อาจารย์ผู้สอน:
                             </span>
-                            <div className="font-bold text-sm text-slate-900 dark:text-white print:text-black">
+                            <div className="font-bold text-sm text-slate-900 dark:text-white">
                               {cred.teacherName}
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-2 gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/50 print:bg-slate-50 border border-slate-200 dark:border-slate-700/80 print:border-slate-300">
-                            <div>
-                              <span className="text-[9.5px] uppercase font-bold text-slate-500 dark:text-slate-400 print:text-slate-600">
+                          <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/80">
+                            <div className="min-w-0">
+                              <span className="text-[9.5px] uppercase font-bold text-slate-500 dark:text-slate-400 block truncate">
                                 อีเมลเข้าสู่ระบบ (Username)
                               </span>
-                              <div className="font-mono text-xs font-semibold text-indigo-600 dark:text-indigo-400 print:text-black break-all">
+                              <div className="font-mono text-[11.5px] font-semibold text-indigo-600 dark:text-indigo-400 truncate" title={cred.email}>
                                 {cred.email}
                               </div>
                             </div>
-                            <div>
-                              <span className="text-[9.5px] uppercase font-bold text-slate-500 dark:text-slate-400 print:text-slate-600">
+                            <div className="min-w-0">
+                              <span className="text-[9.5px] uppercase font-bold text-slate-500 dark:text-slate-400 block truncate">
                                 รหัสผ่านเริ่มต้น (Initial Password)
                               </span>
-                              <div className="font-mono text-xs font-black text-amber-700 dark:text-amber-300 print:text-black">
+                              <div className="font-mono text-xs font-black text-amber-700 dark:text-amber-300">
                                 {cred.initialPassword || "(บัญชีเดิมในระบบ)"}
                               </div>
                             </div>
                           </div>
 
-                          <div className="text-[10.5px] text-slate-600 dark:text-slate-400 print:text-slate-700">
+                          <div className="text-[10.5px] text-slate-600 dark:text-slate-400">
                             <span className="font-semibold">เว็บไซต์เข้าสู่ระบบ:</span>{" "}
                             <span className="font-mono text-primary font-bold">http://localhost:3010/login</span>
                           </div>
 
                           {/* รายวิชาที่สอน */}
                           <div>
-                            <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 print:text-slate-600">
+                            <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">
                               รายวิชาที่สอน ({cred.courses?.length || 0} วิชา):
                             </span>
                             <div className="flex flex-wrap gap-1 mt-1">
                               {cred.courses?.map((c: string, ci: number) => (
                                 <span
                                   key={ci}
-                                  className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 print:bg-transparent print:border print:border-slate-300 text-[10px] font-medium text-slate-700 dark:text-slate-300 print:text-black"
+                                  className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-medium text-slate-700 dark:text-slate-300"
                                 >
                                   {c}
                                 </span>
@@ -1913,23 +1990,23 @@ export function ClassesClient({
                           </div>
 
                           {/* คำแนะนำความปลอดภัย */}
-                          <div className="text-[9px] text-slate-500 dark:text-slate-400 print:text-slate-600 leading-relaxed border-t border-slate-100 dark:border-slate-800 print:border-slate-200 pt-1.5">
+                          <div className="text-[9px] text-slate-500 dark:text-slate-400 leading-relaxed border-t border-slate-100 dark:border-slate-800 pt-1.5">
                             * ระบบใช้สำหรับบันทึกเวลาเรียน 16 คาบ ประเมินสิทธิ์สอบ และส่งเกรด กรุณาเปลี่ยนรหัสผ่านทันทีในการเข้าสู่ระบบครั้งแรก
                           </div>
                         </div>
                       </div>
 
                       {/* ส่วนลงนามรับมอบ */}
-                      <div className="mt-3 pt-2.5 border-t border-slate-200 dark:border-slate-800 print:border-slate-300">
-                        <div className="flex items-end justify-between text-[10px] text-slate-600 dark:text-slate-400 print:text-black">
+                      <div className="mt-3 pt-2.5 border-t border-slate-200 dark:border-slate-800">
+                        <div className="flex items-end justify-between text-[10px] text-slate-600 dark:text-slate-400">
                           <div>
                             <div>ลงชื่อ .................................................... ผู้รับมอบ</div>
-                            <div className="mt-0.5 pl-6">({cred.teacherName})</div>
+                            <div className="mt-0.5 pl-6 font-medium">({cred.teacherName})</div>
                           </div>
                           <div className="text-right">
                             <div>วันที่ ..... / ..... / 2569</div>
-                            <div className="text-[9px] text-slate-400 print:text-slate-500 mt-0.5">
-                              ฝ่ายวิชาการ คณะพุทธศาสตร์ มจร.
+                            <div className="text-[9.5px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                              {handoverIssuerText}
                             </div>
                           </div>
                         </div>
@@ -1966,6 +2043,281 @@ export function ClassesClient({
                   </div>
                 )}
               </div>
+            ) : handoverViewMode === "slips6" ? (
+              /* โหมดที่ 2: สลิปใบตัดแจก 6 ใบต่อหน้า A4 (ประหยัดกระดาษ 33%) */
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                  {filteredTeacherCredentials.map((cred: any, _idx: number) => (
+                    <div
+                      key={cred.email}
+                      className="handover-slip-card border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs flex flex-col justify-between relative overflow-hidden"
+                    >
+                      <div>
+                        {/* แถบรอยปรุตัดแยกส่วนบน */}
+                        <div className="flex items-center justify-between pb-1 border-b border-dashed border-slate-200 dark:border-slate-800 text-[9px] text-slate-400 font-mono">
+                          <span className="font-semibold text-slate-500 dark:text-slate-400">ใบส่งมอบบัญชีอาจารย์ (6/หน้า)</span>
+                          <span className="flex items-center gap-0.5 text-slate-400">
+                            <Scissors className="w-2.5 h-2.5 text-amber-500" />
+                            <span>ตัดตามรอยปรุ</span>
+                          </span>
+                        </div>
+
+                        {/* หัวเอกสาร */}
+                        <div className="flex items-center gap-2 pt-2 pb-1.5">
+                          <div className="w-6 h-6 rounded-md bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 flex items-center justify-center font-bold text-[9px] text-amber-700 dark:text-amber-400 shrink-0">
+                            มจร
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[9px] font-bold text-slate-700 dark:text-slate-300 truncate">
+                              มหาจุฬาลงกรณราชวิทยาลัย • คณะพุทธศาสตร์
+                            </div>
+                            <div className="text-[10.5px] font-extrabold text-blue-900 dark:text-blue-300 leading-tight truncate">
+                              ใบส่งมอบบัญชีผู้ใช้ระบบสารสนเทศ
+                            </div>
+                            <div className="text-[8.5px] text-slate-400">
+                              ภาคการศึกษาที่ 2/2569
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* ชื่ออาจารย์ผู้สอน */}
+                        <div className="pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                          <span className="text-[8.5px] text-slate-400 block">อาจารย์ผู้สอน:</span>
+                          <span className="text-[11.5px] font-bold text-slate-900 dark:text-white block truncate">
+                            {cred.teacherName}
+                          </span>
+                        </div>
+
+                        {/* กล่อง Username & Password */}
+                        <div className="mt-1.5 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 grid grid-cols-2 gap-2 text-xs">
+                          <div className="min-w-0">
+                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">อีเมลเข้าสู่ระบบ</span>
+                            <span className="font-mono text-[9.5px] font-semibold text-indigo-700 dark:text-indigo-300 truncate block">
+                              {cred.email}
+                            </span>
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">รหัสผ่านเริ่มต้น</span>
+                            <span className="font-mono text-[10.5px] font-extrabold text-amber-700 dark:text-amber-400 block truncate">
+                              {cred.initialPassword || "(ใช้รหัสผ่านเดิม)"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* ลิงก์เข้าสู่ระบบ */}
+                        <div className="mt-1 text-[8.5px] text-slate-500 dark:text-slate-400">
+                          <span>เว็บไซต์: </span>
+                          <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
+                            http://localhost:3010/login
+                          </span>
+                        </div>
+
+                        {/* รายวิชาที่สอน */}
+                        <div className="mt-1.5">
+                          <span className="text-[8.5px] font-bold text-slate-500">
+                            วิชาที่รับผิดชอบ ({cred.courses?.length || 0}):
+                          </span>
+                          <div className="flex flex-wrap gap-1 mt-0.5 max-h-12 overflow-hidden">
+                            {(cred.courses || []).map((c: string, cIdx: number) => (
+                              <span
+                                key={cIdx}
+                                className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[8px] font-medium border border-slate-200 dark:border-slate-700"
+                              >
+                                {c}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* คำแนะนำสิทธิ์และหน้าที่ */}
+                        <div className="mt-1.5 pt-1 border-t border-slate-100 dark:border-slate-800 text-[7.5px] text-slate-400 leading-tight">
+                          * บันทึกเวลาเรียน 16 คาบ ประเมินสิทธิ์สอบ และส่งเกรด • เปลี่ยนรหัสผ่านทันทีเมื่อเข้าใช้งานครั้งแรก
+                        </div>
+
+                        {/* ส่วนลงนามรับมอบ */}
+                        <div className="mt-2 pt-1.5 border-t border-slate-200 dark:border-slate-700 flex items-end justify-between text-[8px] text-slate-600 dark:text-slate-400">
+                          <div>
+                            <div>ลงชื่อ ......................................... ผู้รับมอบ</div>
+                            <div className="text-[8px] font-semibold text-slate-700 dark:text-slate-300 mt-0.5 pl-3">
+                              ({cred.teacherName})
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div>วันที่ ..... / ..... / 2569</div>
+                            <div className="text-[8px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5">
+                              {handoverIssuerText}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ปุ่มลัดสำหรับการทำงานหน้าจอ (ซ่อนตอนพิมพ์) */}
+                      <div className="mt-2 pt-1.5 flex items-center justify-end gap-1 border-t border-slate-100 dark:border-slate-800 print:hidden">
+                        <button
+                          type="button"
+                          onClick={() => handleCopySingleCredential(cred)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[10px] font-medium text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                          title="คัดลอกข้อความสำหรับส่งให้อาจารย์ท่านนี้ทาง LINE หรือ Email"
+                        >
+                          <Copy className="w-2.5 h-2.5 text-slate-400" />
+                          <span>คัดลอก</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePrintHandover(cred.email)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition cursor-pointer"
+                          title="พิมพ์เฉพาะใบส่งมอบของอาจารย์ท่านนี้"
+                        >
+                          <Printer className="w-2.5 h-2.5 text-emerald-600" />
+                          <span>พิมพ์เฉพาะใบนี้</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {filteredTeacherCredentials.length === 0 && (
+                  <div className="p-8 text-center text-slate-400 text-xs border border-dashed rounded-xl">
+                    ไม่พบข้อมูลอาจารย์ที่ตรงกับคำค้นหา
+                  </div>
+                )}
+              </div>
+            ) : handoverViewMode === "slips8" ? (
+              /* โหมดที่ 3: สลิปใบตัดแจก 8 ใบต่อหน้า A4 (ประหยัดกระดาษ 50%) */
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {filteredTeacherCredentials.map((cred: any, _idx: number) => (
+                    <div
+                      key={cred.email}
+                      className="handover-slip-card border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-2.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs flex flex-col justify-between relative overflow-hidden"
+                    >
+                      <div>
+                        {/* แถบรอยปรุตัดแยกส่วนบน */}
+                        <div className="flex items-center justify-between pb-1 border-b border-dashed border-slate-200 dark:border-slate-800 text-[8.5px] text-slate-400 font-mono">
+                          <span className="font-semibold text-slate-500 dark:text-slate-400 truncate">ใบส่งมอบ (8/หน้า)</span>
+                          <span className="flex items-center gap-0.5 text-slate-400 shrink-0">
+                            <Scissors className="w-2.5 h-2.5 text-emerald-500" />
+                            <span>ตัดตามรอยปรุ</span>
+                          </span>
+                        </div>
+
+                        {/* หัวเอกสาร */}
+                        <div className="flex items-center gap-1.5 pt-1.5 pb-1">
+                          <div className="w-5 h-5 rounded bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 flex items-center justify-center font-bold text-[8px] text-amber-700 dark:text-amber-400 shrink-0">
+                            มจร
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[8.5px] font-bold text-slate-700 dark:text-slate-300 truncate leading-tight">
+                              คณะพุทธศาสตร์ มจร.
+                            </div>
+                            <div className="text-[9.5px] font-extrabold text-blue-900 dark:text-blue-300 leading-tight truncate">
+                              ใบส่งมอบบัญชีผู้ใช้ระบบ
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* ชื่ออาจารย์ผู้สอน */}
+                        <div className="pt-1 border-t border-slate-100 dark:border-slate-800">
+                          <span className="text-[8px] text-slate-400 block">อาจารย์ผู้สอน:</span>
+                          <span className="text-[10.5px] font-bold text-slate-900 dark:text-white block truncate">
+                            {cred.teacherName}
+                          </span>
+                        </div>
+
+                        {/* กล่อง Username & Password */}
+                        <div className="mt-1 p-1.5 rounded-md bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 grid grid-cols-2 gap-1.5 text-xs">
+                          <div className="min-w-0">
+                            <span className="text-[7.5px] font-bold text-slate-400 uppercase tracking-wider block">อีเมล</span>
+                            <span className="font-mono text-[8.5px] font-semibold text-indigo-700 dark:text-indigo-300 truncate block">
+                              {cred.email}
+                            </span>
+                          </div>
+                          <div className="min-w-0">
+                            <span className="text-[7.5px] font-bold text-slate-400 uppercase tracking-wider block">รหัสผ่านเริ่มต้น</span>
+                            <span className="font-mono text-[9.5px] font-extrabold text-amber-700 dark:text-amber-400 block truncate">
+                              {cred.initialPassword || "(ใช้รหัสเดิม)"}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* ลิงก์เข้าสู่ระบบ */}
+                        <div className="mt-1 text-[8px] text-slate-500 dark:text-slate-400 truncate">
+                          <span>เว็บ: </span>
+                          <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
+                            http://localhost:3010/login
+                          </span>
+                        </div>
+
+                        {/* รายวิชาที่สอน */}
+                        <div className="mt-1">
+                          <span className="text-[8px] font-bold text-slate-500">
+                            วิชาที่สอน ({cred.courses?.length || 0}):
+                          </span>
+                          <div className="flex flex-wrap gap-0.5 mt-0.5 max-h-9 overflow-hidden">
+                            {(cred.courses || []).map((c: string, cIdx: number) => (
+                              <span
+                                key={cIdx}
+                                className="px-1 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[7.5px] font-medium border border-slate-200 dark:border-slate-700 truncate"
+                              >
+                                {c}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* คำแนะนำ */}
+                        <div className="mt-1 pt-0.5 border-t border-slate-100 dark:border-slate-800 text-[7px] text-slate-400 leading-tight">
+                          * บันทึกเวลาเรียน 16 คาบ ประเมินสิทธิ์สอบ ส่งเกรด
+                        </div>
+
+                        {/* ส่วนลงนามรับมอบ */}
+                        <div className="mt-1.5 pt-1 border-t border-slate-200 dark:border-slate-700 flex items-end justify-between text-[7.5px] text-slate-600 dark:text-slate-400">
+                          <div className="min-w-0 flex-1">
+                            <div>ลงชื่อ ......................... ผู้รับมอบ</div>
+                            <div className="text-[7.5px] font-semibold text-slate-700 dark:text-slate-300 mt-0.5 truncate">
+                              ({cred.teacherName})
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div>../../2569</div>
+                            <div className="text-[7.5px] font-semibold text-slate-500 dark:text-slate-400 mt-0.5 truncate max-w-[90px]">
+                              {handoverIssuerText}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* ปุ่มลัดสำหรับการทำงานหน้าจอ (ซ่อนตอนพิมพ์) */}
+                      <div className="mt-1.5 pt-1 flex items-center justify-end gap-1 border-t border-slate-100 dark:border-slate-800 print:hidden">
+                        <button
+                          type="button"
+                          onClick={() => handleCopySingleCredential(cred)}
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-[9px] font-medium text-slate-700 dark:text-slate-300 transition cursor-pointer"
+                          title="คัดลอกข้อความสำหรับส่งให้อาจารย์ท่านนี้ทาง LINE หรือ Email"
+                        >
+                          <Copy className="w-2.5 h-2.5 text-slate-400" />
+                          <span>คัดลอก</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePrintHandover(cred.email)}
+                          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 text-[9px] font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 transition cursor-pointer"
+                          title="พิมพ์เฉพาะใบส่งมอบของอาจารย์ท่านนี้"
+                        >
+                          <Printer className="w-2.5 h-2.5 text-emerald-600" />
+                          <span>พิมพ์ใบนี้</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {filteredTeacherCredentials.length === 0 && (
+                  <div className="p-8 text-center text-slate-400 text-xs border border-dashed rounded-xl">
+                    ไม่พบข้อมูลอาจารย์ที่ตรงกับคำค้นหา
+                  </div>
+                )}
+              </div>
             ) : (
               /* โหมดที่ 2: ตารางสรุปภาพรวมทั้งหมด (Summary Table View) */
               <div>
@@ -1973,7 +2325,7 @@ export function ClassesClient({
                 <div className="hidden print:block pb-3 mb-3 border-b-2 border-black text-center space-y-1">
                   <div className="font-bold text-base">มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย คณะพุทธศาสตร์</div>
                   <div className="text-sm font-semibold">บัญชีรายชื่ออาจารย์ผู้สอนและรหัสผ่านเริ่มต้น สำหรับเข้าสู่ระบบสารสนเทศ</div>
-                  <div className="text-xs text-slate-600">ภาคการศึกษาที่ 2/2569 • เอกสารควบคุมภายใน ฝ่ายวิชาการ</div>
+                  <div className="text-xs text-slate-600">ภาคการศึกษาที่ 2/2569 • เอกสารควบคุมภายใน • {handoverIssuerText}</div>
                 </div>
 
                 <div className="border border-slate-200 dark:border-slate-800 print:border-black rounded-xl overflow-hidden shadow-2xs">
@@ -2058,7 +2410,7 @@ export function ClassesClient({
                 <div className="hidden print:grid grid-cols-2 gap-8 pt-8 text-center text-xs">
                   <div>
                     <div>เจ้าหน้าที่ผู้ส่งมอบ: ....................................................</div>
-                    <div className="mt-1">(ฝ่ายวิชาการ คณะพุทธศาสตร์)</div>
+                    <div className="mt-1">({handoverIssuerText})</div>
                     <div className="mt-1">วันที่ ...../...../2569</div>
                   </div>
                   <div>

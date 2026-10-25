@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
+import { useState, useTransition, useRef, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -27,7 +27,8 @@ import {
   Sparkles,
   ChevronUp,
   ChevronDown,
-  ArrowUpDown,
+  Camera,
+  CheckCircle2,
 } from "lucide-react";
 import { useT } from "@/shared/lib/i18n/client";
 import {
@@ -43,6 +44,8 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   createPersonnelAction,
+  uploadPersonnelImageAction,
+  syncTeacherCoursesFromTimetablesAction,
   updatePersonnelAction,
   updatePersonnelOrderAction,
   reorderPersonnelBatchAction,
@@ -52,6 +55,17 @@ import {
   importPersonnelBatchAction,
   type ImportPersonnelItem,
 } from "@/features/personnel/actions";
+import {
+  type TeachingCourse,
+  type DegreeLevel,
+  parseTeachingExperiences,
+  formatDegreeLevelLabel,
+  getDegreeLevelColor,
+  MCU_STANDARD_COURSES,
+  getCourseUniqueKey,
+  upsertTeachingCourses,
+} from "@/features/personnel/teaching-courses";
+import { formatPersonnelName } from "@/features/personnel";
 import type { Personnel, Department, ResearchPublication } from "@/generated/prisma";
 
 type PersonnelWithRelations = Personnel & {
@@ -77,7 +91,7 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
   // Personnel Modal Dialog State
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<PersonnelWithRelations | null>(null);
-  const [activeTab, setActiveTab] = useState<"general" | "academic" | "contact" | "research">("general");
+  const [activeTab, setActiveTab] = useState<"general" | "academic" | "teaching" | "contact" | "research">("general");
 
   // Form Fields
   const [formFirstNameTh, setFormFirstNameTh] = useState("");
@@ -87,6 +101,8 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
   const [formPositionTh, setFormPositionTh] = useState("");
   const [formPositionEn, setFormPositionEn] = useState("");
   const [formAcademicPosition, setFormAcademicPosition] = useState("");
+  const [formAcademicPositionEn, setFormAcademicPositionEn] = useState("");
+  const [formTitlePlacement, setFormTitlePlacement] = useState<"PREFIX" | "SUFFIX">("PREFIX");
   const [formType, setFormType] = useState<"EXECUTIVE" | "ACADEMIC" | "SUPPORT">("ACADEMIC");
   const [formDepartmentId, setFormDepartmentId] = useState("");
   const [formEmail, setFormEmail] = useState("");
@@ -98,6 +114,235 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
   const [formBioTh, setFormBioTh] = useState("");
   const [formIsActive, setFormIsActive] = useState(true);
   const [formOrderIndex, setFormOrderIndex] = useState(0);
+
+  const previewFormattedName = useMemo(() => {
+    return formatPersonnelName({
+      firstNameTh: formFirstNameTh || "พระราชญาณวชิรเวที",
+      lastNameTh: formLastNameTh,
+      academicPosition: formAcademicPosition || "ผศ.ดร.",
+      titlePlacement: formTitlePlacement,
+    });
+  }, [formFirstNameTh, formLastNameTh, formAcademicPosition, formTitlePlacement]);
+
+    // ─── Teaching Courses State ──────────────────────────────
+  const [editingTeachingCourses, setEditingTeachingCourses] = useState<TeachingCourse[]>([]);
+  const [isSyncingCourses, setIsSyncingCourses] = useState(false);
+  const [showCourseForm, setShowCourseForm] = useState(false);
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+
+  // Course Form States
+  const [cCode, setCCode] = useState("");
+  const [cNameTh, setCNameTh] = useState("");
+  const [cNameEn, setCNameEn] = useState("");
+  const [cYear, setCYear] = useState("2569");
+  const [cSemester, setCSemester] = useState("1");
+  const [cLevel, setCLevel] = useState<DegreeLevel>("BACHELOR");
+  const [cCredits, setCCredits] = useState(3);
+  const [cProgramTh, setCProgramTh] = useState("หลักสูตรพุทธศาสตรบัณฑิต (พธ.บ.) สาขาวิชาพระพุทธศาสนา");
+  const [cRole, setCRole] = useState("อาจารย์ผู้สอนประจำวิชา");
+  const [cDescription, setCDescription] = useState("");
+
+  const resetCourseForm = () => {
+    setEditingCourseId(null);
+    setCCode("");
+    setCNameTh("");
+    setCNameEn("");
+    setCYear("2569");
+    setCSemester("1");
+    setCLevel("BACHELOR");
+    setCCredits(3);
+    setCProgramTh("หลักสูตรพุทธศาสตรบัณฑิต (พธ.บ.) สาขาวิชาพระพุทธศาสนา");
+    setCRole("อาจารย์ผู้สอนประจำวิชา");
+    setCDescription("");
+    setShowCourseForm(false);
+  };
+
+  const handleOpenAddCourse = () => {
+    resetCourseForm();
+    setShowCourseForm(true);
+  };
+
+  const handleEditCourse = (course: TeachingCourse) => {
+    setEditingCourseId(course.id);
+    setCCode(course.courseCode);
+    setCNameTh(course.courseNameTh);
+    setCNameEn(course.courseNameEn || "");
+    setCYear(course.year);
+    setCSemester(course.semester);
+    setCLevel(course.level);
+    setCCredits(course.credits);
+    setCProgramTh(course.programTh);
+    setCRole(course.role);
+    setCDescription(course.description || "");
+    setShowCourseForm(true);
+  };
+
+  const handleSaveCourse = () => {
+    if (!cCode.trim() || !cNameTh.trim()) {
+      toast.error("กรุณาระบุรหัสวิชาและชื่อรายวิชา");
+      return;
+    }
+
+    const courseItem: TeachingCourse = {
+      id: editingCourseId || `tc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      year: cYear.trim() || "2569",
+      semester: cSemester.trim() || "1",
+      level: cLevel,
+      courseCode: cCode.trim(),
+      courseNameTh: cNameTh.trim(),
+      courseNameEn: cNameEn.trim() || undefined,
+      credits: Number(cCredits) || 3,
+      programTh: cProgramTh.trim() || "หลักสูตรพุทธศาสตรบัณฑิต",
+      role: cRole.trim() || "อาจารย์ผู้สอนประจำวิชา",
+      description: cDescription.trim() || undefined,
+    };
+
+    let updated: TeachingCourse[];
+    if (editingCourseId) {
+      updated = editingTeachingCourses.map((c) => (c.id === editingCourseId ? courseItem : c));
+      toast.success("แก้ไขข้อมูลรายวิชาเรียบร้อย");
+    } else {
+      // ตรวจสอบว่ามีรายวิชานี้ในปีและภาคการศึกษานี้อยู่แล้วหรือไม่
+      const targetKey = getCourseUniqueKey(courseItem.courseCode, courseItem.year, courseItem.semester);
+      const existsIndex = editingTeachingCourses.findIndex(
+        (c) => getCourseUniqueKey(c.courseCode, c.year, c.semester) === targetKey
+      );
+
+      if (existsIndex >= 0) {
+        // หากมีอยู่แล้ว ให้เป็นการอัปเดตข้อมูลเดิม แทนการเพิ่มซ้ำ
+        updated = editingTeachingCourses.map((c, idx) =>
+          idx === existsIndex ? { ...courseItem, id: c.id } : c
+        );
+        toast.success(`อัปเดตข้อมูลรายวิชา ${courseItem.courseCode} เรียบร้อย (เนื่องจากมีวิชานี้ในภาค/ปีการศึกษานี้อยู่แล้ว)`);
+      } else {
+        // เพิ่มใหม่
+        updated = [courseItem, ...editingTeachingCourses];
+        toast.success("เพิ่มรายวิชาเรียบร้อย");
+      }
+    }
+
+    setEditingTeachingCourses(updated);
+    setFormExperiencesTh(JSON.stringify(updated));
+    resetCourseForm();
+  };
+
+  const handleDeleteCourse = (id: string) => {
+    const updated = editingTeachingCourses.filter((c) => c.id !== id);
+    setEditingTeachingCourses(updated);
+    setFormExperiencesTh(updated.length > 0 ? JSON.stringify(updated) : "");
+    toast.success("ลบรายวิชาเรียบร้อย");
+  };
+
+  const handleSyncFromTimetables = async () => {
+    const teacherName = `${formFirstNameTh} ${formLastNameTh}`.trim();
+    if (!teacherName) {
+      toast.error("กรุณาระบุชื่ออาจารย์ก่อนทำการดึงตารางสอน");
+      return;
+    }
+
+    try {
+      setIsSyncingCourses(true);
+      const synced = await syncTeacherCoursesFromTimetablesAction(teacherName, editingItem?.id);
+      if (!synced || synced.length === 0) {
+        toast.info("ไม่พบรายวิชาที่ตรงกับชื่ออาจารย์ในตารางสอนภาคเรียนนี้");
+        return;
+      }
+
+      // Upsert: อัปเดตรายวิชาเดิมที่มีอยู่แล้ว และเพิ่มรายวิชาใหม่เข้ามา (ไม่สร้างซ้ำ)
+      const { merged, addedCount, updatedCount } = upsertTeachingCourses(
+        editingTeachingCourses,
+        synced
+      );
+
+      setEditingTeachingCourses(merged);
+      setFormExperiencesTh(JSON.stringify(merged));
+
+      if (addedCount > 0 && updatedCount > 0) {
+        toast.success(`ดึงข้อมูลตารางสอนสำเร็จ: เพิ่มวิชาใหม่ ${addedCount} วิชา และอัปเดตข้อมูลเดิม ${updatedCount} วิชา`);
+      } else if (addedCount > 0) {
+        toast.success(`ดึงรายวิชาจากตารางสอนสำเร็จ เพิ่มใหม่ ${addedCount} วิชา!`);
+      } else if (updatedCount > 0) {
+        toast.success(`อัปเดตข้อมูลรายวิชาเดิมจากตารางสอนล่าสุดเรียบร้อย ${updatedCount} วิชา!`);
+      } else {
+        toast.info("รายวิชาทั้งหมดจากตารางสอนเป็นปัจจุบันแล้ว");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการดึงข้อมูลตารางสอน";
+      toast.error(msg);
+    } finally {
+      setIsSyncingCourses(false);
+    }
+  };
+
+  const handleAddStandardMcuCourses = (level: DegreeLevel) => {
+    let sourceList: Array<{ code: string; th: string; en: string; cr: number; prog: string }> = [];
+    if (level === "BACHELOR") sourceList = MCU_STANDARD_COURSES.bachelor;
+    else if (level === "MASTER") sourceList = MCU_STANDARD_COURSES.master;
+    else if (level === "DOCTORAL") sourceList = MCU_STANDARD_COURSES.doctoral;
+
+    const toUpsert: TeachingCourse[] = sourceList.slice(0, 3).map((s, idx) => ({
+      id: `std-${level.toLowerCase()}-${Date.now()}-${idx}`,
+      year: "2569",
+      semester: "1",
+      level,
+      courseCode: s.code,
+      courseNameTh: s.th,
+      courseNameEn: s.en,
+      credits: s.cr,
+      programTh: s.prog,
+      role: "อาจารย์ผู้สอนประจำวิชา",
+    }));
+
+    const { merged, addedCount, updatedCount } = upsertTeachingCourses(
+      editingTeachingCourses,
+      toUpsert
+    );
+
+    setEditingTeachingCourses(merged);
+    setFormExperiencesTh(JSON.stringify(merged));
+
+    if (addedCount > 0) {
+      toast.success(`เพิ่มรายวิชามาตรฐาน มจร (${formatDegreeLevelLabel(level)}) จำนวน ${addedCount} วิชา!`);
+    } else {
+      toast.success(`อัปเดตข้อมูลรายวิชามาตรฐาน (${formatDegreeLevelLabel(level)}) เรียบร้อยแล้ว`);
+    }
+  };
+
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("กรุณาเลือกไฟล์รูปภาพ (JPG, PNG, WEBP)");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("ขนาดไฟล์รูปภาพต้องไม่เกิน 10MB");
+      return;
+    }
+
+    try {
+      setIsUploadingImage(true);
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await uploadPersonnelImageAction(formData);
+      setFormImageUrl(res.url);
+      toast.success("อัปโหลดรูปภาพสำเร็จ");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ";
+      toast.error(msg);
+    } finally {
+      setIsUploadingImage(false);
+      if (imageInputRef.current) {
+        imageInputRef.current.value = "";
+      }
+    }
+  };
+
 
   // Teacher's Linked Research Publications inside Dialog
   const [editingResearchList, setEditingResearchList] = useState<ResearchPublication[]>([]);
@@ -128,6 +373,8 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
     setFormPositionTh("");
     setFormPositionEn("");
     setFormAcademicPosition("อาจารย์");
+    setFormAcademicPositionEn("Lecturer");
+    setFormTitlePlacement("PREFIX");
     setFormType("ACADEMIC");
     setFormDepartmentId(departmentList[0]?.id || "");
     setFormEmail("");
@@ -140,12 +387,14 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
     setFormIsActive(true);
     setFormOrderIndex(items.length + 1);
     setEditingResearchList([]);
+    setEditingTeachingCourses([]);
+    resetCourseForm();
     setShowAddResearchForm(false);
     setActiveTab("general");
     setDialogOpen(true);
   };
 
-  const openEdit = (item: PersonnelWithRelations, defaultTab: "general" | "academic" | "contact" | "research" = "general") => {
+  const openEdit = (item: PersonnelWithRelations, defaultTab: "general" | "academic" | "teaching" | "contact" | "research" = "general") => {
     setEditingItem(item);
     setFormFirstNameTh(item.firstNameTh || "");
     setFormLastNameTh(item.lastNameTh || "");
@@ -154,6 +403,8 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
     setFormPositionTh(item.positionTh || "");
     setFormPositionEn(item.positionEn || "");
     setFormAcademicPosition(item.academicPosition || "");
+    setFormAcademicPositionEn((item as any).academicPositionEn || "");
+    setFormTitlePlacement(((item as any).titlePlacement === "SUFFIX") ? "SUFFIX" : "PREFIX");
     setFormType(item.type);
     setFormDepartmentId(item.departmentId || "");
     setFormEmail(item.email || "");
@@ -166,6 +417,15 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
     setFormIsActive(item.isActive);
     setFormOrderIndex(item.orderIndex);
     setEditingResearchList(item.researchPublications || []);
+    const parsedTeaching = parseTeachingExperiences(item.experiencesTh, {
+      id: item.id,
+      firstNameTh: item.firstNameTh,
+      lastNameTh: item.lastNameTh,
+      departmentName: item.department?.nameTh,
+    });
+    const cleanTeaching = upsertTeachingCourses([], parsedTeaching).merged;
+    setEditingTeachingCourses(cleanTeaching);
+    resetCourseForm();
     setShowAddResearchForm(false);
     setActiveTab(defaultTab);
     setDialogOpen(true);
@@ -193,6 +453,8 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
         positionTh: formPositionTh.trim(),
         positionEn: formPositionEn.trim() || null,
         academicPosition: formAcademicPosition.trim() || null,
+        academicPositionEn: formAcademicPositionEn.trim() || null,
+        titlePlacement: formTitlePlacement,
         type: formType,
         departmentId: formDepartmentId || null,
         email: formEmail.trim() || null,
@@ -200,7 +462,7 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
         contactInfo: formContactInfo.trim() || null,
         imageUrl: formImageUrl.trim() || null,
         educationTh: formEducationTh.trim() || null,
-        experiencesTh: formExperiencesTh.trim() || null,
+        experiencesTh: editingTeachingCourses.length > 0 ? JSON.stringify(editingTeachingCourses) : (formExperiencesTh.trim() || null),
         bioTh: formBioTh.trim() || null,
         isActive: formIsActive,
         orderIndex: Number(formOrderIndex) || 0,
@@ -242,7 +504,20 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
           }
         }
       } catch (err: unknown) {
-        toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+        let errorMsg = "เกิดข้อผิดพลาดในการบันทึกข้อมูล";
+        if (err instanceof Error) {
+          try {
+            const parsed = JSON.parse(err.message);
+            if (Array.isArray(parsed) && parsed.length > 0 && parsed[0]?.message) {
+              errorMsg = parsed.map((e) => `${e.path?.join(".") || "ข้อมูล"}: ${e.message}`).join(", ");
+            } else {
+              errorMsg = err.message;
+            }
+          } catch {
+            errorMsg = err.message;
+          }
+        }
+        toast.error(errorMsg);
       }
     });
   };
@@ -439,9 +714,10 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
   // ─────────────────────────────────────────────────────────
   const handleExportCSV = () => {
     const headers = [
-      "คำนำหน้า/ตำแหน่งทางวิชาการ",
+      "คำนำหน้า/ตำแหน่งทางวิชาการ (ไทย)",
       "ชื่อ (ไทย)",
       "นามสกุล (ไทย)",
+      "Academic Position (EN)",
       "First Name (EN)",
       "Last Name (EN)",
       "ตำแหน่งงาน (ไทย)",
@@ -470,6 +746,7 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
       escapeCell(p.academicPosition || ""),
       escapeCell(p.firstNameTh),
       escapeCell(p.lastNameTh || ""),
+      escapeCell((p as any).academicPositionEn || ""),
       escapeCell(p.firstNameEn || ""),
       escapeCell(p.lastNameEn || ""),
       escapeCell(p.positionTh),
@@ -559,9 +836,10 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
   // ─────────────────────────────────────────────────────────
   const downloadCsvTemplate = () => {
     const headers = [
-      "คำนำหน้า/ตำแหน่งทางวิชาการ",
+      "คำนำหน้า/ตำแหน่งทางวิชาการ (ไทย)",
       "ชื่อ (ไทย)",
       "นามสกุล (ไทย)",
+      "Academic Position (EN)",
       "First Name (EN)",
       "Last Name (EN)",
       "ตำแหน่งงาน (ไทย)",
@@ -797,6 +1075,363 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
       return a.firstNameTh.localeCompare(b.firstNameTh, "th");
     });
 
+  // ─────────────────────────────────────────────────────────
+  // SINGLE PERSONNEL EXPORT & IMPORT (เฉพาะข้อมูลอาจารย์ท่านนี้)
+  // ─────────────────────────────────────────────────────────
+  const singleImportInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExportSinglePersonnelJson = () => {
+    const teacherName = `${formAcademicPosition ? formAcademicPosition + " " : ""}${formFirstNameTh} ${formLastNameTh}`.trim() || "personnel";
+    const deptName = departmentList.find((d) => d.id === formDepartmentId)?.nameTh || "";
+
+    const exportData = {
+      _format: "ums_fbm_personnel_single",
+      version: "1.0",
+      exportedAt: new Date().toISOString(),
+      personnel: {
+        academicPosition: formAcademicPosition || null,
+        firstNameTh: formFirstNameTh,
+        lastNameTh: formLastNameTh || "",
+        firstNameEn: formFirstNameEn || null,
+        lastNameEn: formLastNameEn || null,
+        positionTh: formPositionTh,
+        positionEn: formPositionEn || null,
+        type: formType,
+        departmentId: formDepartmentId || null,
+        departmentName: deptName || null,
+        email: formEmail || null,
+        phoneNumber: formPhoneNumber || null,
+        contactInfo: formContactInfo || null,
+        imageUrl: formImageUrl || null,
+        educationTh: formEducationTh || null,
+        experiencesTh: editingTeachingCourses.length > 0 ? JSON.stringify(editingTeachingCourses) : (formExperiencesTh || null),
+        bioTh: formBioTh || null,
+        isActive: formIsActive,
+        orderIndex: Number(formOrderIndex) || 0,
+      },
+      teachingCourses: editingTeachingCourses,
+      researchPublications: editingResearchList.map((r, idx) => ({
+        titleTh: r.titleTh,
+        titleEn: r.titleEn || null,
+        authors: r.authors,
+        journalName: r.journalName,
+        volume: r.volume || null,
+        issue: r.issue || null,
+        publicationYear: r.publicationYear || null,
+        pages: r.pages || null,
+        issn: r.issn || null,
+        tier: r.tier || null,
+        url: r.url || null,
+        type: r.type,
+        orderIndex: r.orderIndex || idx + 1,
+      })),
+    };
+
+    const jsonStr = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const cleanFileName = (formFirstNameTh || "teacher").replace(/[\/\\:*?"<>|]/g, "_");
+    a.download = `personnel_${cleanFileName}_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`ส่งออกไฟล์ JSON ของ "${teacherName}" เรียบร้อยแล้ว`);
+  };
+
+  const handleExportSinglePersonnelCsv = () => {
+    const teacherName = `${formAcademicPosition ? formAcademicPosition + " " : ""}${formFirstNameTh} ${formLastNameTh}`.trim() || "personnel";
+    const deptName = departmentList.find((d) => d.id === formDepartmentId)?.nameTh || "";
+
+    const headers = [
+      "คำนำหน้า/ตำแหน่งทางวิชาการ (ไทย)",
+      "ชื่อ (ไทย)",
+      "นามสกุล (ไทย)",
+      "Academic Position (EN)",
+      "First Name (EN)",
+      "Last Name (EN)",
+      "ตำแหน่งงาน (ไทย)",
+      "Position (EN)",
+      "สายงาน",
+      "ภาควิชา",
+      "อีเมล",
+      "เบอร์โทรศัพท์",
+      "ข้อมูลติดต่อเพิ่มเติม",
+      "ประวัติการศึกษา",
+      "ประสบการณ์สอน/ภาระงาน",
+      "ประวัติย่อ/ความเชี่ยวชาญ",
+      "URL รูปภาพ",
+      "ลำดับ",
+      "สถานะ",
+    ];
+
+    const escapeCsv = (v: unknown): string => {
+      if (v === null || v === undefined) return '""';
+      const str = String(v).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const row = [
+      escapeCsv(formAcademicPosition || ""),
+      escapeCsv(formFirstNameTh || ""),
+      escapeCsv(formLastNameTh || ""),
+      escapeCsv(formFirstNameEn || ""),
+      escapeCsv(formLastNameEn || ""),
+      escapeCsv(formPositionTh || ""),
+      escapeCsv(formPositionEn || ""),
+      escapeCsv(formType),
+      escapeCsv(deptName),
+      escapeCsv(formEmail || ""),
+      escapeCsv(formPhoneNumber || ""),
+      escapeCsv(formContactInfo || ""),
+      escapeCsv(formEducationTh || ""),
+      escapeCsv(editingTeachingCourses.length > 0 ? JSON.stringify(editingTeachingCourses) : (formExperiencesTh || "")),
+      escapeCsv(formBioTh || ""),
+      escapeCsv(formImageUrl || ""),
+      escapeCsv(formOrderIndex),
+      escapeCsv(formIsActive ? "1" : "0"),
+    ];
+
+    const csvContent = "\uFEFF" + [headers.join(","), row.join(",")].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const cleanFileName = (formFirstNameTh || "teacher").replace(/[\/\\:*?"<>|]/g, "_");
+    a.download = `personnel_${cleanFileName}_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`ส่งออกไฟล์ CSV ของ "${teacherName}" เรียบร้อยแล้ว`);
+  };
+
+  const handleSingleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    if (file.name.endsWith(".json")) {
+      reader.onload = (event) => {
+        try {
+          const text = event.target?.result as string;
+          const parsed = JSON.parse(text);
+
+          interface ImportRecord {
+            academicPosition?: string | null;
+            firstNameTh?: string;
+            lastNameTh?: string | null;
+            firstNameEn?: string | null;
+            lastNameEn?: string | null;
+            positionTh?: string;
+            positionEn?: string | null;
+            type?: "EXECUTIVE" | "ACADEMIC" | "SUPPORT";
+            departmentId?: string | null;
+            departmentName?: string | null;
+            department?: string | null;
+            email?: string | null;
+            phoneNumber?: string | null;
+            contactInfo?: string | null;
+            imageUrl?: string | null;
+            educationTh?: string | null;
+            experiencesTh?: string | null;
+            bioTh?: string | null;
+            isActive?: boolean;
+            orderIndex?: number;
+            teachingCourses?: TeachingCourse[];
+            researchPublications?: Array<Partial<ResearchPublication>>;
+          }
+
+          let pObj: ImportRecord | null = null;
+          let courses: TeachingCourse[] = [];
+          let research: Array<Partial<ResearchPublication>> = [];
+
+          if (parsed && typeof parsed === "object") {
+            if (parsed._format === "ums_fbm_personnel_single" && parsed.personnel) {
+              pObj = parsed.personnel;
+              if (Array.isArray(parsed.teachingCourses)) courses = parsed.teachingCourses;
+              if (Array.isArray(parsed.researchPublications)) research = parsed.researchPublications;
+            } else if (Array.isArray(parsed) && parsed.length > 0) {
+              pObj = parsed[0] as ImportRecord;
+              if (pObj && Array.isArray(pObj.teachingCourses)) courses = pObj.teachingCourses;
+              if (pObj && Array.isArray(pObj.researchPublications)) research = pObj.researchPublications;
+            } else {
+              pObj = parsed as ImportRecord;
+              if (Array.isArray(pObj.teachingCourses)) courses = pObj.teachingCourses;
+              if (Array.isArray(pObj.researchPublications)) research = pObj.researchPublications;
+            }
+          }
+
+          if (!pObj || typeof pObj !== "object") {
+            toast.error("รูปแบบไฟล์ JSON ไม่ถูกต้อง หรือไม่พบข้อมูลอาจารย์");
+            return;
+          }
+
+          if (pObj.firstNameTh !== undefined) setFormFirstNameTh(pObj.firstNameTh || "");
+          if (pObj.lastNameTh !== undefined) setFormLastNameTh(pObj.lastNameTh || "");
+          if (pObj.firstNameEn !== undefined) setFormFirstNameEn(pObj.firstNameEn || "");
+          if (pObj.lastNameEn !== undefined) setFormLastNameEn(pObj.lastNameEn || "");
+          if (pObj.academicPosition !== undefined) setFormAcademicPosition(pObj.academicPosition || "");
+          if (pObj.positionTh !== undefined) setFormPositionTh(pObj.positionTh || "");
+          if (pObj.positionEn !== undefined) setFormPositionEn(pObj.positionEn || "");
+          if (pObj.type && ["EXECUTIVE", "ACADEMIC", "SUPPORT"].includes(pObj.type)) {
+            setFormType(pObj.type);
+          }
+
+          if (pObj.departmentId && departmentList.some((d) => d.id === pObj.departmentId)) {
+            setFormDepartmentId(pObj.departmentId);
+          } else if (pObj.departmentName || pObj.department) {
+            const targetName = String(pObj.departmentName || pObj.department || "").trim().toLowerCase();
+            const found = departmentList.find(
+              (d) => d.nameTh.toLowerCase().includes(targetName) || targetName.includes(d.nameTh.toLowerCase())
+            );
+            if (found) setFormDepartmentId(found.id);
+          }
+
+          if (pObj.email !== undefined) setFormEmail(pObj.email || "");
+          if (pObj.phoneNumber !== undefined) setFormPhoneNumber(pObj.phoneNumber || "");
+          if (pObj.contactInfo !== undefined) setFormContactInfo(pObj.contactInfo || "");
+          if (pObj.imageUrl !== undefined) setFormImageUrl(pObj.imageUrl || "");
+          if (pObj.educationTh !== undefined) setFormEducationTh(pObj.educationTh || "");
+          if (pObj.bioTh !== undefined) setFormBioTh(pObj.bioTh || "");
+          if (pObj.orderIndex !== undefined && !isNaN(Number(pObj.orderIndex))) {
+            setFormOrderIndex(Number(pObj.orderIndex));
+          }
+          if (pObj.isActive !== undefined) {
+            setFormIsActive(Boolean(pObj.isActive));
+          }
+
+          // Teaching courses
+          if (courses.length > 0) {
+            setEditingTeachingCourses(courses);
+            setFormExperiencesTh(JSON.stringify(courses));
+          } else if (pObj.experiencesTh) {
+            setFormExperiencesTh(pObj.experiencesTh);
+            const parsedCourses = parseTeachingExperiences(pObj.experiencesTh, {
+              id: editingItem?.id,
+              firstNameTh: pObj.firstNameTh,
+              lastNameTh: pObj.lastNameTh || undefined,
+            });
+            setEditingTeachingCourses(parsedCourses);
+          }
+
+          // Research publications
+          if (research.length > 0) {
+            setEditingResearchList(
+              research.map((r, idx) => ({
+                id: r.id || `imp-pub-${Date.now()}-${idx}`,
+                tenantId: editingItem?.tenantId || "",
+                personnelId: editingItem?.id || null,
+                titleTh: r.titleTh || "",
+                titleEn: r.titleEn || null,
+                authors: r.authors || `${pObj?.firstNameTh || ""} ${pObj?.lastNameTh || ""}`.trim(),
+                journalName: r.journalName || "",
+                volume: r.volume || null,
+                issue: r.issue || null,
+                publicationYear: r.publicationYear || null,
+                pages: r.pages || null,
+                issn: r.issn || null,
+                tier: r.tier || null,
+                url: r.url || null,
+                type: (r.type as "RESEARCH" | "ACADEMIC" | "DISSERTATION") || "RESEARCH",
+                orderIndex: r.orderIndex || idx + 1,
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              }))
+            );
+          }
+
+          setActiveTab("general");
+          toast.success(`นำเข้าข้อมูลอาจารย์ "${pObj.firstNameTh || ""}" สำเร็จ ตรวจสอบแต่ละแท็บและกดบันทึก`);
+        } catch {
+          toast.error("ไม่สามารถอ่านไฟล์ JSON ได้ กรุณาตรวจสอบความถูกต้องของไฟล์");
+        }
+      };
+      reader.readAsText(file, "utf-8");
+    } else if (file.name.endsWith(".csv")) {
+      reader.onload = (event) => {
+        try {
+          const text = event.target?.result as string;
+          const rows = parseCSV(text);
+          if (rows.length < 2) {
+            toast.error("ไฟล์ CSV ไม่มีแถวข้อมูลสำหรับนำเข้า");
+            return;
+          }
+
+          const dataRow = rows[1];
+          const [
+            academicPos,
+            fTh,
+            lTh,
+            academicPosEn,
+            fEn,
+            lEn,
+            posTh,
+            posEn,
+            typeVal,
+            deptName,
+            emailVal,
+            phoneVal,
+            contactVal,
+            eduVal,
+            expVal,
+            bioVal,
+            imgVal,
+            orderVal,
+            activeVal,
+          ] = dataRow;
+
+          if (academicPos !== undefined) setFormAcademicPosition(academicPos);
+          if (academicPosEn !== undefined) setFormAcademicPositionEn(academicPosEn);
+          if (fTh) setFormFirstNameTh(fTh);
+          if (lTh !== undefined) setFormLastNameTh(lTh);
+          if (fEn !== undefined) setFormFirstNameEn(fEn);
+          if (lEn !== undefined) setFormLastNameEn(lEn);
+          if (posTh) setFormPositionTh(posTh);
+          if (posEn !== undefined) setFormPositionEn(posEn);
+          if (typeVal && ["EXECUTIVE", "ACADEMIC", "SUPPORT"].includes(typeVal)) {
+            setFormType(typeVal as "EXECUTIVE" | "ACADEMIC" | "SUPPORT");
+          }
+          if (deptName) {
+            const found = departmentList.find((d) => d.nameTh.includes(deptName) || deptName.includes(d.nameTh));
+            if (found) setFormDepartmentId(found.id);
+          }
+          if (emailVal !== undefined) setFormEmail(emailVal);
+          if (phoneVal !== undefined) setFormPhoneNumber(phoneVal);
+          if (contactVal !== undefined) setFormContactInfo(contactVal);
+          if (eduVal !== undefined) setFormEducationTh(eduVal);
+          if (bioVal !== undefined) setFormBioTh(bioVal);
+          if (imgVal !== undefined) setFormImageUrl(imgVal);
+          if (orderVal && !isNaN(Number(orderVal))) setFormOrderIndex(Number(orderVal));
+          if (activeVal !== undefined) setFormIsActive(activeVal === "1" || activeVal.toLowerCase() === "true");
+
+          if (expVal) {
+            setFormExperiencesTh(expVal);
+            const parsedCourses = parseTeachingExperiences(expVal, {
+              id: editingItem?.id,
+              firstNameTh: fTh,
+              lastNameTh: lTh,
+            });
+            setEditingTeachingCourses(parsedCourses);
+          }
+
+          setActiveTab("general");
+          toast.success(`นำเข้าข้อมูลจาก CSV ของ "${fTh || "อาจารย์"}" สำเร็จ ตรวจสอบและกดบันทึก`);
+        } catch {
+          toast.error("ไม่สามารถอ่านไฟล์ CSV ได้ กรุณาตรวจสอบความถูกต้องของไฟล์");
+        }
+      };
+      reader.readAsText(file, "utf-8");
+    } else {
+      toast.error("กรุณาเลือกไฟล์ .json หรือ .csv เท่านั้น");
+    }
+
+    if (singleImportInputRef.current) singleImportInputRef.current.value = "";
+  };
+
   const totalResearchCount = items.reduce(
     (acc, item) => acc + (item.researchPublications?.length || 0),
     0
@@ -961,7 +1596,7 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
               ) : (
                 filteredItems.map((item, index) => {
                   const researchCount = item.researchPublications?.length || 0;
-                  const fullName = `${item.firstNameTh} ${item.lastNameTh}`.trim();
+                  const fullName = formatPersonnelName(item);
 
                   return (
                     <tr key={item.id} className="hover:bg-muted/30 transition-colors">
@@ -1024,27 +1659,22 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
 
                       <td className="py-3 px-4">
                         <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0 text-sm overflow-hidden border border-primary/20">
+                          <div className="w-11 h-14 rounded-lg bg-muted border border-border flex items-center justify-center font-bold shrink-0 text-sm overflow-hidden shadow-xs relative">
                             {item.imageUrl ? (
                               <Image
                                 src={item.imageUrl}
                                 alt={item.firstNameTh}
-                                width={40}
-                                height={40}
+                                width={44}
+                                height={56}
                                 unoptimized
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover object-top"
                               />
                             ) : (
-                              <span>{item.firstNameTh?.[0] || "U"}</span>
+                              <span className="text-primary">{item.firstNameTh?.[0] || "U"}</span>
                             )}
                           </div>
                           <div>
                             <div className="font-semibold text-foreground flex items-center gap-1.5 flex-wrap">
-                              {item.academicPosition && (
-                                <span className="text-xs font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                                  {item.academicPosition}
-                                </span>
-                              )}
                               <Link
                                 href={`/portal/personnel/${item.id}`}
                                 target="_blank"
@@ -1054,9 +1684,9 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
                                 {fullName}
                               </Link>
                             </div>
-                            {(item.firstNameEn || item.lastNameEn) && (
+                            {(item.academicPositionEn || item.firstNameEn || item.lastNameEn) && (
                               <p className="text-xs text-muted-foreground">
-                                {item.firstNameEn} {item.lastNameEn}
+                                {[item.academicPositionEn, item.firstNameEn, item.lastNameEn].filter(Boolean).join(" ")}
                               </p>
                             )}
                             {item.email && (
@@ -1192,65 +1822,148 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
       <LiyonDialog open={dialogOpen} onOpenChange={setDialogOpen} wide>
         <LiyonDialogCloseButton label="ปิดหน้าต่าง" />
         <LiyonDialogHeader
-          title={editingItem ? "แก้ไขข้อมูลอาจารย์ / บุคลากร" : "เพิ่มอาจารย์ / บุคลากรใหม่"}
+          title={
+            <div className="flex items-center gap-2.5">
+              {formImageUrl && (
+                <div className="w-8 h-10 rounded-md overflow-hidden border border-border shrink-0 relative bg-muted shadow-xs">
+                  <Image
+                    src={formImageUrl}
+                    alt="รูปโปรไฟล์"
+                    width={32}
+                    height={40}
+                    unoptimized
+                    className="w-full h-full object-cover object-top"
+                  />
+                </div>
+              )}
+              <span>{editingItem ? "แก้ไขข้อมูลอาจารย์ / บุคลากร" : "เพิ่มอาจารย์ / บุคลากรใหม่"}</span>
+            </div>
+          }
           description={
             editingItem
-              ? `แก้ไขรายละเอียดและผลงานของ ${editingItem.firstNameTh} ${editingItem.lastNameTh}`
+              ? `แก้ไขรายละเอียดและผลงานของ ${formAcademicPosition ? formAcademicPosition + " " : ""}${editingItem.firstNameTh} ${editingItem.lastNameTh || ""}`.trim()
               : "บันทึกประวัติ วุฒิการศึกษา ภาระงานสอน และผลงานวิจัย"
           }
         />
 
         <LiyonDialogBody className="overflow-y-auto p-4 space-y-4 max-h-[70vh]">
-          {/* Dialog Navigation Tabs */}
-          <div className="flex items-center gap-2 border-b border-border pb-2 text-xs flex-wrap">
-            <button
-              type="button"
-              onClick={() => setActiveTab("general")}
-              className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
-                activeTab === "general"
-                  ? "bg-primary text-primary-foreground font-semibold"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              <UserCheck className="w-3.5 h-3.5" />
-              <span>ข้อมูลทั่วไป & ตำแหน่งงาน</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("academic")}
-              className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
-                activeTab === "academic"
-                  ? "bg-primary text-primary-foreground font-semibold"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              <GraduationCap className="w-3.5 h-3.5" />
-              <span>วุฒิการศึกษา & ภาระงานสอน</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("contact")}
-              className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
-                activeTab === "contact"
-                  ? "bg-primary text-primary-foreground font-semibold"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              <Mail className="w-3.5 h-3.5" />
-              <span>การติดต่อ & รูปภาพ</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("research")}
-              className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
-                activeTab === "research"
-                  ? "bg-primary text-primary-foreground font-semibold"
-                  : "text-muted-foreground hover:bg-muted"
-              }`}
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>ผลงานวิจัย & วิชาการ ({editingResearchList.length})</span>
-            </button>
+          {/* Dialog Navigation Tabs & Single Teacher Import/Export Actions */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-border pb-2.5">
+            <div className="flex items-center gap-1.5 text-xs flex-wrap">
+              <button
+                type="button"
+                onClick={() => setActiveTab("general")}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === "general"
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>ข้อมูลทั่วไป & ตำแหน่งงาน</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("academic")}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === "academic"
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <GraduationCap className="w-3.5 h-3.5" />
+                <span>วุฒิการศึกษา & ประวัติ</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("teaching")}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === "teaching"
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>รายวิชาที่สอน ({editingTeachingCourses.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("contact")}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === "contact"
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <Mail className="w-3.5 h-3.5" />
+                <span>การติดต่อ & รูปภาพ</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("research")}
+                className={`px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 cursor-pointer ${
+                  activeTab === "research"
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>ผลงานวิจัย ({editingResearchList.length})</span>
+              </button>
+            </div>
+
+            {/* Single Personnel Import / Export Action Buttons */}
+            <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+              <input
+                type="file"
+                ref={singleImportInputRef}
+                onChange={handleSingleImportFile}
+                accept=".json,.csv"
+                className="hidden"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => singleImportInputRef.current?.click()}
+                className="h-7 px-2.5 text-xs gap-1.5 cursor-pointer bg-muted/40 hover:bg-muted font-medium"
+                title="นำเข้าไฟล์ JSON หรือ CSV เพื่อเติมข้อมูลอาจารย์ท่านนี้ลงในฟอร์มทันที"
+              >
+                <Upload className="w-3.5 h-3.5 text-primary" />
+                <span>นำเข้าไฟล์</span>
+              </Button>
+
+              <div className="relative group">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs gap-1.5 cursor-pointer bg-muted/40 hover:bg-muted font-medium"
+                  title="ส่งออกข้อมูลอาจารย์ท่านนี้เป็นไฟล์ JSON หรือ CSV"
+                >
+                  <Download className="w-3.5 h-3.5 text-primary" />
+                  <span>ส่งออกไฟล์ ▾</span>
+                </Button>
+                <div className="absolute right-0 top-full mt-1 hidden group-hover:flex flex-col bg-popover text-popover-foreground border border-border rounded-lg shadow-lg z-30 py-1 min-w-[185px]">
+                  <button
+                    type="button"
+                    onClick={handleExportSinglePersonnelJson}
+                    className="px-3 py-1.5 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <FileJson className="w-3.5 h-3.5 text-amber-600" />
+                    <span>ส่งออกเป็น JSON (ครบถ้วน)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportSinglePersonnelCsv}
+                    className="px-3 py-1.5 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>ส่งออกเป็น CSV / Excel</span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Tab 1: General Info */}
@@ -1293,7 +2006,74 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
                 </LiyonField>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* รูปแบบการจัดวางคำนำหน้า/ตำแหน่งวิชาการ (สำหรับพระภิกษุสงฆ์และคณาจารย์) */}
+              <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span className="text-xs font-bold text-amber-900 dark:text-amber-200 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    รูปแบบการจัดวางคำนำหน้า/ตำแหน่งวิชาการ (สำหรับพระภิกษุสงฆ์และคณาจารย์)
+                  </span>
+                  <div className="text-xs text-muted-foreground">
+                    ตัวอย่างแสดงผลจริง: <strong className="text-primary font-bold">{previewFormattedName}</strong>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                    formTitlePlacement === "SUFFIX"
+                      ? "bg-amber-500/20 border-amber-500/60 font-semibold text-amber-900 dark:text-amber-100 shadow-xs"
+                      : "bg-background/90 hover:bg-muted border-border text-muted-foreground"
+                  }`}>
+                    <input
+                      type="radio"
+                      name="titlePlacement"
+                      value="SUFFIX"
+                      checked={formTitlePlacement === "SUFFIX"}
+                      onChange={() => setFormTitlePlacement("SUFFIX")}
+                      className="mt-0.5 cursor-pointer accent-amber-600"
+                    />
+                    <div>
+                      <div className="font-bold text-foreground">วางไว้หลังชื่อ / สมณศักดิ์ (Suffix)</div>
+                      <div className="text-[11px] text-muted-foreground leading-snug">
+                        เช่น พระราชญาณวชิรเวที, ผศ.ดร. (ธรรมเนียมสงฆ์ / มจร)
+                      </div>
+                    </div>
+                  </label>
+
+                  <label className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all ${
+                    formTitlePlacement === "PREFIX"
+                      ? "bg-amber-500/20 border-amber-500/60 font-semibold text-amber-900 dark:text-amber-100 shadow-xs"
+                      : "bg-background/90 hover:bg-muted border-border text-muted-foreground"
+                  }`}>
+                    <input
+                      type="radio"
+                      name="titlePlacement"
+                      value="PREFIX"
+                      checked={formTitlePlacement === "PREFIX"}
+                      onChange={() => setFormTitlePlacement("PREFIX")}
+                      className="mt-0.5 cursor-pointer accent-amber-600"
+                    />
+                    <div>
+                      <div className="font-bold text-foreground">วางไว้หน้าชื่อ (Prefix)</div>
+                      <div className="text-[11px] text-muted-foreground leading-snug">
+                        เช่น ผศ.ดร. พระราชญาณวชิรเวที (สำหรับระเบียบราชการ / มคอ.)
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <LiyonField label="Academic position / Title (English)" htmlFor="field-academic-pos-en">
+                  <input
+                    id="field-academic-pos-en"
+                    value={formAcademicPositionEn}
+                    onChange={(e) => setFormAcademicPositionEn(e.target.value)}
+                    placeholder="e.g. Asst. Prof. Dr., Lecturer, Ven. Dr."
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </LiyonField>
+
                 <LiyonField label="First Name (English)" htmlFor="field-fname-en">
                   <input
                     id="field-fname-en"
@@ -1442,6 +2222,348 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
             </div>
           )}
 
+          
+          {/* Tab 3: Teaching Courses (แยกปี & ระดับ) */}
+          {activeTab === "teaching" && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-muted/30 rounded-xl border border-border">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-primary" />
+                    <span>รายวิชาที่สอนตามปี & ระดับการศึกษา ({editingTeachingCourses.length} วิชา)</span>
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    จัดเก็บและแสดงรายวิชาที่อาจารย์สอน แยกตามปีการศึกษาและระดับปริญญาตรี โท เอก
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={isSyncingCourses}
+                    onClick={handleSyncFromTimetables}
+                    className="gap-1.5 h-8 text-xs bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/30 font-medium"
+                    title="ค้นหารายวิชาของอาจารย์จากตารางเรียนและคอร์สเรียนในระบบ"
+                  >
+                    {isSyncingCourses ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+                        <span>กำลังดึงข้อมูล...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>ดึงจากตารางสอน</span>
+                      </>
+                    )}
+                  </Button>
+
+                  <div className="relative group">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 h-8 text-xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>เพิ่มวิชามาตรฐาน มจร ▾</span>
+                    </Button>
+                    <div className="absolute right-0 top-full mt-1 hidden group-hover:flex flex-col bg-popover text-popover-foreground border border-border rounded-lg shadow-lg z-20 py-1 min-w-[190px]">
+                      <button
+                        type="button"
+                        onClick={() => handleAddStandardMcuCourses("BACHELOR")}
+                        className="px-3 py-1.5 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2 cursor-pointer"
+                      >
+                        <span>🏛️</span>
+                        <span>ระดับปริญญาตรี (พธ.บ.)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAddStandardMcuCourses("MASTER")}
+                        className="px-3 py-1.5 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2 cursor-pointer"
+                      >
+                        <span>📜</span>
+                        <span>ระดับปริญญาโท (พธ.ม.)</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleAddStandardMcuCourses("DOCTORAL")}
+                        className="px-3 py-1.5 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2 cursor-pointer"
+                      >
+                        <span>🪷</span>
+                        <span>ระดับปริญญาเอก (พธ.ด.)</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleOpenAddCourse}
+                    className="gap-1.5 h-8 text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>เพิ่มรายวิชาเอง</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* Stats badges */}
+              {editingTeachingCourses.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap text-xs">
+                  <span className="px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 font-medium">
+                    🏛️ ป.ตรี ({editingTeachingCourses.filter((c) => c.level === "BACHELOR").length})
+                  </span>
+                  <span className="px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20 font-medium">
+                    📜 ป.โท ({editingTeachingCourses.filter((c) => c.level === "MASTER").length})
+                  </span>
+                  <span className="px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 font-medium">
+                    🪷 ป.เอก ({editingTeachingCourses.filter((c) => c.level === "DOCTORAL").length})
+                  </span>
+                </div>
+              )}
+
+              {/* Course Form (Add/Edit) */}
+              {showCourseForm && (
+                <div className="p-4 rounded-xl border border-primary/30 bg-primary/5 space-y-3.5">
+                  <div className="flex items-center justify-between border-b border-primary/20 pb-2">
+                    <h4 className="text-sm font-bold text-foreground">
+                      {editingCourseId ? "แก้ไขรายวิชาที่สอน" : "เพิ่มรายวิชาที่สอนใหม่"}
+                    </h4>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={resetCourseForm}
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      ยกเลิก
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <LiyonField label="รหัสวิชา *" htmlFor="cf-code">
+                      <input
+                        id="cf-code"
+                        value={cCode}
+                        onChange={(e) => setCCode(e.target.value)}
+                        placeholder="เช่น 000 135"
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+                      />
+                    </LiyonField>
+
+                    <LiyonField label="ระดับการศึกษา *" htmlFor="cf-level">
+                      <LiyonSelect
+                        id="cf-level"
+                        value={cLevel}
+                        onChange={(e) => setCLevel(e.target.value as DegreeLevel)}
+                      >
+                        <option value="BACHELOR">ปริญญาตรี (พธ.บ.)</option>
+                        <option value="MASTER">ปริญญาโท (พธ.ม.)</option>
+                        <option value="DOCTORAL">ปริญญาเอก (พธ.ด.)</option>
+                      </LiyonSelect>
+                    </LiyonField>
+
+                    <LiyonField label="ปีการศึกษา (พ.ศ.)" htmlFor="cf-year">
+                      <input
+                        id="cf-year"
+                        value={cYear}
+                        onChange={(e) => setCYear(e.target.value)}
+                        placeholder="เช่น 2569"
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </LiyonField>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <LiyonField label="ภาคเรียน" htmlFor="cf-semester">
+                        <LiyonSelect
+                          id="cf-semester"
+                          value={cSemester}
+                          onChange={(e) => setCSemester(e.target.value)}
+                        >
+                          <option value="1">ภาคเรียนที่ 1</option>
+                          <option value="2">ภาคเรียนที่ 2</option>
+                          <option value="3">ภาคฤดูร้อน</option>
+                        </LiyonSelect>
+                      </LiyonField>
+
+                      <LiyonField label="หน่วยกิต" htmlFor="cf-credits">
+                        <input
+                          type="number"
+                          id="cf-credits"
+                          value={cCredits}
+                          onChange={(e) => setCCredits(Number(e.target.value))}
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                        />
+                      </LiyonField>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <LiyonField label="ชื่อวิชา (ภาษาไทย) *" htmlFor="cf-nameth">
+                      <input
+                        id="cf-nameth"
+                        value={cNameTh}
+                        onChange={(e) => setCNameTh(e.target.value)}
+                        placeholder="เช่น พระไตรปิฎกศึกษา"
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </LiyonField>
+
+                    <LiyonField label="Course Name (English)" htmlFor="cf-nameen">
+                      <input
+                        id="cf-nameen"
+                        value={cNameEn}
+                        onChange={(e) => setCNameEn(e.target.value)}
+                        placeholder="e.g. Tipitaka Studies"
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </LiyonField>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-2">
+                      <LiyonField label="หลักสูตร / สาขาวิชา" htmlFor="cf-prog">
+                        <input
+                          id="cf-prog"
+                          value={cProgramTh}
+                          onChange={(e) => setCProgramTh(e.target.value)}
+                          placeholder="เช่น หลักสูตรพุทธศาสตรบัณฑิต (พธ.บ.) สาขาวิชาพระพุทธศาสนา"
+                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                        />
+                      </LiyonField>
+                    </div>
+
+                    <LiyonField label="บทบาทผู้สอน" htmlFor="cf-role">
+                      <input
+                        id="cf-role"
+                        value={cRole}
+                        onChange={(e) => setCRole(e.target.value)}
+                        placeholder="เช่น อาจารย์ผู้สอนประจำวิชา"
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      />
+                    </LiyonField>
+                  </div>
+
+                  <LiyonField label="หมายเหตุ / ห้องเรียน (ถ้ามี)" htmlFor="cf-desc">
+                    <input
+                      id="cf-desc"
+                      value={cDescription}
+                      onChange={(e) => setCDescription(e.target.value)}
+                      placeholder="เช่น ห้องเรียน B402 หรือ บรรยายวันพุธ 09.00 - 11.30 น."
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  </LiyonField>
+
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={resetCourseForm}
+                      className="text-xs"
+                    >
+                      ยกเลิก
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSaveCourse}
+                      className="text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                      {editingCourseId ? "บันทึกการแก้ไข" : "เพิ่มลงรายการ"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Course list rendering */}
+              {editingTeachingCourses.length === 0 ? (
+                <div className="p-8 text-center bg-muted/20 rounded-xl border border-dashed border-border space-y-2">
+                  <BookOpen className="w-8 h-8 text-muted-foreground mx-auto opacity-50" />
+                  <p className="text-sm font-medium text-foreground">
+                    ยังไม่มีข้อมูลรายวิชาที่สอนของอาจารย์ท่านนี้
+                  </p>
+                  <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                    กดปุ่ม <strong>&quot;⚡ ดึงจากตารางสอน&quot;</strong> เพื่อดึงข้อมูลรายวิชาที่อาจารย์ท่านนี้สอนจากตารางเรียนตามหลักสูตรอัตโนมัติ หรือกดปุ่ม <strong>&quot;+ เพิ่มรายวิชาเอง&quot;</strong>
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
+                  {editingTeachingCourses.map((c) => {
+                    const style = getDegreeLevelColor(c.level);
+                    return (
+                      <div
+                        key={c.id}
+                        className="p-3 bg-card rounded-lg border border-border hover:border-primary/40 transition-colors flex items-start justify-between gap-3 text-xs"
+                      >
+                        <div className="space-y-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`px-2 py-0.5 rounded-full font-bold border text-[10px] ${style.bg}`}>
+                              {style.icon} {formatDegreeLevelLabel(c.level)}
+                            </span>
+                            <span className="font-mono font-bold text-foreground">
+                              {c.courseCode}
+                            </span>
+                            <span className="font-semibold text-foreground truncate">
+                              {c.courseNameTh}
+                            </span>
+                            {c.courseNameEn && (
+                              <span className="text-muted-foreground italic truncate">
+                                ({c.courseNameEn})
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3 text-muted-foreground text-[11px] flex-wrap">
+                            <span>ปี พ.ศ. {c.year} (ภาคเรียนที่ {c.semester})</span>
+                            <span>•</span>
+                            <span className="font-medium text-foreground">{c.credits} หน่วยกิต</span>
+                            <span>•</span>
+                            <span>{c.programTh}</span>
+                            <span>•</span>
+                            <span className="text-primary font-medium">{c.role}</span>
+                            {c.description && (
+                              <>
+                                <span>•</span>
+                                <span>{c.description}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditCourse(c)}
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                            title="แก้ไขวิชานี้"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteCourse(c.id)}
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                            title="ลบวิชานี้"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Tab 3: Contact & Image */}
           {activeTab === "contact" && (
             <div className="space-y-4">
@@ -1482,37 +2604,151 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
                 />
               </LiyonField>
 
-              <LiyonField
-                label="URL รูปถ่ายโปรไฟล์ (Image URL)"
-                htmlFor="field-image-url"
-                hint="ลิงก์รูปภาพของอาจารย์เพื่อแสดงบนทำเนียบ"
-              >
-                <input
-                  id="field-image-url"
-                  value={formImageUrl}
-                  onChange={(e) => setFormImageUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                />
-              </LiyonField>
-
-              {formImageUrl && (
-                <div className="flex items-center gap-3 p-3 bg-muted/40 rounded-md border border-border">
-                  <div className="w-12 h-12 rounded-full overflow-hidden border border-border shrink-0">
-                    <Image
-                      src={formImageUrl}
-                      alt="Preview"
-                      width={48}
-                      height={48}
-                      unoptimized
-                      className="w-full h-full object-cover"
-                    />
+              {/* Photo Upload & Portrait Preview Section */}
+              <div className="rounded-xl border border-border bg-card p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                      <Camera className="w-4 h-4 text-primary" />
+                      <span>รูปถ่ายโปรไฟล์ (ภาพใบหน้าและรูปร่าง)</span>
+                    </h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      อัปโหลดรูปภาพแนวตั้ง (แนะนำอัตราส่วน 3:4) ระบบจะแสดงภาพใบหน้าและรูปร่างอย่างคมชัด
+                    </p>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    ตัวอย่างการแสดงผลรูปถ่ายของอาจารย์
+                  {formImageUrl && (
+                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      มีรูปภาพแล้ว
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-5 items-start">
+                  {/* Portrait Preview Box */}
+                  <div className="w-36 sm:w-44 shrink-0 mx-auto sm:mx-0">
+                    <div className="aspect-[3/4] w-full rounded-xl border-2 border-dashed border-border bg-muted/30 overflow-hidden relative shadow-sm flex flex-col items-center justify-center group hover:border-primary transition-all">
+                      {formImageUrl ? (
+                        <>
+                          <Image
+                            src={formImageUrl}
+                            alt="รูปภาพอาจารย์"
+                            width={176}
+                            height={235}
+                            unoptimized
+                            className="w-full h-full object-cover object-top"
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                            <a
+                              href={formImageUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-1.5 bg-white/90 text-foreground rounded-full hover:bg-white text-xs shadow"
+                              title="ดูรูปขนาดเต็ม"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => setFormImageUrl("")}
+                              className="p-1.5 bg-destructive text-destructive-foreground rounded-full hover:bg-destructive/90 text-xs shadow cursor-pointer"
+                              title="ลบรูป"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <div className="absolute bottom-1.5 left-1.5 right-1.5 bg-black/60 backdrop-blur-xs text-[10px] text-white text-center py-0.5 px-1 rounded font-medium">
+                            พรีวิว: ใบหน้า & รูปร่าง
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center p-3 space-y-2">
+                          <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
+                            <Camera className="w-6 h-6" />
+                          </div>
+                          <div className="text-xs font-medium text-foreground">ยังไม่มีรูปถ่าย</div>
+                          <p className="text-[10px] text-muted-foreground leading-tight">
+                            คลิกปุ่มอัปโหลดรูปภาพด้านขวา
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Upload Controls & URL Input */}
+                  <div className="flex-1 space-y-3.5 w-full">
+                    <div>
+                      <label className="text-xs font-semibold text-foreground block mb-1.5">
+                        อัปโหลดไฟล์รูปภาพจากคอมพิวเตอร์
+                      </label>
+                      <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                        <input
+                          type="file"
+                          ref={imageInputRef}
+                          onChange={handleImageUpload}
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                        />
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isUploadingImage}
+                          onClick={() => imageInputRef.current?.click()}
+                          className="gap-2 shrink-0 h-9 bg-primary/5 hover:bg-primary/10 border-primary/30 text-primary font-medium"
+                        >
+                          {isUploadingImage ? (
+                            <>
+                              <span className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                              <span>กำลังอัปโหลดรูปภาพ...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-4 h-4" />
+                              <span>เลือกรูปภาพจากเครื่อง</span>
+                            </>
+                          )}
+                        </Button>
+                        {formImageUrl && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setFormImageUrl("")}
+                            className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10 h-9"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-1" />
+                            ลบรูปภาพ
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
+                        รองรับไฟล์ JPG, PNG, WEBP ขนาดไม่เกิน 10MB ระบบจะจัดเก็บลงเซิร์ฟเวอร์โดยตรง และพร้อมแสดงผลทันทีเมื่อกดบันทึก
+                      </p>
+                    </div>
+
+                    <div className="pt-2 border-t border-border">
+                      <label htmlFor="field-image-url" className="text-xs font-semibold text-foreground block mb-1.5">
+                        หรือระบุ URL รูปภาพโดยตรง (Image URL)
+                      </label>
+                      <input
+                        id="field-image-url"
+                        value={formImageUrl}
+                        onChange={(e) => setFormImageUrl(e.target.value)}
+                        placeholder="/uploads/personnel/... หรือ https://..."
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+                      />
+                      {formImageUrl && (
+                        <div className="mt-1 text-[11px] text-muted-foreground truncate">
+                          {formImageUrl.startsWith("/uploads/")
+                            ? "📁 รูปภาพที่จัดเก็บบนเซิร์ฟเวอร์ระบบ (Local Upload)"
+                            : "🌐 รูปภาพจากเว็บภายนอก (External Link)"}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
 
@@ -1719,17 +2955,22 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
           )}
         </LiyonDialogBody>
 
-        <LiyonDialogFooter className="p-4 border-t border-border flex items-center justify-between">
-          <div className="text-xs text-muted-foreground">
+        <LiyonDialogFooter className="p-4 border-t border-border flex items-center justify-between flex-wrap gap-2">
+          <div className="text-xs text-muted-foreground flex items-center gap-2.5 flex-wrap">
             {editingItem && (
               <Link
                 href={`/personnel/research?author=${editingItem.id}`}
                 className="text-primary hover:underline flex items-center gap-1 font-medium"
               >
                 <BookOpen className="w-3.5 h-3.5" />
-                <span>เปิดดูในหน้าระบบผลงานวิจัย ({editingResearchList.length} เรื่อง)</span>
+                <span>ผลงานวิจัย ({editingResearchList.length})</span>
               </Link>
             )}
+            <span className="hidden sm:inline text-border">|</span>
+            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <span>💡</span>
+              <span>นำเข้า/ส่งออกไฟล์เฉพาะอาจารย์ท่านนี้ได้ที่ปุ่มด้านบน</span>
+            </span>
           </div>
 
           <div className="flex items-center gap-2">

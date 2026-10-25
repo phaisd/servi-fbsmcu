@@ -4,10 +4,14 @@
  */
 
 export type DegreeLevel = "BACHELOR" | "MASTER" | "DOCTORAL";
+export type CurriculumLanguage = "THAI" | "ENGLISH";
+
+export const MCU_LATEST_TIMETABLE_YEAR = "๒๕๖๙"; // 2569
+export const MCU_LATEST_TIMETABLE_SEMESTER = "2"; // ภาคเรียนที่ ๒
 
 export interface TeachingCourse {
   id: string;
-  year: string; // e.g. "๒๕๖๘" or "2568"
+  year: string; // e.g. "๒๕๖๙", "๒๕๖๘" or "2569"
   semester: string; // e.g. "1" or "2"
   level: DegreeLevel;
   courseCode: string; // e.g. "000 135"
@@ -15,8 +19,177 @@ export interface TeachingCourse {
   courseNameEn?: string; // e.g. "Tipitaka Studies"
   credits: number; // e.g. 3
   programTh: string; // e.g. "หลักสูตรพุทธศาสตรบัณฑิต (พธ.บ.) สาขาวิชาพระพุทธศาสนา"
+  programLanguage?: CurriculumLanguage | string; // "THAI" | "ENGLISH"
   role: string; // e.g. "อาจารย์ผู้สอนประจำวิชา" / "ผู้สอนร่วม" / "อาจารย์พิเศษ"
   description?: string;
+}
+
+/** ฟังก์ชันตรวจสอบและจำแนกหลักสูตรภาษา (มีเฉพาะ หลักสูตรภาษาไทย และ หลักสูตรภาษาอังกฤษ) */
+export function getCurriculumLanguageInfo(course: {
+  programLanguage?: string;
+  programTh?: string;
+  courseCode?: string;
+  courseNameTh?: string;
+  courseNameEn?: string;
+}) {
+  const pLang = (course.programLanguage || "").trim();
+  const pLangUpper = pLang.toUpperCase();
+  const prog = (course.programTh || "").toLowerCase();
+  const code = (course.courseCode || "").toUpperCase();
+
+  // ตรวจสอบว่าเป็นหลักสูตรภาษาอังกฤษหรือไม่
+  const isEnglish =
+    pLangUpper === "ENGLISH" ||
+    pLangUpper === "INTER" ||
+    pLangUpper.includes("ENGLISH") ||
+    pLangUpper.includes("INTER") ||
+    pLang.includes("ภาษาอังกฤษ") ||
+    pLang.includes("นานาชาติ") ||
+    prog.includes("ภาษาอังกฤษ") ||
+    prog.includes("english") ||
+    prog.includes("นานาชาติ") ||
+    prog.includes("inter") ||
+    code.startsWith("IB");
+
+  if (isEnglish) {
+    return {
+      type: "ENGLISH" as const,
+      label: "หลักสูตรภาษาอังกฤษ",
+      shortLabel: "ภาษาอังกฤษ",
+      fullLabel: "หลักสูตรภาษาอังกฤษ (English Program)",
+      badgeClass: "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30",
+      flagIcon: "🌐",
+    };
+  }
+
+  // ค่ามาตรฐานของคณะคือ หลักสูตรภาษาไทย
+  return {
+    type: "THAI" as const,
+    label: "หลักสูตรภาษาไทย",
+    shortLabel: "ภาษาไทย",
+    fullLabel: "หลักสูตรภาษาไทย (Thai Program)",
+    badgeClass: "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-500/30",
+    flagIcon: "🇹🇭",
+  };
+}
+
+/** ฟังก์ชันแปลงเลขเป็นเลขไทย */
+export function toThaiDigits(num: string | number): string {
+  const thaiDigits = ["๐", "๑", "๒", "๓", "๔", "๕", "๖", "๗", "๘", "๙"];
+  return String(num).replace(/[0-9]/g, (d) => thaiDigits[parseInt(d, 10)]);
+}
+
+/** ฟังก์ชันแปลงเลขปีไทยให้เป็นตัวเลขอารบิก 4 หลัก */
+export function normalizeCourseYear(raw?: string | null): string {
+  if (!raw) return "";
+  const thaiDigits = ["๐", "๑", "๒", "๓", "๔", "๕", "๖", "๗", "๘", "๙"];
+  let str = raw;
+  for (let i = 0; i < 10; i++) {
+    str = str.replaceAll(thaiDigits[i], String(i));
+  }
+  const match = str.match(/\b(25\d{2}|20\d{2})\b/);
+  return match ? match[1] : str.trim();
+}
+
+/** ตัดช่องว่างและตัวอักษรพิเศษในรหัสวิชา เพื่อเปรียบเทียบรหัสวิชาที่ตรงกัน */
+export function normalizeCourseCode(code?: string | null): string {
+  if (!code) return "";
+  return code.replace(/[\s\-_]/g, "").toUpperCase();
+}
+
+/** สร้าง Unique Key อิงตาม รหัสวิชา, ปีการศึกษา, และภาคการศึกษา */
+export function getCourseUniqueKey(
+  code: string,
+  year?: string | null,
+  semester?: string | number | null
+): string {
+  const normCode = normalizeCourseCode(code);
+  const normYear = normalizeCourseYear(year) || "2569";
+  const normSem = String(semester || "1").trim().replace(/^[^\d]*(\d+).*$/, "$1") || "1";
+  return `${normCode}_${normYear}_${normSem}`;
+}
+
+export interface UpsertTeachingCoursesResult {
+  merged: TeachingCourse[];
+  addedCount: number;
+  updatedCount: number;
+}
+
+/**
+ * รวมรายการวิชาแบบ UPSERT:
+ * - หากมีวิชานี้ในปีและภาคการศึกษานี้อยู่แล้ว: ให้อัปเดตข้อมูล (UPDATE) โดยไม่สร้างซ้ำ
+ * - หากยังไม่มี: ให้เพิ่มเป็นวิชาใหม่ (ADD)
+ * - ช่วยทำความสะอาดข้อมูลซ้ำเดิมให้อัตโนมัติ
+ */
+export function upsertTeachingCourses(
+  existingCourses: TeachingCourse[],
+  incomingCourses: TeachingCourse[]
+): UpsertTeachingCoursesResult {
+  const map = new Map<string, TeachingCourse>();
+  let addedCount = 0;
+  let updatedCount = 0;
+
+  for (const c of existingCourses) {
+    const key = getCourseUniqueKey(c.courseCode, c.year, c.semester);
+    map.set(key, c);
+  }
+
+  for (const inc of incomingCourses) {
+    const key = getCourseUniqueKey(inc.courseCode, inc.year, inc.semester);
+    if (map.has(key)) {
+      const existing = map.get(key)!;
+      map.set(key, {
+        ...existing,
+        year: inc.year || existing.year,
+        semester: inc.semester || existing.semester,
+        level: inc.level || existing.level,
+        courseCode: inc.courseCode || existing.courseCode,
+        courseNameTh: inc.courseNameTh || existing.courseNameTh,
+        courseNameEn: inc.courseNameEn || existing.courseNameEn,
+        credits: inc.credits || existing.credits,
+        programTh: inc.programTh || existing.programTh,
+        programLanguage: inc.programLanguage || existing.programLanguage,
+        role: inc.role || existing.role,
+        description: inc.description || existing.description,
+      });
+      updatedCount++;
+    } else {
+      map.set(key, inc);
+      addedCount++;
+    }
+  }
+
+  return {
+    merged: Array.from(map.values()),
+    addedCount,
+    updatedCount,
+  };
+}
+
+/** ฟังก์ชันสรุปภาระงานสอนและปีการศึกษาล่าสุด */
+export function getLatestTeachingSummary(courses: TeachingCourse[]) {
+  if (!courses || courses.length === 0) return null;
+  const sorted = [...courses].sort((a, b) => {
+    const yA = normalizeCourseYear(a.year);
+    const yB = normalizeCourseYear(b.year);
+    if (yA !== yB) return yB.localeCompare(yA);
+    return (b.semester || "1").localeCompare(a.semester || "1");
+  });
+  const latest = sorted[0];
+  const latestYear = latest.year;
+  const latestYearNorm = normalizeCourseYear(latestYear);
+  const coursesInLatest = sorted.filter(
+    (c) => normalizeCourseYear(c.year) === latestYearNorm
+  );
+  return {
+    year: latestYear, // e.g. "๒๕๖๙"
+    yearThai: toThaiDigits(latestYearNorm || "2569"), // "๒๕๖๙"
+    yearArabic: latestYearNorm || "2569", // "2569"
+    semester: latest.semester || "2",
+    semesterThai: toThaiDigits(latest.semester || "2"), // "๒"
+    coursesCount: coursesInLatest.length,
+    courses: coursesInLatest,
+  };
 }
 
 export function formatDegreeLevelLabel(level: DegreeLevel): string {
@@ -61,7 +234,7 @@ export function getDegreeLevelColor(level: DegreeLevel) {
 /**
  * Standard authentic MCU Buddhist Studies Curriculum Course Repository
  */
-const MCU_STANDARD_COURSES = {
+export const MCU_STANDARD_COURSES = {
   bachelor: [
     { code: "000 135", th: "พระไตรปิฎกศึกษา", en: "Tipitaka Studies", cr: 3, prog: "หลักสูตรพุทธศาสตรบัณฑิต (พธ.บ.) สาขาวิชาพระพุทธศาสนา" },
     { code: "101 104", th: "การศึกษาในพระไตรปิฎก", en: "Education in Tipitaka", cr: 3, prog: "หลักสูตรพุทธศาสตรบัณฑิต (พธ.บ.) สาขาวิชาพระพุทธศาสนา" },
@@ -101,27 +274,51 @@ export function parseTeachingExperiences(
     departmentName?: string | null;
   }
 ): TeachingCourse[] {
-  // 1. If rawExperiences is a JSON array string, parse it directly
-  if (rawExperiences && rawExperiences.trim().startsWith("[")) {
-    try {
-      const parsed = JSON.parse(rawExperiences);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((item, idx) => ({
-          id: item.id || `tc-json-${idx}`,
-          year: item.year || "๒๕๖๘",
-          semester: item.semester || "1",
-          level: (item.level || "BACHELOR") as DegreeLevel,
-          courseCode: item.courseCode || "000 100",
-          courseNameTh: item.courseNameTh || "รายวิชาทั่วไป",
-          courseNameEn: item.courseNameEn || undefined,
-          credits: Number(item.credits) || 3,
-          programTh: item.programTh || "หลักสูตรพุทธศาสตรบัณฑิต",
-          role: item.role || "อาจารย์ผู้สอนประจำวิชา",
-          description: item.description || undefined,
-        }));
+  // 1. If rawExperiences is JSON array or JSON object with courses
+  if (rawExperiences) {
+    const trimmed = rawExperiences.trim();
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((item: any, idx: number) => ({
+            id: item.id || `tc-json-${idx}`,
+            year: normalizeCourseYear(item.year) || item.year || "2569",
+            semester: String(item.semester || "1").trim().replace(/^[^\d]*(\d+).*$/, "$1") || "1",
+            level: (item.level || "BACHELOR") as DegreeLevel,
+            courseCode: item.courseCode || "000 100",
+            courseNameTh: item.courseNameTh || "รายวิชาทั่วไป",
+            courseNameEn: item.courseNameEn || undefined,
+            credits: Number(item.credits) || 3,
+            programTh: item.programTh || "หลักสูตรพุทธศาสตรบัณฑิต",
+            programLanguage: item.programLanguage || undefined,
+            role: item.role || "อาจารย์ผู้สอนประจำวิชา",
+            description: item.description || undefined,
+          }));
+        }
+      } catch {
+        // fallback to text parsing
       }
-    } catch {
-      // fallback to text parsing
+    } else if (trimmed.startsWith("{")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed.courses) && parsed.courses.length > 0) {
+          return parsed.courses.map((item: any, idx: number) => ({
+            id: item.id || `tc-json-${idx}`,
+            year: normalizeCourseYear(item.year) || item.year || "2569",
+            semester: String(item.semester || "1").trim().replace(/^[^\d]*(\d+).*$/, "$1") || "1",
+            level: (item.level || "BACHELOR") as DegreeLevel,
+            courseCode: item.courseCode || "000 100",
+            courseNameTh: item.courseNameTh || "รายวิชาทั่วไป",
+            courseNameEn: item.courseNameEn || undefined,
+            credits: Number(item.credits) || 3,
+            programTh: item.programTh || "หลักสูตรพุทธศาสตรบัณฑิต",
+            programLanguage: item.programLanguage || undefined,
+            role: item.role || "อาจารย์ผู้สอนประจำวิชา",
+            description: item.description || undefined,
+          }));
+        }
+      } catch {}
     }
   }
 
@@ -170,8 +367,8 @@ export function parseTeachingExperiences(
         const codeNum = 101 + (cIdx * 5);
         list.push({
           id: `tc-line-${lineIdx}-${cIdx}`,
-          year: lineIdx % 2 === 0 ? "๒๕๖๘" : "๒๕๖๗",
-          semester: (cIdx % 2) + 1 === 1 ? "1" : "2",
+          year: lineIdx % 2 === 0 ? "2569" : "2568",
+          semester: (cIdx % 2) + 1 === 1 ? "2" : "1",
           level: currentLevel,
           courseCode: `${codePrefix} ${codeNum}`,
           courseNameTh: cName,
@@ -211,11 +408,11 @@ export function parseTeachingExperiences(
   const d1 = dCourses[nameHash % dCourses.length];
 
   list.push(
-    // Year 2568 - Current
+    // Year 2569 (๒๕๖๙) - ปีการศึกษาล่าสุดตามตารางสอนปัจจุบันของคณะ
     {
       id: `tc-auto-1`,
-      year: "๒๕๖๘",
-      semester: "1",
+      year: "2569",
+      semester: "2",
       level: "DOCTORAL",
       courseCode: d1.code,
       courseNameTh: d1.th,
@@ -226,19 +423,7 @@ export function parseTeachingExperiences(
     },
     {
       id: `tc-auto-2`,
-      year: "๒๕๖๘",
-      semester: "1",
-      level: "MASTER",
-      courseCode: m1.code,
-      courseNameTh: m1.th,
-      courseNameEn: m1.en,
-      credits: m1.cr,
-      programTh: m1.prog,
-      role: "อาจารย์ผู้สอนประจำวิชา",
-    },
-    {
-      id: `tc-auto-3`,
-      year: "๒๕๖๘",
+      year: "2569",
       semester: "2",
       level: "BACHELOR",
       courseCode: b1.code,
@@ -248,22 +433,22 @@ export function parseTeachingExperiences(
       programTh: b1.prog,
       role: "อาจารย์ผู้บรรยายหลัก",
     },
-    // Year 2567
     {
-      id: `tc-auto-4`,
-      year: "๒๕๖๗",
+      id: `tc-auto-3`,
+      year: "2569",
       semester: "1",
       level: "MASTER",
-      courseCode: m2.code,
-      courseNameTh: m2.th,
-      courseNameEn: m2.en,
-      credits: m2.cr,
-      programTh: m2.prog,
+      courseCode: m1.code,
+      courseNameTh: m1.th,
+      courseNameEn: m1.en,
+      credits: m1.cr,
+      programTh: m1.prog,
       role: "อาจารย์ผู้สอนประจำวิชา",
     },
+    // Year 2568 (๒๕๖๘)
     {
-      id: `tc-auto-5`,
-      year: "๒๕๖๗",
+      id: `tc-auto-4`,
+      year: "2568",
       semester: "2",
       level: "BACHELOR",
       courseCode: b2.code,
@@ -273,11 +458,23 @@ export function parseTeachingExperiences(
       programTh: b2.prog,
       role: "อาจารย์ผู้สอนประจำวิชา",
     },
-    // Year 2566
+    {
+      id: `tc-auto-5`,
+      year: "2568",
+      semester: "1",
+      level: "MASTER",
+      courseCode: m2.code,
+      courseNameTh: m2.th,
+      courseNameEn: m2.en,
+      credits: m2.cr,
+      programTh: m2.prog,
+      role: "อาจารย์ผู้สอนประจำวิชา",
+    },
+    // Year 2567 (๒๕๖๗)
     {
       id: `tc-auto-6`,
-      year: "๒๕๖๖",
-      semester: "1",
+      year: "2567",
+      semester: "2",
       level: "BACHELOR",
       courseCode: bCourses[(nameHash + 5) % bCourses.length].code,
       courseNameTh: bCourses[(nameHash + 5) % bCourses.length].th,

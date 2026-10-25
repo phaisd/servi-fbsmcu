@@ -34,7 +34,7 @@ const DEGREE_LABELS: Record<string, { th: string; en: string }> = {
 export function TimetablesPortalClient({
   initialItems,
   curriculums,
-  departments,
+  departments: _departments,
   locale = "th",
 }: TimetablesPortalClientProps) {
   const searchParams = useSearchParams();
@@ -64,9 +64,14 @@ export function TimetablesPortalClient({
 
   // Curriculums filtered by selected degree if chosen
   const filteredCurriculums = React.useMemo(() => {
-    if (selectedDegree === "ALL") return curriculums;
-    return curriculums.filter((c) => c.degree === selectedDegree);
-  }, [curriculums, selectedDegree]);
+    let list = curriculums.filter(
+      (c) => c.nameTh !== "พุทธศาสตรบัณฑิต สาขาศาสนาและปรัชญา"
+    );
+    if (selectedDegree !== "ALL") {
+      list = list.filter((c) => c.degree === selectedDegree);
+    }
+    return list.filter((curr) => initialItems.some((t) => t.curriculumId === curr.id));
+  }, [curriculums, selectedDegree, initialItems]);
 
   // Available Degrees present in curriculums
   const availableDegrees = React.useMemo(() => {

@@ -21,16 +21,22 @@ import {
   Search,
   MapPin,
   Trophy,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   type TeachingCourse,
   type DegreeLevel,
   parseTeachingExperiences,
+  getLatestTeachingSummary,
+  getCurriculumLanguageInfo,
   formatDegreeLevelLabel,
   getDegreeLevelColor,
-} from "@/features/personnel/teaching-courses";
+  toThaiDigits,
+  normalizeCourseYear,
+} from "@/features/personnel";
 import { Button } from "@/components/ui/button";
+import { exportPersonnelDoc, formatPersonnelName } from "@/features/personnel";
 
 interface ResearchPublication {
   id: string;
@@ -57,6 +63,8 @@ interface PersonnelDetail {
   positionTh: string;
   positionEn?: string | null;
   academicPosition?: string | null;
+  academicPositionEn?: string | null;
+  titlePlacement?: string | null;
   type: string;
   imageUrl?: string | null;
   email?: string | null;
@@ -100,10 +108,24 @@ export function PersonnelProfileClient({ person, locale }: Props) {
     });
   }, [person]);
 
-  // Available teaching years
+  // Latest academic year & workload
+  const latestWorkload = useMemo(() => {
+    return getLatestTeachingSummary(teachingCourses);
+  }, [teachingCourses]);
+
+  // Available teaching years (deduplicated & normalized)
   const availableCourseYears = useMemo(() => {
-    const set = new Set(teachingCourses.map((c) => c.year));
-    return Array.from(set).sort((a, b) => b.localeCompare(a));
+    const map = new Map<string, { yearNorm: string; yearThai: string }>();
+    for (const c of teachingCourses) {
+      const norm = normalizeCourseYear(c.year) || "2569";
+      if (!map.has(norm)) {
+        map.set(norm, {
+          yearNorm: norm,
+          yearThai: toThaiDigits(norm),
+        });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => b.yearNorm.localeCompare(a.yearNorm));
   }, [teachingCourses]);
 
   // Counts by level
@@ -132,7 +154,11 @@ export function PersonnelProfileClient({ person, locale }: Props) {
         c.programTh.toLowerCase().includes(q);
 
       const matchesLevel = selectedLevel === "ALL" || c.level === selectedLevel;
-      const matchesYear = selectedCourseYear === "ALL" || c.year === selectedCourseYear;
+      const courseNormYear = normalizeCourseYear(c.year);
+      const matchesYear =
+        selectedCourseYear === "ALL" ||
+        courseNormYear === selectedCourseYear ||
+        c.year === selectedCourseYear;
 
       return matchesSearch && matchesLevel && matchesYear;
     });
@@ -205,9 +231,9 @@ export function PersonnelProfileClient({ person, locale }: Props) {
     }
   };
 
-  const fullNameTh = `${person.academicPosition ? `${person.academicPosition} ` : ""}${person.firstNameTh} ${person.lastNameTh}`.trim();
-  const fullNameEn = person.firstNameEn
-    ? `${person.firstNameEn} ${person.lastNameEn || ""}`.trim()
+  const fullNameTh = formatPersonnelName(person);
+  const fullNameEn = (person.academicPositionEn || person.firstNameEn)
+    ? `${person.academicPositionEn ? `${person.academicPositionEn} ` : ""}${person.firstNameEn || ""} ${person.lastNameEn || ""}`.trim()
     : null;
 
   return (
@@ -257,16 +283,55 @@ export function PersonnelProfileClient({ person, locale }: Props) {
             <span>แชร์โปรไฟล์</span>
           </Button>
 
-          <Button
-            type="button"
-            variant="default"
-            size="sm"
-            onClick={handlePrint}
-            className="gap-1.5 text-xs font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs cursor-pointer"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span>พิมพ์ประวัติ / Export CV</span>
-          </Button>
+          <div className="relative group/export">
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              className="gap-1.5 text-xs font-semibold rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>พิมพ์ประวัติ / Export CV ▾</span>
+            </Button>
+            <div className="absolute right-0 top-full mt-1.5 hidden group-hover/export:flex flex-col bg-popover text-popover-foreground border border-border rounded-2xl shadow-2xl z-40 py-2 min-w-[250px] before:content-[''] before:absolute before:inset-x-0 before:-top-3 before:h-3">
+              <div className="px-3 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b border-border/60">
+                เลือกรูปแบบเอกสารที่ต้องการ
+              </div>
+              <button
+                type="button"
+                onClick={() => exportPersonnelDoc(person, "one-page")}
+                className="px-3 py-2 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2.5 cursor-pointer"
+              >
+                <FileText className="w-4 h-4 text-amber-600 shrink-0" />
+                <div>
+                  <div className="font-semibold text-foreground">แบบหน้าเดียว (1-Page CV)</div>
+                  <div className="text-[10px] text-muted-foreground">สรุปย่อ 1 หน้า A4 (วุฒิ, วิชาหลัก, งานวิจัยเด่น)</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => exportPersonnelDoc(person, "full")}
+                className="px-3 py-2 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2.5 cursor-pointer"
+              >
+                <BookOpen className="w-4 h-4 text-primary shrink-0" />
+                <div>
+                  <div className="font-semibold text-foreground">แบบรายงานฉบับเต็ม ทุกแท็บต่อกัน</div>
+                  <div className="text-[10px] text-muted-foreground">การศึกษา + วิชาสอน + งานวิจัย + เกียรติยศ</div>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="px-3 py-2 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2.5 cursor-pointer"
+              >
+                <Layers className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div>
+                  <div className="font-semibold text-foreground">เฉพาะหน้าที่เลือก (Current Tab)</div>
+                  <div className="text-[10px] text-muted-foreground">พิมพ์หน้าจอที่กำลังเปิดดูอยู่ ณ ปัจจุบัน</div>
+                </div>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -399,8 +464,14 @@ export function PersonnelProfileClient({ person, locale }: Props) {
             <Calendar className="w-4 h-4" />
             <span>ปีการศึกษาล่าสุด</span>
           </div>
-          <p className="text-2xl font-extrabold text-foreground">๒๕๖๘</p>
-          <p className="text-[11px] text-muted-foreground">ปีการศึกษาที่เปิดสอน</p>
+          <p className="text-2xl font-extrabold text-foreground">
+            {latestWorkload ? latestWorkload.yearThai : "๒๕๖๙"}
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            {latestWorkload
+              ? `ภาคเรียนที่ ${latestWorkload.semesterThai} (ตามตารางสอนล่าสุด)`
+              : "ปีการศึกษาที่เปิดสอน"}
+          </p>
         </div>
       </div>
 
@@ -555,20 +626,31 @@ export function PersonnelProfileClient({ person, locale }: Props) {
                 >
                   ทุกปีการศึกษา
                 </button>
-                {availableCourseYears.map((yr) => (
-                  <button
-                    key={yr}
-                    type="button"
-                    onClick={() => setSelectedCourseYear(yr)}
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                      selectedCourseYear === yr
-                        ? "bg-primary text-primary-foreground shadow-xs"
-                        : "bg-muted text-muted-foreground hover:bg-muted/80"
-                    }`}
-                  >
-                    ปี พ.ศ. {yr}
-                  </button>
-                ))}
+                {availableCourseYears.map((yr) => {
+                  const isLatest =
+                    latestWorkload &&
+                    (yr.yearNorm === latestWorkload.yearArabic || yr.yearThai === latestWorkload.yearThai);
+                  const isSelected = selectedCourseYear === yr.yearNorm;
+                  return (
+                    <button
+                      key={yr.yearNorm}
+                      type="button"
+                      onClick={() => setSelectedCourseYear(isSelected ? "ALL" : yr.yearNorm)}
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                        isSelected
+                          ? "bg-primary text-primary-foreground shadow-xs"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      }`}
+                    >
+                      <span>ปี พ.ศ. {yr.yearThai}</span>
+                      {isLatest && (
+                        <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                          ล่าสุด
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
 
               <div className="relative sm:w-64">
@@ -599,11 +681,14 @@ export function PersonnelProfileClient({ person, locale }: Props) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {filteredCourses.map((c) => {
                   const style = getDegreeLevelColor(c.level);
+                  const langInfo = getCurriculumLanguageInfo(c);
+                  const yearDisplay = normalizeCourseYear(c.year) || c.year;
                   return (
                     <div
                       key={c.id}
                       className="p-5 rounded-2xl border bg-card hover:shadow-md transition-all space-y-3 relative overflow-hidden"
                     >
+                      {/* Top Bar: Level, Year/Semester (Left) & Credits (Right) - Image 2 */}
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${style.bg}`}>
@@ -612,18 +697,20 @@ export function PersonnelProfileClient({ person, locale }: Props) {
 
                           <span className="px-2.5 py-0.5 rounded-full bg-muted text-muted-foreground text-[11px] font-semibold flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
-                            <span>ปี พ.ศ. {c.year} (ภาคเรียนที่ {c.semester})</span>
+                            <span>ปี พ.ศ. {yearDisplay} (ภาคเรียนที่ {c.semester})</span>
                           </span>
                         </div>
 
-                        <span className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-bold shrink-0">
+                        {/* Credits Badge - Styled as blue badge like Image 2 */}
+                        <span className="px-2.5 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300 text-xs font-bold shrink-0 border border-blue-200/60 dark:border-blue-800/60">
                           {c.credits} หน่วยกิต
                         </span>
                       </div>
 
+                      {/* Course Code & Name */}
                       <div>
-                        <div className="text-xs font-mono font-bold text-muted-foreground">
-                          รหัสวิชา: {c.courseCode}
+                        <div className="text-xs font-semibold text-muted-foreground">
+                          รหัสวิชา: <span className="font-mono text-foreground/80">{c.courseCode}</span>
                         </div>
                         <h4 className="text-base font-bold text-foreground mt-0.5 leading-snug">
                           {c.courseNameTh}
@@ -635,15 +722,28 @@ export function PersonnelProfileClient({ person, locale }: Props) {
                         )}
                       </div>
 
-                      <div className="pt-2 border-t border-border/60 text-xs text-muted-foreground space-y-1">
-                        <p>
-                          <strong className="text-foreground">หลักสูตร: </strong>
-                          {c.programTh}
+                      {/* Details Section */}
+                      <div className="pt-2 border-t border-border/60 text-xs text-muted-foreground space-y-1.5">
+                        <p className="flex items-start gap-1.5">
+                          <strong className="text-foreground shrink-0">หลักสูตร:</strong>
+                          <span className="text-foreground/90">{c.programTh}</span>
                         </p>
-                        <p>
-                          <strong className="text-foreground">บทบาทหน้าที่: </strong>
-                          <span className="text-primary font-medium">{c.role}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <strong className="text-foreground shrink-0">หลักสูตรภาษา:</strong>
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${langInfo.badgeClass}`}>
+                            <span>{langInfo.flagIcon}</span>
+                            <span>{langInfo.fullLabel}</span>
+                          </span>
+                        </div>
+                        <p className="flex items-start gap-1.5">
+                          <strong className="text-foreground shrink-0">บทบาทหน้าที่:</strong>
+                          <span className="text-primary font-semibold">{c.role}</span>
                         </p>
+                        {c.description && (
+                          <p className="text-[11px] text-muted-foreground/90 pl-0.5 pt-0.5">
+                            📌 {c.description}
+                          </p>
+                        )}
                       </div>
                     </div>
                   );

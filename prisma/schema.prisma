@@ -435,7 +435,9 @@ model Personnel {
 
   tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  academicPosition String? @map("academic_position") @db.VarChar(100)
+  academicPosition   String? @map("academic_position") @db.VarChar(100)
+  academicPositionEn String? @map("academic_position_en") @db.VarChar(100)
+  titlePlacement     String? @default("PREFIX") @map("title_placement") @db.VarChar(20)
   educationTh      String? @map("education_th") @db.Text
   experiencesTh    String? @map("experiences_th") @db.Text
   bioTh            String? @map("bio_th") @db.Text

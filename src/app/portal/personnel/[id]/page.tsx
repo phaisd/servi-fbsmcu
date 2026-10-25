@@ -2,17 +2,18 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { resolvePublicTenantId } from "@/features/news/server";
 import { getPublicPersonnelById } from "@/features/personnel/server";
+import { formatPersonnelName } from "@/features/personnel";
 import { getLocale } from "@/shared/lib/i18n/server";
 import { PersonnelProfileClient } from "./_components/personnel-profile-client";
 
 interface PageProps {
-  params: Promise<{ id: string }> | { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const resolvedParams = await Promise.resolve(params);
+  const { id } = await params;
   const tenantId = await resolvePublicTenantId();
-  const person = await getPublicPersonnelById(tenantId, resolvedParams.id);
+  const person = await getPublicPersonnelById(tenantId, id);
 
   if (!person) {
     return {
@@ -20,7 +21,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     };
   }
 
-  const name = `${person.academicPosition ? `${person.academicPosition} ` : ""}${person.firstNameTh} ${person.lastNameTh}`;
+  const name = formatPersonnelName(person);
   const dept = person.department?.nameTh || "คณะพุทธศาสตร์";
 
   return {
@@ -35,10 +36,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function PersonnelDetailPage({ params }: PageProps) {
-  const resolvedParams = await Promise.resolve(params);
+  const { id } = await params;
   const locale = await getLocale();
   const tenantId = await resolvePublicTenantId();
-  const person = await getPublicPersonnelById(tenantId, resolvedParams.id);
+  const person = await getPublicPersonnelById(tenantId, id);
 
   if (!person) {
     notFound();

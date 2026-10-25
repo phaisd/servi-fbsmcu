@@ -6,17 +6,19 @@ export const departmentSchema = z.object({
   orderIndex: z.number().int().default(0),
 });
 
-export const personnelSchema = z.object({
+const basePersonnelSchema = z.object({
   departmentId: z.string().uuid().optional().nullable(),
-  firstNameTh: z.string().min(1, "Required"),
-  lastNameTh: z.string().min(1, "Required"),
+  firstNameTh: z.string().min(1, "กรุณาระบุชื่อ"),
+  lastNameTh: z.string().optional().nullable(),
   firstNameEn: z.string().optional().nullable(),
   lastNameEn: z.string().optional().nullable(),
-  positionTh: z.string().min(1, "Required"),
+  positionTh: z.string().min(1, "กรุณาระบุตำแหน่ง"),
   positionEn: z.string().optional().nullable(),
   academicPosition: z.string().optional().nullable(),
+  academicPositionEn: z.string().optional().nullable(),
+  titlePlacement: z.enum(["PREFIX", "SUFFIX"]).optional().nullable(),
   type: z.enum(["EXECUTIVE", "ACADEMIC", "SUPPORT"]),
-  imageUrl: z.string().url().optional().or(z.literal("")).nullable(),
+  imageUrl: z.string().optional().or(z.literal("")).nullable(),
   email: z.string().email().optional().or(z.literal("")).nullable(),
   phoneNumber: z.string().optional().nullable(),
   educationTh: z.string().optional().nullable(),
@@ -25,6 +27,14 @@ export const personnelSchema = z.object({
   contactInfo: z.string().optional().nullable(),
   isActive: z.boolean().default(true),
   orderIndex: z.number().int().default(0),
+});
+
+export const personnelSchema = basePersonnelSchema.extend({
+  lastNameTh: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => (val ? val.trim() : "")),
 });
 
 export const researchPublicationSchema = z.object({
@@ -45,5 +55,11 @@ export const researchPublicationSchema = z.object({
 });
 
 export const updateDepartmentSchema = departmentSchema.partial();
-export const updatePersonnelSchema = personnelSchema.partial();
+export const updatePersonnelSchema = basePersonnelSchema.partial().extend({
+  lastNameTh: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => (val === undefined ? undefined : (val ? val.trim() : ""))),
+});
 export const updateResearchPublicationSchema = researchPublicationSchema.partial();

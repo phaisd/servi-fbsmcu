@@ -16,9 +16,9 @@ import {
   Calendar,
   Award,
   Filter,
-  Layers,
   Sparkles,
   ChevronRight,
+  Download,
 } from "lucide-react";
 import {
   LiyonDialog,
@@ -28,6 +28,14 @@ import {
   LiyonDialogCloseButton,
 } from "@/shared/components/liyon";
 import { Button } from "@/components/ui/button";
+import {
+  exportPersonnelDoc,
+  formatPersonnelName,
+  parseTeachingExperiences,
+  getCurriculumLanguageInfo,
+  formatDegreeLevelLabel,
+  getDegreeLevelColor,
+} from "@/features/personnel";
 
 export interface ResearchPub {
   id: string;
@@ -54,6 +62,8 @@ export interface PersonnelItem {
   positionTh: string;
   positionEn?: string | null;
   academicPosition?: string | null;
+  academicPositionEn?: string | null;
+  titlePlacement?: string | null;
   type: string;
   imageUrl?: string | null;
   email?: string | null;
@@ -561,13 +571,13 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
                     return (
                       <div
                         key={person.id}
-                        className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border bg-card hover:shadow-xl hover:border-primary/40 transition-all duration-300"
+                        className="group/card relative flex flex-col justify-between rounded-2xl border bg-card hover:shadow-xl hover:border-primary/40 transition-all duration-300"
                       >
                         <div>
                           {/* Photo / Avatar */}
                           <Link
                             href={`/portal/personnel/${person.id}`}
-                            className="block relative aspect-[4/3] w-full bg-gradient-to-br from-amber-500/10 via-muted to-muted/40 overflow-hidden cursor-pointer"
+                            className="block relative aspect-[3/4] w-full bg-gradient-to-br from-amber-500/10 via-muted to-muted/40 rounded-t-2xl overflow-hidden cursor-pointer"
                           >
                             {person.imageUrl ? (
                               <Image
@@ -575,7 +585,7 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
                                 alt={`${person.firstNameTh} ${person.lastNameTh}`}
                                 fill
                                 unoptimized
-                                className="object-cover object-top transition-transform duration-500 group-hover:scale-105"
+                                className="object-cover object-top transition-transform duration-500 group-hover/card:scale-105"
                               />
                             ) : (
                               <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/40 gap-2">
@@ -606,14 +616,13 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
                           <div className="p-5 space-y-3">
                             <div>
                               <Link href={`/portal/personnel/${person.id}`}>
-                                <h3 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors cursor-pointer">
-                                  {person.academicPosition ? `${person.academicPosition} ` : ""}
-                                  {person.firstNameTh} {person.lastNameTh}
+                                <h3 className="text-lg font-bold text-foreground group-hover/card:text-primary transition-colors cursor-pointer">
+                                  {formatPersonnelName(person)}
                                 </h3>
                               </Link>
-                              {person.firstNameEn && (
+                              {(person.academicPositionEn || person.firstNameEn || person.lastNameEn) && (
                                 <p className="text-xs text-muted-foreground font-medium">
-                                  {person.firstNameEn} {person.lastNameEn}
+                                  {[person.academicPositionEn, person.firstNameEn, person.lastNameEn].filter(Boolean).join(" ")}
                                 </p>
                               )}
                               <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
@@ -643,19 +652,66 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
                           </div>
                         </div>
 
-                        {/* Action Buttons */}
-                        <div className="p-5 pt-0">
-                          <Button
-                            asChild
-                            variant="default"
-                            className="w-full gap-2 text-xs font-semibold rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs cursor-pointer"
-                          >
-                            <Link href={`/portal/personnel/${person.id}`}>
-                              <BookOpen className="h-3.5 w-3.5" />
-                              <span>{locale === "th" ? "ดูประวัติ & รายวิชาที่สอน (หน้าเต็ม)" : "View Full Faculty Profile"}</span>
-                              {pubCount > 0 && <span className="px-1.5 py-0.2 rounded-full bg-white/20 text-[10px]">{pubCount}</span>}
-                            </Link>
-                          </Button>
+                        {/* Action Buttons with Profile Link & Export Dropdown */}
+                        <div className="p-5 pt-0 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              asChild
+                              variant="default"
+                              size="sm"
+                              className="flex-1 gap-1.5 text-xs font-semibold rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs cursor-pointer"
+                            >
+                              <Link href={`/portal/personnel/${person.id}`}>
+                                <BookOpen className="h-3.5 w-3.5" />
+                                <span>{locale === "th" ? "ดูประวัติหน้าเต็ม" : "View Profile"}</span>
+                                {pubCount > 0 && (
+                                  <span className="px-1.5 py-0.2 rounded-full bg-white/20 text-[10px]">
+                                    {pubCount}
+                                  </span>
+                                )}
+                              </Link>
+                            </Button>
+
+                            <div className="relative group/export shrink-0">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="rounded-xl px-2.5 text-xs gap-1 cursor-pointer bg-card hover:bg-muted font-medium border-border/80 shadow-xs"
+                                title="ส่งออกเอกสารประวัติอาจารย์ (Export CV / Portfolio)"
+                              >
+                                <Download className="w-3.5 h-3.5 text-primary" />
+                                <span>Export ▾</span>
+                              </Button>
+                              <div className="absolute right-0 bottom-full mb-1.5 hidden group-hover/export:flex flex-col bg-popover text-popover-foreground border border-border rounded-xl shadow-2xl z-50 py-1.5 min-w-[240px] before:content-[''] before:absolute before:inset-x-0 before:-bottom-3 before:h-3">
+                                <div className="px-3 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b border-border/60">
+                                  ตัวเลือกการส่งออกเอกสาร
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => exportPersonnelDoc(person, "one-page")}
+                                  className="px-3 py-2 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2.5 cursor-pointer"
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                                  <div>
+                                    <div className="font-semibold text-foreground">สรุปหน้าเดียว (1-Page CV)</div>
+                                    <div className="text-[10px] text-muted-foreground">กระชับ พอดี 1 หน้า A4 (ประวัติ + วิชาหลัก)</div>
+                                  </div>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => exportPersonnelDoc(person, "full")}
+                                  className="px-3 py-2 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2.5 cursor-pointer"
+                                >
+                                  <BookOpen className="w-3.5 h-3.5 text-primary shrink-0" />
+                                  <div>
+                                    <div className="font-semibold text-foreground">รายงานฉบับเต็ม รวมทุกแท็บ</div>
+                                    <div className="text-[10px] text-muted-foreground">การศึกษา + วิชาสอน + งานวิจัย + เชี่ยวชาญ</div>
+                                  </div>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     );
@@ -917,8 +973,7 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
                             </div>
                             <div className="min-w-0">
                               <p className="text-xs font-bold text-foreground truncate">
-                                {pub.personnel.academicPosition ? `${pub.personnel.academicPosition} ` : ""}
-                                {pub.personnel.firstNameTh} {pub.personnel.lastNameTh}
+                                {formatPersonnelName(pub.personnel)}
                               </p>
                               <p className="text-[11px] text-muted-foreground truncate">
                                 {pub.personnel.department?.nameTh || "คณะพุทธศาสตร์"}
@@ -1006,7 +1061,7 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
         {selectedPerson && (
           <>
             <LiyonDialogHeader
-              title={`${selectedPerson.academicPosition ? selectedPerson.academicPosition + " " : ""}${selectedPerson.firstNameTh} ${selectedPerson.lastNameTh}`}
+              title={formatPersonnelName(selectedPerson)}
               description={
                 selectedPerson.firstNameEn && selectedPerson.lastNameEn
                   ? `${selectedPerson.firstNameEn} ${selectedPerson.lastNameEn} • ${selectedPerson.department?.nameTh || "คณะพุทธศาสตร์"}`
@@ -1044,8 +1099,7 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
                       )}
                     </div>
                     <h3 className="text-base sm:text-lg font-bold text-foreground">
-                      {selectedPerson.academicPosition ? `${selectedPerson.academicPosition} ` : ""}
-                      {selectedPerson.firstNameTh} {selectedPerson.lastNameTh}
+                      {formatPersonnelName(selectedPerson)}
                     </h3>
                     <p className="text-xs text-muted-foreground">{selectedPerson.positionTh}</p>
                     {selectedPerson.bioTh && (
@@ -1303,18 +1357,68 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
                       <Briefcase className="w-4 h-4 text-primary" />
                       <span>ภาระงานและความรับผิดชอบ / ประสบการณ์สอน</span>
                     </h4>
-                    {selectedPerson.experiencesTh ? (
-                      <div className="space-y-2">
-                        {selectedPerson.experiencesTh.split("\n").map((line, idx) => (
-                          <div key={idx} className="flex items-start gap-2 p-2 rounded-lg bg-muted/30">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
-                            <span className="text-foreground">{line}</span>
+                    {(() => {
+                      const courses = parseTeachingExperiences(selectedPerson.experiencesTh, {
+                        id: selectedPerson.id,
+                        firstNameTh: selectedPerson.firstNameTh,
+                        lastNameTh: selectedPerson.lastNameTh || undefined,
+                        departmentName: selectedPerson.department?.nameTh,
+                      });
+                      if (courses.length > 0) {
+                        return (
+                          <div className="space-y-2.5">
+                            {courses.map((c) => {
+                              const style = getDegreeLevelColor(c.level);
+                              const langInfo = getCurriculumLanguageInfo(c);
+                              return (
+                                <div
+                                  key={c.id}
+                                  className="p-3 rounded-xl border bg-muted/20 hover:bg-muted/40 transition-colors space-y-1.5"
+                                >
+                                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                                    <div className="flex items-center gap-1.5">
+                                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${style.bg}`}>
+                                        {style.icon} {formatDegreeLevelLabel(c.level)}
+                                      </span>
+                                      <span className="text-[10px] text-muted-foreground font-semibold">
+                                        ปี {c.year} (ภาคเรียนที่ {c.semester})
+                                      </span>
+                                    </div>
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${langInfo.badgeClass}`}>
+                                      {langInfo.flagIcon} {langInfo.label}
+                                    </span>
+                                  </div>
+                                  <div className="font-bold text-foreground">
+                                    <span className="text-muted-foreground font-mono mr-1.5">{c.courseCode}</span>
+                                    <span>{c.courseNameTh}</span>
+                                    {c.courseNameEn && (
+                                      <span className="text-muted-foreground font-normal text-[11px] block italic">{c.courseNameEn}</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-border/40">
+                                    <span>{c.programTh} ({langInfo.shortLabel})</span>
+                                    <span className="font-medium text-primary">{c.role}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-muted-foreground">ยังไม่มีข้อมูลประสบการณ์สอน</p>
-                    )}
+                        );
+                      }
+                      if (selectedPerson.experiencesTh) {
+                        return (
+                          <div className="space-y-2">
+                            {selectedPerson.experiencesTh.split("\n").map((line, idx) => (
+                              <div key={idx} className="flex items-start gap-2 p-2 rounded-lg bg-muted/30">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                                <span className="text-foreground">{line}</span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+                      return <p className="text-muted-foreground">ยังไม่มีข้อมูลประสบการณ์สอน</p>;
+                    })()}
                   </div>
                 )}
 
