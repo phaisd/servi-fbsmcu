@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Printer, Download, X, FileText, CheckCircle2 } from "lucide-react";
+import { Printer, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface StudentGradeItem {

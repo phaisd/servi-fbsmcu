@@ -1,4 +1,4 @@
-/* eslint-disable @next/next/no-img-element */
+ 
 "use client";
 
 import * as React from "react";
@@ -7,20 +7,12 @@ import { useSearchParams } from "next/navigation";
 import {
   Calendar,
   GraduationCap,
-  Building2,
   Clock,
   BookOpen,
-  MapPin,
   Search,
-  Filter,
-  CheckCircle2,
-  Printer,
-  ChevronRight,
-  Layers,
 } from "lucide-react";
 import {
   TimetableGridView,
-  type TimetableData,
 } from "@/features/curriculum/_components/timetable-grid-view";
 import { Button } from "@/components/ui/button";
 import type { Curriculum, Department } from "@/generated/prisma";

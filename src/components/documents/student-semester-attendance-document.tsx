@@ -1,16 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import {
   Printer,
   Download,
   X,
   GraduationCap,
-  Calendar,
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
-  FileText,
   Clock,
 } from "lucide-react";
 

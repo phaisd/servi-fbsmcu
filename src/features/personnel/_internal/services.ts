@@ -125,6 +125,30 @@ export async function getPublicPersonnelList(tenantId: string, filters?: { depar
   });
 }
 
+export async function getPublicPersonnelById(tenantId: string, id: string) {
+  const item = await db.personnel.findFirst({
+    where: { id, tenantId, isActive: true },
+    include: {
+      department: true,
+      researchPublications: {
+        orderBy: [{ orderIndex: "asc" }, { publicationYear: "desc" }, { createdAt: "desc" }],
+      },
+    },
+  });
+  if (item) return item;
+
+  // Fallback to finding active personnel by id regardless of tenant mismatch
+  return db.personnel.findFirst({
+    where: { id, isActive: true },
+    include: {
+      department: true,
+      researchPublications: {
+        orderBy: [{ orderIndex: "asc" }, { publicationYear: "desc" }, { createdAt: "desc" }],
+      },
+    },
+  });
+}
+
 export async function createPersonnel(tenantId: string, actorId: string, data: Omit<import("@/generated/prisma").Prisma.PersonnelCreateInput, "tenant" | "id" | "createdAt" | "updatedAt" | "department"> & { departmentId?: string | null }) {
   const result = await db.personnel.create({
     data: {
@@ -165,6 +189,59 @@ export async function updatePersonnel(tenantId: string, actorId: string, id: str
   });
 
   return result;
+}
+
+export async function updatePersonnelOrder(
+  tenantId: string,
+  actorId: string,
+  id: string,
+  newOrder: number
+) {
+  const before = await db.personnel.findFirst({ where: { id } });
+  if (!before) throw new Error("Personnel not found");
+
+  const result = await db.personnel.update({
+    where: { id: before.id },
+    data: { orderIndex: Math.max(0, Math.floor(newOrder)) },
+  });
+
+  await writeAudit({
+    tenantId: before.tenantId,
+    actorId,
+    action: "personnel.update_order",
+    entity: "Personnel",
+    entityId: result.id,
+    before: { orderIndex: before.orderIndex },
+    after: { orderIndex: result.orderIndex },
+  });
+
+  return result;
+}
+
+export async function reorderPersonnelBatch(
+  tenantId: string,
+  actorId: string,
+  items: { id: string; orderIndex: number }[]
+) {
+  const updates = items.map((item) =>
+    db.personnel.update({
+      where: { id: item.id },
+      data: { orderIndex: item.orderIndex },
+    })
+  );
+
+  const results = await db.$transaction(updates);
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "personnel.reorder_batch",
+    entity: "Personnel",
+    entityId: "batch",
+    after: { count: items.length },
+  });
+
+  return results;
 }
 
 export async function deletePersonnel(tenantId: string, actorId: string, id: string) {

@@ -11,14 +11,7 @@ import {
   Sparkles,
   Upload,
   FileText,
-  Filter,
-  Calendar,
   User,
-  GraduationCap,
-  Clock,
-  ArrowRight,
-  Layers,
-  HelpCircle,
   FileCheck,
 } from "lucide-react";
 import {

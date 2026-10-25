@@ -23,7 +23,6 @@ import {
   AlertTriangle,
   Edit3,
   Users,
-  RefreshCw,
 } from "lucide-react";
 import {
   CERTIFICATE_PURPOSES,

@@ -1,6 +1,6 @@
 "use client";
 
-import { Printer, ArrowLeft, Download, Award, Sparkles, CheckCircle } from "lucide-react";
+import { Printer, ArrowLeft, CheckCircle } from "lucide-react";
 import Link from "next/link";
 
 interface CertificateDocumentProps {

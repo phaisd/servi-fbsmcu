@@ -29,7 +29,6 @@ import type { MeetingRoom } from "@/generated/prisma";
 import {
   MeetingBookingA4Document,
   type MeetingBookingMetadata,
-  type MeetingPurposeType,
   type MeetingFormSettings,
   getEarliestBookingDate,
   formatDateToIsoDate,

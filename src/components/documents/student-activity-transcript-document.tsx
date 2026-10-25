@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Printer, X, Download, FileSpreadsheet, CheckCircle2, Clock3, Award, Sparkles, Filter } from "lucide-react";
+import { Printer, X, Download, FileSpreadsheet, CheckCircle2, Clock3, Award } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export interface TranscriptStudentInfo {

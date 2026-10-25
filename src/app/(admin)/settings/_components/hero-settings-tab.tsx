@@ -71,6 +71,63 @@ const TYPOGRAPHY_SIZE_OPTIONS: {
   },
 ];
 
+const MOTION_PRESET_OPTIONS: {
+  id: NonNullable<HeroSettings["motionPreset"]>;
+  titleTh: string;
+  titleEn: string;
+  descTh: string;
+  iconText: string;
+  badge?: string;
+  recommended?: boolean;
+}[] = [
+  {
+    id: "lotus-bloom",
+    titleTh: "ดอกบัวหลวงกำลังบาน (Sacred Lotus)",
+    titleEn: "Blooming Sacred Lotus",
+    descTh: "กลีบบัวสีชมพูขาวคลี่บานอย่างสง่างาม เกสรสีทองเรืองแสง สัญลักษณ์แห่งปัญญาและการตื่นรู้",
+    iconText: "🪷",
+    badge: "แนะนำสำหรับคณะพุทธศาสตร์",
+    recommended: true,
+  },
+  {
+    id: "ashoka-flower",
+    titleTh: "ดอกอโศกอินเดีย (Ashoka Blossom)",
+    titleEn: "Ashoka Flower Cluster",
+    descTh: "ช่อดอกอโศกสีส้มทองแสด เกสรยื่นยาวพลิ้วไหว สื่อถึงพุทธประวัติและความร่มเย็น",
+    iconText: "🌺",
+    badge: "พุทธประวัติและมงคล",
+    recommended: true,
+  },
+  {
+    id: "dharmachakra",
+    titleTh: "วงล้อธรรมจักรสีทอง (Golden Wheel)",
+    titleEn: "Golden Dharmachakra Motion",
+    descTh: "กงล้อแห่งพระธรรม 8 ซี่ หมุนวนอย่างช้าๆ นุ่มนวล เปล่งประกายแสงฉัพพรรณรังสี",
+    iconText: "☸️",
+  },
+  {
+    id: "bodhi-leaf",
+    titleTh: "ใบโพธิ์ทองแห่งการตรัสรู้ (Bodhi Leaf)",
+    titleEn: "Luminous Bodhi Leaf",
+    descTh: "ใบโพธิ์สีทองพลิ้วไหว เส้นลายใบเรืองแสง สื่อถึงความสงบ สันติ และปัญญา",
+    iconText: "🍃",
+  },
+  {
+    id: "ember",
+    titleTh: "EMBER 3D Ribbon (แบบดั้งเดิม)",
+    titleEn: "EMBER 3D Motion",
+    descTh: "งานศิลป์ 3D ลูป 30 FPS สไตล์ดิจิทัลโมเดิร์นและมินิมอลดั้งเดิม",
+    iconText: "🌀",
+  },
+  {
+    id: "custom",
+    titleTh: "กำหนด URL เอง (Custom Artwork)",
+    titleEn: "Custom URL (WebP/GIF/Video)",
+    descTh: "ระบุลิงก์ไฟล์ WebP, GIF หรือแอนิเมชันของตนเองได้ตามต้องการ",
+    iconText: "🔗",
+  },
+];
+
 interface HeroSettingsTabProps {
   value: HeroSettings;
   onChange: (value: HeroSettings) => void;
@@ -282,12 +339,17 @@ export function HeroSettingsTab({ value, onChange }: HeroSettingsTabProps) {
             </div>
           </div>
 
-          {/* 3D Motion Artwork */}
-          <div className="border-t pt-4 mt-2 space-y-3">
+          {/* 3D & Vector Motion Artwork Presets */}
+          <div className="border-t pt-4 mt-2 space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold">งานศิลป์ 3D Cinematic Motion Artwork</p>
-                <p className="text-xs text-muted-foreground">แอนิเมชัน 3D ลูป 30 FPS สไตล์ EMBER.dsgn</p>
+                <p className="text-sm font-semibold flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  ภาพเคลื่อนไหวและงานศิลป์ Hero Motion (3D & Vector Art)
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  เลือกแอนิเมชันสัญลักษณ์มงคล เช่น ดอกบัวบาน ดอกอโศก หรือ ธรรมจักร สำหรับแสดงใจกลางหน้าเว็บ
+                </p>
               </div>
               <LiyonSwitch
                 checked={value.showMotionArtwork}
@@ -296,23 +358,94 @@ export function HeroSettingsTab({ value, onChange }: HeroSettingsTabProps) {
             </div>
 
             {value.showMotionArtwork && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <LiyonField label="URL ไฟล์ WebP/Animation" hint="ไฟล์หลักที่ใช้เล่นแอนิเมชัน">
-                  <input
-                    type="text"
-                    value={value.motionArtworkUrl ?? ""}
-                    onChange={(e) => update("motionArtworkUrl", e.target.value)}
-                    placeholder="/ember_animation_30fps.webp"
-                  />
-                </LiyonField>
-                <LiyonField label="URL ไฟล์ GIF สำรอง" hint="Fallback สำหรับอุปกรณ์รุ่นเก่า">
-                  <input
-                    type="text"
-                    value={value.motionPreviewUrl ?? ""}
-                    onChange={(e) => update("motionPreviewUrl", e.target.value)}
-                    placeholder="/ember_preview.gif"
-                  />
-                </LiyonField>
+              <div className="space-y-4 pt-1">
+                {/* Motion Preset Selection Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {MOTION_PRESET_OPTIONS.map((opt) => {
+                    const isSelected = (value.motionPreset ?? "lotus-bloom") === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => update("motionPreset", opt.id)}
+                        className={cn(
+                          "relative text-left p-3.5 rounded-xl border transition-all duration-200 flex items-start gap-3.5",
+                          isSelected
+                            ? "bg-primary/5 border-primary shadow-xs ring-1 ring-primary/30"
+                            : "bg-background/80 hover:bg-muted/40 border-border/80"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "w-11 h-11 shrink-0 rounded-lg flex items-center justify-center text-2xl shadow-xs border transition-colors",
+                            isSelected
+                              ? "bg-primary/10 border-primary/40 text-primary"
+                              : "bg-muted/50 border-border text-muted-foreground"
+                          )}
+                        >
+                          {opt.iconText}
+                        </div>
+
+                        <div className="flex-1 min-w-0 pr-6">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-sm leading-tight text-foreground">
+                              {opt.titleTh}
+                            </span>
+                            {opt.badge && (
+                              <span
+                                className={cn(
+                                  "text-[10px] px-2 py-0.5 rounded-full font-medium",
+                                  opt.recommended
+                                    ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300/40"
+                                    : "bg-muted text-muted-foreground"
+                                )}
+                              >
+                                {opt.badge}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
+                            {opt.descTh}
+                          </p>
+                        </div>
+
+                        {isSelected && (
+                          <div className="absolute top-3.5 right-3.5 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-xs">
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* If Custom or Ember, show URL Inputs */}
+                {((value.motionPreset ?? "lotus-bloom") === "custom" ||
+                  (value.motionPreset ?? "lotus-bloom") === "ember") && (
+                  <div className="p-4 rounded-xl border bg-muted/20 space-y-3 animate-in fade-in duration-200">
+                    <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <span>🔗 กำหนด URL ไฟล์แอนิเมชัน</span>
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <LiyonField label="URL ไฟล์ WebP/Animation" hint="ไฟล์หลักที่ใช้เล่นแอนิเมชัน">
+                        <input
+                          type="text"
+                          value={value.motionArtworkUrl ?? ""}
+                          onChange={(e) => update("motionArtworkUrl", e.target.value)}
+                          placeholder="/ember_animation_30fps.webp"
+                        />
+                      </LiyonField>
+                      <LiyonField label="URL ไฟล์ GIF สำรอง" hint="Fallback สำหรับอุปกรณ์รุ่นเก่า">
+                        <input
+                          type="text"
+                          value={value.motionPreviewUrl ?? ""}
+                          onChange={(e) => update("motionPreviewUrl", e.target.value)}
+                          placeholder="/ember_preview.gif"
+                        />
+                      </LiyonField>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

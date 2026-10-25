@@ -13,12 +13,9 @@ import { requireSession, requirePermission } from "@/features/identity/server";
 import { EVENTS_P } from "./permissions";
 import { resolvePublicTenantId } from "@/features/news/server";
 import {
-  getEvents,
-  getEventById,
   createEvent,
   updateEvent,
   deleteEvent,
-  getRegistrations,
   updateRegistrationStatus,
   updateRegistrationRemarks,
   quickCheckInByCode,

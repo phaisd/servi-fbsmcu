@@ -3,7 +3,7 @@ import { auth } from "@/features/identity/server";
 import { resolvePublicTenantId } from "@/features/news/server";
 import { getClasses } from "@/features/attendance/server";
 import { getLocale } from "@/shared/lib/i18n/server";
-import { ClipboardList, BookOpen, Clock, QrCode } from "lucide-react";
+import { ClipboardList, QrCode } from "lucide-react";
 import { StudentAttendanceInquiry } from "./_components/student-attendance-inquiry";
 import { Button } from "@/components/ui/button";
 

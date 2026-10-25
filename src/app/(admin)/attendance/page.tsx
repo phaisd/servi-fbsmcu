@@ -11,12 +11,10 @@ import {
   Lock,
   ArrowRight,
   TrendingUp,
-  FileSpreadsheet,
   GraduationCap,
   Sparkles,
 } from "lucide-react";
 import Link from "next/link";
-import { LiyonCard } from "@/shared/components/liyon";
 
 export default async function AttendanceDashboardPage() {
   const ctx = await requirePermission(ATTENDANCE_P.manage);

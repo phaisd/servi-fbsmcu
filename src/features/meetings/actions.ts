@@ -25,7 +25,6 @@ import {
   meetingBookingSchema,
   createOfficialBookingSchema,
   meetingFormSettingsSchema,
-  type MeetingFormSettings,
 } from "./_internal/validations";
 import type { BookingStatus } from "@/generated/prisma";
 

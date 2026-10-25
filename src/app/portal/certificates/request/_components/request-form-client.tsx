@@ -11,7 +11,6 @@ import {
   Globe,
   MapPin,
   Sparkles,
-  Eye,
   Send,
   AlertTriangle,
   CheckCircle2,
@@ -23,7 +22,6 @@ import {
   UploadCloud,
   GraduationCap,
   Building2,
-  Briefcase,
   Search,
   ChevronDown,
 } from "lucide-react";

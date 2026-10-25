@@ -2,7 +2,7 @@
 "use client";
 
 import React from "react";
-import { Printer, X, Download, FileSpreadsheet, Sparkles, CheckCircle2 } from "lucide-react";
+import { Printer, X, Download, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getCategoryLabel } from "@/app/(admin)/events/_components/events-client";
 

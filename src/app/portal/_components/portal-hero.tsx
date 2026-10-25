@@ -13,6 +13,7 @@ import {
   type TenantSettings,
   type HeroSettings,
 } from "@/features/identity";
+import { HeroMotionArtwork } from "./hero-motions";
 
 interface PortalHeroProps {
   tenantSettings?: TenantSettings | null;
@@ -120,22 +121,12 @@ export function PortalHero({ tenantSettings, locale = "th" }: PortalHeroProps) {
       )}
 
       {/* ══════════════════════════════════════════════════════════════
-          CINEMATIC 3D MOTION ARTWORK (Exact EMBER.dsgn Animation Loop)
-          30 FPS buttery smooth animation from MotionSites AI
+          CINEMATIC 3D / BUDDHIST ART MOTION LAYER
+          (Lotus Bloom / Ashoka Flower / Dharmachakra / Bodhi Leaf / EMBER)
          ══════════════════════════════════════════════════════════════ */}
       {hero.showMotionArtwork && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 overflow-hidden">
-          <picture className="w-full h-full flex items-center justify-center">
-            <source
-              srcSet={hero.motionArtworkUrl?.trim() || "/ember_animation_30fps.webp"}
-              type="image/webp"
-            />
-            <img
-              src={hero.motionPreviewUrl?.trim() || "/ember_preview.gif"}
-              alt="EMBER.dsgn 3D Creative Designer Motion"
-              className="w-full h-full object-cover lg:object-contain object-center scale-[1.01] transition-transform duration-700"
-            />
-          </picture>
+          <HeroMotionArtwork hero={hero} />
           {/* Soft edge feathering so the animation seamlessly melds with full-bleed viewports */}
           <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-[#b7bbc2] to-transparent pointer-events-none hidden xl:block" />
           <div className="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-[#dadde2] to-transparent pointer-events-none hidden xl:block" />

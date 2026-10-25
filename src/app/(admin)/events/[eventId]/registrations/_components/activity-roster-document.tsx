@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Printer, X, Download, Filter } from "lucide-react";
+import { Printer, X, Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface AttendeeItem {

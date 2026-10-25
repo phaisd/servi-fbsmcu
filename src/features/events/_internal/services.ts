@@ -2,7 +2,6 @@ import "server-only";
 import { prisma as db } from "@/shared/lib/infra/prisma";
 import { writeAudit } from "@/features/identity/server";
 import { RegistrationStatus } from "@/generated/prisma";
-import type { Prisma } from "@/generated/prisma";
 
 export async function getEvents(tenantId: string) {
   const events = await db.event.findMany({

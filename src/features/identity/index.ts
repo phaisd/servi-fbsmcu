@@ -14,6 +14,7 @@ export type {
   FontSizePreference,
   HeroSettings,
   HeroTypographySize,
+  HeroMotionPreset,
   HeroTextTone,
   HeroNavLink,
   HeroSocialLink,
@@ -29,6 +30,7 @@ export type {
 export {
   FONT_SIZES,
   HERO_TYPOGRAPHY_SIZES,
+  HERO_MOTION_PRESETS,
   DEFAULT_HERO_SETTINGS,
   DEFAULT_SERVICES_SECTION_SETTINGS,
   DEFAULT_NEWS_SECTION_SETTINGS,

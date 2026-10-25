@@ -1,4 +1,4 @@
-/* eslint-disable @next/next/no-img-element */
+ 
 "use client";
 
 import * as React from "react";
@@ -12,23 +12,16 @@ import {
   ArrowLeft,
   CheckCircle2,
   AlertCircle,
-  HelpCircle,
   Layers,
-  Calendar,
   Building2,
-  GraduationCap,
-  Clock,
-  Trash2,
-  Eye,
   Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { LiyonCard, StatusPill } from "@/shared/components/liyon";
+import { LiyonCard } from "@/shared/components/liyon";
 import { toast } from "sonner";
 import { batchImportTimetablesAction } from "@/features/curriculum/actions";
 import {
   TimetableGridView,
-  type TimetableData,
   type TimetableSlot,
 } from "@/features/curriculum/_components/timetable-grid-view";
 import type { Curriculum, Department } from "@/generated/prisma";
@@ -157,7 +150,7 @@ export function BatchImportExportClient({
     if (!val || !val.trim()) return fallback;
     const clean = val.trim().replace(":", ".");
     const parts = clean.split(".");
-    let h = parseInt(parts[0], 10);
+    const h = parseInt(parts[0], 10);
     if (isNaN(h)) return fallback;
     const hStr = h < 10 ? `0${h}` : `${h}`;
     let mStr = "00";

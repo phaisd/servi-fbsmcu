@@ -11,13 +11,9 @@ import {
   Award,
   Sparkles,
   QrCode,
-  Users,
   Search,
-  ExternalLink,
   ChevronRight,
-  UserCheck,
   FileText,
-  Filter,
   Printer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";

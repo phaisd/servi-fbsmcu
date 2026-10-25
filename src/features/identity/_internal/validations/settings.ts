@@ -19,6 +19,16 @@ export const heroSocialLinkSchema = z.object({
 export const HERO_TYPOGRAPHY_SIZES = ["giant", "large", "medium", "small"] as const;
 export type HeroTypographySize = (typeof HERO_TYPOGRAPHY_SIZES)[number];
 
+export const HERO_MOTION_PRESETS = [
+  "lotus-bloom",
+  "ashoka-flower",
+  "dharmachakra",
+  "bodhi-leaf",
+  "ember",
+  "custom",
+] as const;
+export type HeroMotionPreset = (typeof HERO_MOTION_PRESETS)[number];
+
 export const heroSettingsSchema = z.object({
   enabled: z.boolean().default(true),
   layout: z.enum(["center-motion", "split", "minimal"]).default("center-motion"),
@@ -29,6 +39,7 @@ export const heroSettingsSchema = z.object({
   bgModeDefault: z.enum(["subtle", "vivid", "minimal", "hidden"]).default("subtle"),
   showBgToggle: z.boolean().default(true),
   showMotionArtwork: z.boolean().default(true),
+  motionPreset: z.enum(HERO_MOTION_PRESETS).optional().default("lotus-bloom"),
   motionArtworkUrl: z.string().optional().default(""),
   motionPreviewUrl: z.string().optional().default(""),
   topTypography: z.object({
@@ -451,6 +462,7 @@ export const DEFAULT_HERO_SETTINGS: HeroSettings = {
   bgModeDefault: "subtle",
   showBgToggle: true,
   showMotionArtwork: true,
+  motionPreset: "lotus-bloom",
   motionArtworkUrl: "/ember_animation_30fps.webp",
   motionPreviewUrl: "/ember_preview.gif",
   topTypography: {

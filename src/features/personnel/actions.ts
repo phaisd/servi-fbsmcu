@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { requireSession, requirePermission } from "@/features/identity/server";
 import { PERSONNEL_P } from "./permissions";
 import {
@@ -8,6 +9,8 @@ import {
   deleteDepartment,
   createPersonnel,
   updatePersonnel,
+  updatePersonnelOrder,
+  reorderPersonnelBatch,
   deletePersonnel,
   createResearchPublication,
   updateResearchPublication,
@@ -90,4 +93,24 @@ export async function importPersonnelBatchAction(items: ImportPersonnelItem[]) {
   const session = await requireSession();
   await requirePermission(PERSONNEL_P.manage);
   return importPersonnelBatch(session.tenantId, session.userId, items);
+}
+
+export async function updatePersonnelOrderAction(id: string, newOrder: number) {
+  const session = await requireSession();
+  await requirePermission(PERSONNEL_P.manage);
+  const result = await updatePersonnelOrder(session.tenantId, session.userId, id, newOrder);
+  revalidatePath("/personnel");
+  revalidatePath("/portal/personnel");
+  revalidatePath("/portal/departments/buddhism");
+  return result;
+}
+
+export async function reorderPersonnelBatchAction(items: { id: string; orderIndex: number }[]) {
+  const session = await requireSession();
+  await requirePermission(PERSONNEL_P.manage);
+  const result = await reorderPersonnelBatch(session.tenantId, session.userId, items);
+  revalidatePath("/personnel");
+  revalidatePath("/portal/personnel");
+  revalidatePath("/portal/departments/buddhism");
+  return result;
 }

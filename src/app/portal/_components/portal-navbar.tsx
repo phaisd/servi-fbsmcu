@@ -17,7 +17,6 @@ import {
   Settings as SettingsIcon,
   PhoneCall,
   KeyRound,
-  GraduationCap,
   Clock,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
@@ -114,6 +113,7 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
   const configuredServices = servicesConfig?.items?.filter((s) => s.enabled !== false);
 
   const defaultServiceItems = [
+    { label: locale === "th" ? "ภาควิชาพระพุทธศาสนา" : "Department of Buddhism", href: "/portal/departments/buddhism" },
     { label: locale === "th" ? "เวลาเรียน & ลงทะเบียนวิชา" : "Class Attendance & Enroll", href: "/portal/attendance" },
     { label: locale === "th" ? "หลักสูตรการศึกษา" : "Curriculums", href: "/portal/programs" },
     { label: locale === "th" ? "ตารางเรียน / ตารางสอน" : "Class Timetables", href: "/portal/timetables" },

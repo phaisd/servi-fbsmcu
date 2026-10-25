@@ -11,9 +11,6 @@ import {
   ArrowRight,
   UserCheck,
   RefreshCw,
-  QrCode,
-  GraduationCap,
-  Building,
   RotateCcw,
 } from "lucide-react";
 import { publicSelfCheckInEventAction } from "@/features/events/actions";

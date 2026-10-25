@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateUploadFile, checkMagicBytes } from "./file-validation";
+import { validateUploadFile } from "./file-validation";
 
 describe("file-validation security", () => {
   it("rejects dangerous executable and script extensions", () => {

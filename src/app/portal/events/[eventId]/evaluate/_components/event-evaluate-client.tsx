@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
-  Star,
   CheckCircle2,
   AlertCircle,
   Calendar,
@@ -11,10 +10,7 @@ import {
   Sparkles,
   Award,
   Send,
-  ArrowRight,
-  User,
   MessageSquare,
-  Building,
 } from "lucide-react";
 import { submitEventEvaluationAction } from "@/features/events/actions";
 import { toast } from "sonner";

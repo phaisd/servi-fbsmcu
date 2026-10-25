@@ -19,17 +19,13 @@ import {
   Unlock,
   ShieldCheck,
   AlertTriangle,
-  FileText,
   QrCode,
   Hourglass,
   RefreshCw,
-  Sparkles,
   Radio,
-  ExternalLink,
 } from "lucide-react";
 import {
   LiyonCard,
-  StatusPill,
   LiyonDialog,
   LiyonDialogHeader,
   LiyonDialogBody,
@@ -41,8 +37,6 @@ import {
   batchSaveAttendanceAction,
   lockSessionAction,
   unlockSessionAction,
-  generateRollingQrTokenAction,
-  getSessionScannedStudentsAction,
 } from "@/features/attendance/actions";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";

@@ -25,6 +25,9 @@ import {
   Check,
   AlertCircle,
   Sparkles,
+  ChevronUp,
+  ChevronDown,
+  ArrowUpDown,
 } from "lucide-react";
 import { useT } from "@/shared/lib/i18n/client";
 import {
@@ -41,6 +44,8 @@ import { Button } from "@/components/ui/button";
 import {
   createPersonnelAction,
   updatePersonnelAction,
+  updatePersonnelOrderAction,
+  reorderPersonnelBatchAction,
   deletePersonnelAction,
   createResearchPublicationAction,
   deleteResearchPublicationAction,
@@ -338,6 +343,93 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
         router.refresh();
       } catch (err: unknown) {
         toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการลบ");
+      }
+    });
+  };
+
+  // ─────────────────────────────────────────────────────────
+  // Reorder Personnel Handlers (Inline & Up/Down)
+  // ─────────────────────────────────────────────────────────
+  const handleUpdateOrder = (id: string, newOrder: number) => {
+    const target = items.find((p) => p.id === id);
+    if (!target) return;
+    const cleanOrder = Math.max(0, Math.floor(newOrder));
+    if (target.orderIndex === cleanOrder) return;
+
+    // Optimistic UI update
+    setItems((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, orderIndex: cleanOrder } : p))
+    );
+
+    startTransition(async () => {
+      try {
+        await updatePersonnelOrderAction(id, cleanOrder);
+        const name = `${target.academicPosition ? `${target.academicPosition} ` : ""}${target.firstNameTh} ${target.lastNameTh}`.trim();
+        toast.success(`เปลี่ยนลำดับของ "${name}" เป็น ${cleanOrder} เรียบร้อยแล้ว`);
+        router.refresh();
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการเปลี่ยนลำดับ");
+        // Revert on error
+        setItems((prev) =>
+          prev.map((p) => (p.id === id ? { ...p, orderIndex: target.orderIndex } : p))
+        );
+      }
+    });
+  };
+
+  const handleMoveOrder = (id: string, direction: -1 | 1) => {
+    const currentIndex = filteredItems.findIndex((p) => p.id === id);
+    if (currentIndex === -1) return;
+    const targetIndex = currentIndex + direction;
+    if (targetIndex < 0 || targetIndex >= filteredItems.length) return;
+
+    const currentItem = filteredItems[currentIndex];
+    const targetItem = filteredItems[targetIndex];
+
+    let currentNewOrder: number;
+    let targetNewOrder: number;
+
+    if (currentItem.orderIndex !== targetItem.orderIndex) {
+      currentNewOrder = targetItem.orderIndex;
+      targetNewOrder = currentItem.orderIndex;
+    } else {
+      if (direction === -1) {
+        currentNewOrder = Math.max(0, currentItem.orderIndex - 1);
+        targetNewOrder = currentItem.orderIndex;
+      } else {
+        currentNewOrder = currentItem.orderIndex + 1;
+        targetNewOrder = currentItem.orderIndex;
+      }
+    }
+
+    // Optimistic update
+    setItems((prev) =>
+      prev.map((p) => {
+        if (p.id === currentItem.id) return { ...p, orderIndex: currentNewOrder };
+        if (p.id === targetItem.id) return { ...p, orderIndex: targetNewOrder };
+        return p;
+      })
+    );
+
+    startTransition(async () => {
+      try {
+        await reorderPersonnelBatchAction([
+          { id: currentItem.id, orderIndex: currentNewOrder },
+          { id: targetItem.id, orderIndex: targetNewOrder },
+        ]);
+        const name = `${currentItem.academicPosition ? `${currentItem.academicPosition} ` : ""}${currentItem.firstNameTh} ${currentItem.lastNameTh}`.trim();
+        toast.success(`ปรับลำดับ "${name}" ${direction === -1 ? "ขึ้น" : "ลง"} เรียบร้อยแล้ว`);
+        router.refresh();
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการปรับลำดับ");
+        // Revert on error
+        setItems((prev) =>
+          prev.map((p) => {
+            if (p.id === currentItem.id) return { ...p, orderIndex: currentItem.orderIndex };
+            if (p.id === targetItem.id) return { ...p, orderIndex: targetItem.orderIndex };
+            return p;
+          })
+        );
       }
     });
   };
@@ -674,29 +766,36 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
   };
 
   // ─────────────────────────────────────────────────────────
-  // Filtered Items
+  // Filtered Items (Sorted by orderIndex strictly)
   // ─────────────────────────────────────────────────────────
-  const filteredItems = items.filter((item) => {
-    const q = search.toLowerCase().trim();
-    const fullNameTh = `${item.firstNameTh} ${item.lastNameTh}`.toLowerCase();
-    const fullNameEn = `${item.firstNameEn || ""} ${item.lastNameEn || ""}`.toLowerCase();
-    const posTh = (item.positionTh || "").toLowerCase();
-    const acadPos = (item.academicPosition || "").toLowerCase();
-    const deptName = (item.department?.nameTh || "").toLowerCase();
+  const filteredItems = items
+    .filter((item) => {
+      const q = search.toLowerCase().trim();
+      const fullNameTh = `${item.firstNameTh} ${item.lastNameTh}`.toLowerCase();
+      const fullNameEn = `${item.firstNameEn || ""} ${item.lastNameEn || ""}`.toLowerCase();
+      const posTh = (item.positionTh || "").toLowerCase();
+      const acadPos = (item.academicPosition || "").toLowerCase();
+      const deptName = (item.department?.nameTh || "").toLowerCase();
 
-    const matchesSearch =
-      !q ||
-      fullNameTh.includes(q) ||
-      fullNameEn.includes(q) ||
-      posTh.includes(q) ||
-      acadPos.includes(q) ||
-      deptName.includes(q);
+      const matchesSearch =
+        !q ||
+        fullNameTh.includes(q) ||
+        fullNameEn.includes(q) ||
+        posTh.includes(q) ||
+        acadPos.includes(q) ||
+        deptName.includes(q);
 
-    const matchesType = typeFilter === "ALL" || item.type === typeFilter;
-    const matchesDept = deptFilter === "ALL" || item.departmentId === deptFilter;
+      const matchesType = typeFilter === "ALL" || item.type === typeFilter;
+      const matchesDept = deptFilter === "ALL" || item.departmentId === deptFilter;
 
-    return matchesSearch && matchesType && matchesDept;
-  });
+      return matchesSearch && matchesType && matchesDept;
+    })
+    .sort((a, b) => {
+      const orderA = a.orderIndex ?? 0;
+      const orderB = b.orderIndex ?? 0;
+      if (orderA !== orderB) return orderA - orderB;
+      return a.firstNameTh.localeCompare(b.firstNameTh, "th");
+    });
 
   const totalResearchCount = items.reduce(
     (acc, item) => acc + (item.researchPublications?.length || 0),
@@ -842,6 +941,7 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
           <table className="w-full text-left text-sm">
             <thead className="bg-muted/40 text-muted-foreground border-b border-border text-xs uppercase font-medium">
               <tr>
+                <th className="py-3 px-3 text-center w-28">ลำดับ</th>
                 <th className="py-3 px-4">ชื่อ - นามสกุล / คณาจารย์</th>
                 <th className="py-3 px-4">ตำแหน่งและหน้าที่</th>
                 <th className="py-3 px-4">ภาควิชา / สังกัด</th>
@@ -854,17 +954,74 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
             <tbody className="divide-y divide-border/60">
               {filteredItems.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={8} className="py-12 text-center text-muted-foreground">
                     ไม่พบข้อมูลบุคลากรที่ตรงกับเงื่อนไขการค้นหา
                   </td>
                 </tr>
               ) : (
-                filteredItems.map((item) => {
+                filteredItems.map((item, index) => {
                   const researchCount = item.researchPublications?.length || 0;
                   const fullName = `${item.firstNameTh} ${item.lastNameTh}`.trim();
 
                   return (
                     <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                      {/* Order Column (Inline Reorder) */}
+                      <td className="py-3 px-3 text-center">
+                        <div className="inline-flex items-center justify-center gap-1">
+                          {canManage ? (
+                            <>
+                              <div className="flex flex-col -space-y-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveOrder(item.id, -1)}
+                                  disabled={isPending || index === 0}
+                                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-primary disabled:opacity-20 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                                  title="เลื่อนขึ้น (ย้ายไปลำดับก่อนหน้า)"
+                                >
+                                  <ChevronUp className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveOrder(item.id, 1)}
+                                  disabled={isPending || index === filteredItems.length - 1}
+                                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-primary disabled:opacity-20 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                                  title="เลื่อนลง (ย้ายไปลำดับถัดไป)"
+                                >
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                              <input
+                                type="number"
+                                min="1"
+                                defaultValue={item.orderIndex || 0}
+                                key={`${item.id}-${item.orderIndex}`}
+                                onBlur={(e) => {
+                                  const val = parseInt(e.target.value, 10);
+                                  if (!isNaN(val) && val !== item.orderIndex) {
+                                    handleUpdateOrder(item.id, val);
+                                  }
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") {
+                                    const val = parseInt((e.target as HTMLInputElement).value, 10);
+                                    if (!isNaN(val) && val !== item.orderIndex) {
+                                      handleUpdateOrder(item.id, val);
+                                    }
+                                    (e.target as HTMLInputElement).blur();
+                                  }
+                                }}
+                                className="w-12 h-7 text-center text-xs font-semibold rounded border border-input bg-background focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                title="พิมพ์ตัวเลขลำดับ แล้วกด Enter หรือคลิกด้านนอกเพื่อบันทึก"
+                              />
+                            </>
+                          ) : (
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded bg-muted/60 text-muted-foreground">
+                              {item.orderIndex || "-"}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
                       <td className="py-3 px-4">
                         <div className="flex items-start gap-3">
                           <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0 text-sm overflow-hidden border border-primary/20">
@@ -888,7 +1045,14 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
                                   {item.academicPosition}
                                 </span>
                               )}
-                              <span>{fullName}</span>
+                              <Link
+                                href={`/portal/personnel/${item.id}`}
+                                target="_blank"
+                                className="hover:text-primary transition-colors cursor-pointer"
+                                title="เปิดดูหน้าโปรไฟล์อาจารย์ฉบับเต็ม"
+                              >
+                                {fullName}
+                              </Link>
                             </div>
                             {(item.firstNameEn || item.lastNameEn) && (
                               <p className="text-xs text-muted-foreground">
@@ -1005,11 +1169,11 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
                             </>
                           )}
                           <Link
-                            href="/portal/personnel"
+                            href={`/portal/personnel/${item.id}`}
                             target="_blank"
                             rel="noreferrer"
                             className="h-8 w-8 inline-flex items-center justify-center text-muted-foreground hover:text-primary"
-                            title="เปิดดูในพอร์ทัล"
+                            title="เปิดดูหน้าโปรไฟล์อาจารย์ฉบับเต็ม (Full Profile)"
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
                           </Link>

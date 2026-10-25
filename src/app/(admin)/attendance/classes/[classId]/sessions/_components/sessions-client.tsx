@@ -15,7 +15,6 @@ import {
   Users,
   CalendarCheck,
   Ban,
-  ExternalLink,
   GraduationCap,
   Award,
 } from "lucide-react";

@@ -5,13 +5,11 @@ import { useRouter } from "next/navigation";
 import {
   Calendar,
   Clock,
-  Users,
   Search,
   Filter,
   CheckCircle2,
   XCircle,
   AlertCircle,
-  Eye,
   Printer,
   Edit3,
   Trash2,
@@ -19,10 +17,7 @@ import {
   Loader2,
   Sparkles,
   FileText,
-  MapPin,
   Check,
-  Building2,
-  ChevronRight,
   PenTool,
   RotateCcw,
   Save,
@@ -34,11 +29,10 @@ import {
   ZoomOut,
   CalendarDays,
 } from "lucide-react";
-import type { MeetingBooking, MeetingRoom, User, BookingStatus } from "@/generated/prisma";
+import type { MeetingBooking, MeetingRoom, User } from "@/generated/prisma";
 import {
   MeetingBookingA4Document,
   parseBookingRemark,
-  type MeetingBookingMetadata,
   type MeetingFormSettings,
 } from "@/features/meetings";
 import {

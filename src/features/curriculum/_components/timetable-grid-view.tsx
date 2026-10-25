@@ -8,8 +8,6 @@ import {
   Clock,
   MapPin,
   GraduationCap,
-  Info,
-  Building2,
   BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";

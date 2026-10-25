@@ -5,12 +5,8 @@ import {
   Search,
   User,
   GraduationCap,
-  Calendar,
   Clock,
-  CheckCircle2,
   AlertTriangle,
-  XCircle,
-  HelpCircle,
   ChevronDown,
   ChevronUp,
   BookOpen,
@@ -18,9 +14,7 @@ import {
   ShieldCheck,
   TrendingUp,
   MapPin,
-  FileSpreadsheet,
   Plus,
-  Sparkles,
 } from "lucide-react";
 import {
   LiyonCard,

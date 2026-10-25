@@ -16,7 +16,6 @@ import {
   Edit2,
   Trash2,
   Tv,
-  CheckCircle2,
   Filter,
   FileText,
 } from "lucide-react";

@@ -4,7 +4,10 @@ import { getLocale } from "@/shared/lib/i18n/server";
 import { Users } from "lucide-react";
 import { PortalPersonnelClient } from "./_components/portal-personnel-client";
 
-export default async function PublicPersonnelPage() {
+export default async function PublicPersonnelPage(props: {
+  searchParams?: Promise<{ dept?: string; view?: string }>;
+}) {
+  const searchParams = props.searchParams ? await props.searchParams : undefined;
   const locale = await getLocale();
   const tenantId = await resolvePublicTenantId();
   const items = await getPublicPersonnelList(tenantId);
@@ -21,12 +24,17 @@ export default async function PublicPersonnelPage() {
         </h1>
         <p className="text-sm text-muted-foreground mt-2 max-w-3xl leading-relaxed">
           {locale === "th"
-            ? "รวมรายนามคณาจารย์ประจำหลักสูตร ผู้ทรงคุณวุฒิด้านพระไตรปิฎกศึกษา ปรัชญา และศาสนาเปรียบเทียบ พร้อมประวัติการศึกษา ประสบการณ์สอน และผลงานวิจัยตีพิมพ์ในวารสารระดับชาติ (TCI)"
-            : "Directory of academic faculty and personnel of the Faculty of Buddhism, including academic background, teaching experience, and published research articles."}
+            ? "รวมรายนามคณาจารย์ประจำหลักสูตร ผู้ทรงคุณวุฒิด้านพระไตรปิฎกศึกษา ปรัชญา และศาสนาเปรียบเทียบ พร้อมประวัติการศึกษา ประสบการณ์สอน และคลังผลงานวิจัยตีพิมพ์ในวารสารระดับชาติ (TCI) จำแนกตามปี พ.ศ."
+            : "Directory of academic faculty and personnel of the Faculty of Buddhism, including academic background, teaching experience, and published research articles categorized by academic year."}
         </p>
       </div>
 
-      <PortalPersonnelClient items={items} locale={locale} />
+      <PortalPersonnelClient
+        items={items}
+        locale={locale}
+        initialDept={searchParams?.dept}
+        initialView={searchParams?.view}
+      />
     </div>
   );
 }

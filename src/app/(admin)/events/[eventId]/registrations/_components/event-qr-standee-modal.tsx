@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from "react";
 import QRCode from "qrcode";
-import { Printer, X, Download, Smartphone, QrCode, Sparkles } from "lucide-react";
+import { Printer, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface EventData {
