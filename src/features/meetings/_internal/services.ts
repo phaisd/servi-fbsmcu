@@ -545,3 +545,21 @@ export async function updateMeetingFormSettings(
 
   return valid;
 }
+
+
+export async function getPublicCalendarBookings(tenantId: string) {
+  await ensureMeetingDefaults(tenantId);
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  sixMonthsAgo.setHours(0, 0, 0, 0);
+
+  return db.meetingBooking.findMany({
+    where: {
+      tenantId,
+      status: { in: ["APPROVED", "PENDING"] },
+      startTime: { gte: sixMonthsAgo },
+    },
+    include: { room: true, requester: true },
+    orderBy: { startTime: "asc" },
+  });
+}

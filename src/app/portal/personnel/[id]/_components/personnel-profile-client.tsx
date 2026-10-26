@@ -84,9 +84,10 @@ interface PersonnelDetail {
 interface Props {
   person: PersonnelDetail;
   locale: string;
+  publicationYearsLimit?: number;
 }
 
-export function PersonnelProfileClient({ person, locale }: Props) {
+export function PersonnelProfileClient({ person, locale: _locale, publicationYearsLimit = 5 }: Props) {
   const [activeTab, setActiveTab] = useState<"teaching" | "research" | "education" | "honors">("teaching");
 
   // Teaching Courses Filter State
@@ -164,8 +165,32 @@ export function PersonnelProfileClient({ person, locale }: Props) {
     });
   }, [teachingCourses, courseSearch, selectedLevel, selectedCourseYear]);
 
-  // Publications
-  const publications = person.researchPublications || [];
+  // Publications (normalize Thai digits & apply publicationYearsLimit from Admin)
+  const publications = useMemo(() => {
+    const rawPublications = person.researchPublications || [];
+    const normalizePubYr = (raw?: string | null) => {
+      if (!raw) return "ไม่ระบุปี";
+      const thaiDigits = ["๐", "๑", "๒", "๓", "๔", "๕", "๖", "๗", "๘", "๙"];
+      let str = raw;
+      for (let i = 0; i < 10; i++) str = str.replaceAll(thaiDigits[i], String(i));
+      const m = str.match(/\b(25\d{2}|20\d{2})\b/);
+      return m ? m[1] : raw.trim() || "ไม่ระบุปี";
+    };
+    const withNorm = rawPublications.map((p) => {
+      const norm = normalizePubYr(p.publicationYear);
+      const yrNum = /^25\d{2}$/.test(norm)
+        ? parseInt(norm, 10)
+        : /^20\d{2}$/.test(norm)
+        ? parseInt(norm, 10) + 543
+        : null;
+      return { ...p, publicationYear: p.publicationYear || norm, _normYear: norm, _yrNum: yrNum };
+    });
+    if (!publicationYearsLimit || publicationYearsLimit <= 0) return withNorm;
+    const maxYr = Math.max(2569, ...withNorm.map((x) => x._yrNum || 0));
+    const minYr = maxYr - publicationYearsLimit + 1;
+    return withNorm.filter((x) => x._yrNum !== null && x._yrNum >= minYr);
+  }, [person.researchPublications, publicationYearsLimit]);
+
   const availablePubYears = useMemo(() => {
     const set = new Set(publications.map((p) => p.publicationYear || "ไม่ระบุปี"));
     return Array.from(set).sort((a, b) => {
@@ -967,7 +992,7 @@ export function PersonnelProfileClient({ person, locale }: Props) {
                 <span>ตำแหน่งทางบริหารและคณะสงฆ์</span>
               </h3>
 
-              {person.experiencesTh ? (
+              {person.experiencesTh && !person.experiencesTh.trim().startsWith("[") && !person.experiencesTh.trim().startsWith("{") ? (
                 <div className="space-y-2.5">
                   {person.experiencesTh.split("\n").map((line, idx) => {
                     const isSangha = line.includes("คณะสงฆ์") || line.includes("วัด");

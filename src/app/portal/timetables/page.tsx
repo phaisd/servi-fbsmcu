@@ -3,6 +3,7 @@ import {
   getPublicTimetables,
   getPublicCurriculums,
   getDepartments,
+  getTimetablePeriods,
 } from "@/features/curriculum/server";
 import { getLocale } from "@/shared/lib/i18n/server";
 import { TimetablesPortalClient } from "./_components/timetables-portal-client";
@@ -13,10 +14,11 @@ export default async function PublicTimetablesPage() {
   const locale = await getLocale();
   const tenantId = await resolvePublicTenantId();
 
-  const [timetables, curriculums, departments] = await Promise.all([
+  const [timetables, curriculums, departments, periods] = await Promise.all([
     getPublicTimetables(tenantId),
     getPublicCurriculums(tenantId),
     getDepartments(tenantId),
+    getTimetablePeriods(tenantId),
   ]);
 
   return (
@@ -24,6 +26,7 @@ export default async function PublicTimetablesPage() {
       initialItems={timetables}
       curriculums={curriculums}
       departments={departments}
+      periods={periods}
       locale={locale}
     />
   );

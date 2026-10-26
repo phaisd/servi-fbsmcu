@@ -1,3 +1,4 @@
+import type { Prisma } from "@/generated/prisma";
 import { prisma, type Db } from "@/shared/lib/infra/prisma";
 
 export interface AuditEntry {
@@ -39,7 +40,7 @@ export async function getAuditLogs(
   const pageSize = Math.min(100, Math.max(10, options.pageSize || 25));
   const skip = (page - 1) * pageSize;
 
-  const where: any = { tenantId };
+  const where: Prisma.AuditLogWhereInput = { tenantId };
 
   if (options.entity && options.entity !== "ALL") {
     where.entity = options.entity;

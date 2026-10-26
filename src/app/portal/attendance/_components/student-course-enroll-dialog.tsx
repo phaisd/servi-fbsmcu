@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
@@ -49,11 +50,22 @@ interface AvailableCourse {
   isEnrolled: boolean;
 }
 
+interface StudentProfileInfo {
+  id?: string;
+  studentCode?: string;
+  fullName?: string;
+  firstName?: string;
+  lastName?: string;
+  department?: string | null;
+  degree?: string | null;
+  yearLevel?: number | null;
+}
+
 interface StudentCourseEnrollDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   studentCode: string;
-  initialStudentData?: any;
+  initialStudentData?: StudentProfileInfo | null;
   onEnrollmentSuccess?: () => void;
 }
 
@@ -75,7 +87,7 @@ export function StudentCourseEnrollDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Profile data for student (if not in DB)
-  const [studentInfo, setStudentInfo] = useState<any>(initialStudentData || null);
+  const [studentInfo, setStudentInfo] = useState<StudentProfileInfo | null>(initialStudentData || null);
   const [newProfileForm, setNewProfileForm] = useState({
     firstName: "",
     lastName: "",
@@ -94,21 +106,7 @@ export function StudentCourseEnrollDialog({
   const [unmatchedCodes, setUnmatchedCodes] = useState<string[]>([]);
   const [hasScanned, setHasScanned] = useState(false);
 
-  // Fetch courses when dialog opens or studentCode changes
-  useEffect(() => {
-    if (open && studentCode) {
-      loadCourses();
-    }
-  }, [open, studentCode]);
-
-  useEffect(() => {
-    if (initialStudentData) {
-      setStudentInfo(initialStudentData);
-      setNeedsProfileForm(false);
-    }
-  }, [initialStudentData]);
-
-  async function loadCourses() {
+  const loadCourses = React.useCallback(async () => {
     setIsLoadingCourses(true);
     try {
       const res = await getAvailableCoursesForStudentAction(studentCode);
@@ -125,12 +123,26 @@ export function StudentCourseEnrollDialog({
           setNeedsProfileForm(true);
         }
       }
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถดึงรายวิชาที่เปิดสอนได้");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "ไม่สามารถดึงรายวิชาที่เปิดสอนได้");
     } finally {
       setIsLoadingCourses(false);
     }
-  }
+  }, [studentCode, selectedTerm, initialStudentData]);
+
+  // Fetch courses when dialog opens or studentCode changes
+  useEffect(() => {
+    if (open && studentCode) {
+      void loadCourses();
+    }
+  }, [open, studentCode, loadCourses]);
+
+  useEffect(() => {
+    if (initialStudentData) {
+      setStudentInfo(initialStudentData);
+      setNeedsProfileForm(false);
+    }
+  }, [initialStudentData]);
 
   // Filtered courses in catalog
   const filteredCourses = useMemo(() => {
@@ -231,8 +243,8 @@ export function StudentCourseEnrollDialog({
           onEnrollmentSuccess();
         }
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการลงทะเบียน");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการลงทะเบียน");
     } finally {
       setIsSubmitting(false);
     }

@@ -16,6 +16,8 @@ import {
   MapPin,
   X,
   FileSpreadsheet,
+  Settings,
+  BookOpen,
 } from "lucide-react";
 import { useT } from "@/shared/lib/i18n/client";
 import {
@@ -42,22 +44,32 @@ import {
   TimetableGridView,
   type TimetableData,
   type TimetableSlot,
+  type TimetablePeriodConfig,
+  DEFAULT_TIMETABLE_PERIODS,
 } from "@/features/curriculum/_components/timetable-grid-view";
-import type { Curriculum, Department } from "@/generated/prisma";
+import { TimetablePeriodsEditor } from "@/features/curriculum/_components/timetable-periods-editor";
+import type { Curriculum, Department, MasterCourse } from "@/generated/prisma";
+
+type MasterCourseWithRelations = MasterCourse & {
+  department?: Department | null;
+  curriculum?: Curriculum | null;
+};
 
 type TimetableWithRelations = TimetableData & {
   curriculum?: Curriculum | null;
   department?: Department | null;
   isActive: boolean;
   orderIndex: number;
-  createdAt?: any;
-  updatedAt?: any;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
 };
 
 interface TimetablesAdminClientProps {
-  initialItems: any[];
+  initialItems: TimetableWithRelations[];
   curriculums: Curriculum[];
   departments: Department[];
+  initialPeriods?: TimetablePeriodConfig[];
+  masterCourses?: MasterCourseWithRelations[];
 }
 
 const DAY_OPTIONS = [
@@ -91,11 +103,34 @@ export function TimetablesAdminClient({
   initialItems,
   curriculums: initialCurriculums,
   departments: initialDepartments,
+  initialPeriods,
+  masterCourses = [],
 }: TimetablesAdminClientProps) {
-  const t = useT();
+  const _t = useT();
   const [items, setItems] = React.useState<TimetableWithRelations[]>(initialItems);
   const [curriculums, setCurriculums] = React.useState<Curriculum[]>(initialCurriculums);
   const [departments, setDepartments] = React.useState<Department[]>(initialDepartments);
+  const [periods, setPeriods] = React.useState<TimetablePeriodConfig[]>(
+    initialPeriods && initialPeriods.length > 0 ? initialPeriods : DEFAULT_TIMETABLE_PERIODS
+  );
+  const [isPeriodSettingsOpen, setIsPeriodSettingsOpen] = React.useState(false);
+
+  const dynamicTimePresets = React.useMemo(() => {
+    const configured = periods
+      .filter((p) => p.type === "CLASS")
+      .map((p) => ({
+        label: `${p.labelTh}${p.subLabelTh ? ` - ${p.subLabelTh}` : ""} (${p.startTime} - ${p.endTime})`,
+        start: p.startTime,
+        end: p.endTime,
+      }));
+    const combined = [...configured];
+    STANDARD_TIME_PRESETS.filter((p) => p.start).forEach((std) => {
+      if (!combined.some((c) => c.start === std.start && c.end === std.end)) {
+        combined.push(std);
+      }
+    });
+    return combined;
+  }, [periods]);
   const [search, setSearch] = React.useState("");
   const [filterAcademicYear, setFilterAcademicYear] = React.useState<string>("ALL");
   const [filterSemester, setFilterSemester] = React.useState<string>("ALL");
@@ -183,11 +218,106 @@ export function TimetablesAdminClient({
     instructor: "",
     room: "",
     periodLabel: "เช้า",
+    credits: 3,
+    notes: "",
   });
+
+  // Course Catalog (MasterCourse) picker & autocomplete states
+  const [catalogSearch, setCatalogSearch] = React.useState("");
+  const [isCatalogOpen, setIsCatalogOpen] = React.useState(false);
+  const [catalogMatchOnly, setCatalogMatchOnly] = React.useState(false);
+  const [selectedCatalogCourse, setSelectedCatalogCourse] =
+    React.useState<MasterCourseWithRelations | null>(null);
+  const [activeAutocompleteField, setActiveAutocompleteField] = React.useState<
+    "code" | "name" | null
+  >(null);
+
+  const matchAndSortCourses = React.useCallback(
+    (query: string, filterByContext: boolean) => {
+      const activeCourses = masterCourses.filter((c) => c.isActive !== false);
+      const q = query.trim().toLowerCase();
+
+      const contextFiltered = filterByContext
+        ? activeCourses.filter((c) => {
+            if (formData.curriculumId && c.curriculumId === formData.curriculumId) return true;
+            if (formData.departmentId && c.departmentId === formData.departmentId) return true;
+            return !formData.curriculumId && !formData.departmentId;
+          })
+        : activeCourses;
+
+      const baseList =
+        filterByContext && contextFiltered.length === 0 ? activeCourses : contextFiltered;
+
+      const searched = q
+        ? baseList.filter(
+            (c) =>
+              c.courseCode.toLowerCase().includes(q) ||
+              c.courseCode.replace(/\s+/g, "").toLowerCase().includes(q.replace(/\s+/g, "")) ||
+              c.courseNameTh.toLowerCase().includes(q) ||
+              (c.courseNameEn && c.courseNameEn.toLowerCase().includes(q)) ||
+              (c.instructor && c.instructor.toLowerCase().includes(q)) ||
+              (c.department?.nameTh && c.department.nameTh.toLowerCase().includes(q))
+          )
+        : baseList;
+
+      return [...searched].sort((a, b) => {
+        const aScore =
+          (formData.curriculumId && a.curriculumId === formData.curriculumId ? 2 : 0) +
+          (formData.departmentId && a.departmentId === formData.departmentId ? 1 : 0);
+        const bScore =
+          (formData.curriculumId && b.curriculumId === formData.curriculumId ? 2 : 0) +
+          (formData.departmentId && b.departmentId === formData.departmentId ? 1 : 0);
+        if (bScore !== aScore) return bScore - aScore;
+        return a.courseCode.localeCompare(b.courseCode);
+      });
+    },
+    [masterCourses, formData.curriculumId, formData.departmentId]
+  );
+
+  const catalogResults = React.useMemo(
+    () => matchAndSortCourses(catalogSearch, catalogMatchOnly),
+    [matchAndSortCourses, catalogSearch, catalogMatchOnly]
+  );
+
+  const inlineSuggestions = React.useMemo(() => {
+    if (!activeAutocompleteField) return [];
+    const rawQuery =
+      activeAutocompleteField === "code"
+        ? newSlot.courseCode || ""
+        : newSlot.courseName || "";
+    if (!rawQuery.trim()) return [];
+    return matchAndSortCourses(rawQuery, false).slice(0, 8);
+  }, [activeAutocompleteField, newSlot.courseCode, newSlot.courseName, matchAndSortCourses]);
+
+  const handleSelectCatalogCourse = (course: MasterCourseWithRelations) => {
+    const formattedCourseName =
+      course.courseNameEn &&
+      course.courseNameEn.trim() !== "" &&
+      course.courseNameEn.trim() !== course.courseNameTh.trim()
+        ? `${course.courseNameTh.trim()} (${course.courseNameEn.trim()})`
+        : course.courseNameTh.trim();
+
+    setNewSlot((prev) => ({
+      ...prev,
+      courseCode: course.courseCode,
+      courseName: formattedCourseName,
+      instructor: course.instructor?.trim() || prev.instructor || "",
+      credits: course.credits ?? prev.credits ?? 3,
+      notes: prev.notes?.trim() ? prev.notes : course.notes?.trim() || "",
+    }));
+    setSelectedCatalogCourse(course);
+    setCatalogSearch("");
+    setIsCatalogOpen(false);
+    setActiveAutocompleteField(null);
+    toast.success(`ดึงข้อมูลวิชา "${course.courseCode} ${course.courseNameTh}" จากทะเบียนรายวิชาแล้ว`);
+  };
 
   const openCreateDialog = () => {
     setEditingItem(null);
     setEditingSlotId(null);
+    setSelectedCatalogCourse(null);
+    setCatalogSearch("");
+    setIsCatalogOpen(false);
     setFormData({
       titleTh: "",
       titleEn: "",
@@ -213,6 +343,9 @@ export function TimetablesAdminClient({
   const openEditDialog = (item: TimetableWithRelations) => {
     setEditingItem(item);
     setEditingSlotId(null);
+    setSelectedCatalogCourse(null);
+    setCatalogSearch("");
+    setIsCatalogOpen(false);
     setFormData({
       titleTh: item.titleTh,
       titleEn: item.titleEn || "",
@@ -253,6 +386,8 @@ export function TimetablesAdminClient({
                 instructor: newSlot.instructor?.trim() || "",
                 room: newSlot.room?.trim() || null,
                 periodLabel: newSlot.periodLabel?.trim() || null,
+                credits: newSlot.credits ? Number(newSlot.credits) : null,
+                notes: newSlot.notes?.trim() || null,
               }
             : s
         ),
@@ -272,6 +407,8 @@ export function TimetablesAdminClient({
         instructor: newSlot.instructor?.trim() || "",
         room: newSlot.room?.trim() || null,
         periodLabel: newSlot.periodLabel?.trim() || null,
+        credits: newSlot.credits ? Number(newSlot.credits) : null,
+        notes: newSlot.notes?.trim() || null,
       };
 
       setFormData((prev) => ({
@@ -283,17 +420,26 @@ export function TimetablesAdminClient({
     }
 
     // Reset slot input
+    setSelectedCatalogCourse(null);
+    setCatalogSearch("");
     setNewSlot((prev) => ({
       ...prev,
       courseCode: "",
       courseName: "",
       instructor: "",
       room: "",
+      credits: 3,
+      notes: "",
     }));
   };
 
   const handleStartEditSlot = (slot: TimetableSlot) => {
     setEditingSlotId(slot.id);
+    const matchedMaster =
+      masterCourses.find(
+        (c) => c.courseCode.trim().toLowerCase() === slot.courseCode.trim().toLowerCase()
+      ) || null;
+    setSelectedCatalogCourse(matchedMaster);
     setNewSlot({
       dayOfWeek: slot.dayOfWeek,
       startTime: slot.startTime,
@@ -303,17 +449,23 @@ export function TimetablesAdminClient({
       instructor: slot.instructor || "",
       room: slot.room || "",
       periodLabel: slot.periodLabel || "เช้า",
+      credits: slot.credits ?? matchedMaster?.credits ?? 3,
+      notes: slot.notes || "",
     });
   };
 
   const handleCancelEditSlot = () => {
     setEditingSlotId(null);
+    setSelectedCatalogCourse(null);
+    setCatalogSearch("");
     setNewSlot((prev) => ({
       ...prev,
       courseCode: "",
       courseName: "",
       instructor: "",
       room: "",
+      credits: 3,
+      notes: "",
     }));
   };
 
@@ -343,7 +495,7 @@ export function TimetablesAdminClient({
         durationYears: quickCurrForm.degree === "DOCTORATE" ? 3 : quickCurrForm.degree === "MASTER" ? 2 : 4,
         isActive: true,
       });
-      setCurriculums((prev) => [created as any, ...prev]);
+      setCurriculums((prev) => [created as Curriculum, ...prev]);
       setFormData((prev) => ({
         ...prev,
         curriculumId: created.id,
@@ -352,8 +504,8 @@ export function TimetablesAdminClient({
       toast.success(`สร้างหลักสูตร "${created.nameTh}" เรียบร้อยแล้ว`);
       setIsQuickCurrOpen(false);
       setQuickCurrForm({ nameTh: "", nameEn: "", degree: "BACHELOR", departmentId: "" });
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถสร้างหลักสูตรได้");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "ไม่สามารถสร้างหลักสูตรได้");
     } finally {
       setQuickSubmitting(false);
     }
@@ -372,7 +524,7 @@ export function TimetablesAdminClient({
         nameEn: quickDeptForm.nameEn.trim() || null,
         type: quickDeptForm.type,
       });
-      setDepartments((prev) => [created as any, ...prev]);
+      setDepartments((prev) => [created as Department, ...prev]);
       setFormData((prev) => ({
         ...prev,
         departmentId: created.id,
@@ -380,8 +532,8 @@ export function TimetablesAdminClient({
       toast.success(`สร้างภาควิชา/สาขาวิชา "${created.nameTh}" เรียบร้อยแล้ว`);
       setIsQuickDeptOpen(false);
       setQuickDeptForm({ nameTh: "", nameEn: "", type: "DEPARTMENT" });
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถสร้างภาควิชาได้");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "ไม่สามารถสร้างภาควิชาได้");
     } finally {
       setQuickSubmitting(false);
     }
@@ -430,8 +582,8 @@ export function TimetablesAdminClient({
         toast.success("สร้างตารางเรียนใหม่เรียบร้อยแล้ว");
       }
       setIsFormOpen(false);
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการบันทึกข้อมูล");
     } finally {
       setSubmitting(false);
     }
@@ -445,8 +597,8 @@ export function TimetablesAdminClient({
       setItems((prev) => prev.filter((it) => it.id !== isDeleting.id));
       toast.success("ลบตารางเรียนเรียบร้อยแล้ว");
       setIsDeleting(null);
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถลบตารางเรียนได้");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "ไม่สามารถลบตารางเรียนได้");
     } finally {
       setSubmitting(false);
     }
@@ -460,8 +612,8 @@ export function TimetablesAdminClient({
         prev.map((it) => (it.id === item.id ? { ...it, isActive: nextActive } : it))
       );
       toast.success(nextActive ? "เปิดแสดงตารางเรียนแล้ว" : "ซ่อนตารางเรียนแล้ว");
-    } catch (err: any) {
-      toast.error("เกิดข้อผิดพลาดในการเปลี่ยนสถานะ");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการเปลี่ยนสถานะ");
     }
   };
 
@@ -527,6 +679,12 @@ export function TimetablesAdminClient({
               <span>ดูหน้าตารางเรียนนิสิต</span>
             </Button>
           </Link>
+          <Link href="/curriculum/courses">
+            <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+              <BookOpen className="w-3.5 h-3.5 text-primary" />
+              <span>ทะเบียนรายวิชา ({masterCourses.length})</span>
+            </Button>
+          </Link>
           <Link href="/curriculum">
             <Button variant="outline" size="sm" className="gap-1.5 text-xs">
               <GraduationCap className="w-3.5 h-3.5" />
@@ -545,6 +703,15 @@ export function TimetablesAdminClient({
               <span>นำเข้า / ส่งออก (CSV, PDF)</span>
             </Button>
           </Link>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsPeriodSettingsOpen(true)}
+            className="gap-1.5 text-xs font-semibold border-primary/30 text-primary hover:bg-primary/10 cursor-pointer"
+          >
+            <Settings className="w-3.5 h-3.5" />
+            <span>ตั้งค่าคาบเรียนและเวลา</span>
+          </Button>
           <Button onClick={openCreateDialog} size="sm" className="gap-2 text-xs font-semibold">
             <Plus className="w-4 h-4" />
             <span>เพิ่มตารางเรียนใหม่</span>
@@ -826,9 +993,56 @@ export function TimetablesAdminClient({
             description={previewItem.titleEn || undefined}
           />
           <LiyonDialogBody className="max-h-[80vh] overflow-y-auto">
-            <TimetableGridView timetable={previewItem} showHeaderActions={true} />
+            <TimetableGridView timetable={previewItem} periods={periods} showHeaderActions={true} />
           </LiyonDialogBody>
         </LiyonDialog>
+      )}
+
+      {/* ── PERIODS & TIMES SETTINGS MODAL ── */}
+      {isPeriodSettingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-background rounded-2xl max-w-5xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-border overflow-hidden">
+            <div className="px-6 py-4 border-b flex items-center justify-between bg-muted/30">
+              <div className="flex items-center gap-2.5">
+                <Clock className="w-5 h-5 text-primary" />
+                <div>
+                  <h3 className="font-bold text-base sm:text-lg text-foreground">
+                    ตั้งค่าคาบเรียนและเวลา (Timetable Periods & Times)
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground">
+                    กำหนดคอลัมน์คาบเรียน เวลาเริ่ม-สิ้นสุด และช่วงพักกลางวันสำหรับแสดงผลตารางเรียน
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Link href="/curriculum/timetables/periods">
+                  <Button variant="outline" size="sm" className="gap-1.5 text-xs cursor-pointer">
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>เปิดหน้าตั้งค่าแบบเต็มจอ</span>
+                  </Button>
+                </Link>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsPeriodSettingsOpen(false)}
+                  className="h-8 w-8 p-0 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <TimetablePeriodsEditor
+                initialPeriods={periods}
+                onSaved={(updated) => {
+                  setPeriods(updated);
+                  setIsPeriodSettingsOpen(false);
+                }}
+                onCancel={() => setIsPeriodSettingsOpen(false)}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── CREATE / EDIT DIALOG ── */}
@@ -1035,16 +1249,25 @@ export function TimetablesAdminClient({
 
               {/* ── SCHEDULE SLOTS BUILDER ── */}
               <div className="border-t pt-5 space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
                     <Clock className="w-4 h-4 text-primary" />
                     <span>รายวิชาในตารางเรียน ({formData.scheduleData.length} วิชา)</span>
                   </h4>
+                  <Link
+                    href="/curriculum/courses"
+                    target="_blank"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline px-2.5 py-1 rounded-lg bg-primary/10 hover:bg-primary/15 transition-colors"
+                  >
+                    <BookOpen className="w-3.5 h-3.5" />
+                    <span>จัดการทะเบียนรายวิชา ({masterCourses.length} วิชา)</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </Link>
                 </div>
 
                 {/* Add/Edit slot form box */}
                 <div
-                  className={`p-4 rounded-xl border transition-colors space-y-3 ${
+                  className={`p-4 rounded-xl border transition-colors space-y-3.5 ${
                     editingSlotId
                       ? "border-amber-500/50 bg-amber-500/5 dark:bg-amber-500/10"
                       : "border-border bg-muted/20"
@@ -1075,6 +1298,182 @@ export function TimetablesAdminClient({
                       </Button>
                     )}
                   </div>
+
+                  {/* ── COURSE CATALOG AUTOCOMPLETE / PICKER ── */}
+                  {masterCourses.length > 0 && (
+                    <div className="p-3 rounded-xl border border-primary/25 bg-primary/5 space-y-2 relative">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <label className="text-xs font-bold text-primary flex items-center gap-1.5">
+                          <BookOpen className="w-3.5 h-3.5" />
+                          <span>เลือกจากทะเบียนรายวิชา (Course Catalog Autocomplete)</span>
+                        </label>
+                        <div className="flex items-center gap-2">
+                          {(formData.curriculumId || formData.departmentId) && (
+                            <button
+                              type="button"
+                              onClick={() => setCatalogMatchOnly((prev) => !prev)}
+                              className={`text-[11px] px-2 py-0.5 rounded-md border font-medium transition-colors cursor-pointer ${
+                                catalogMatchOnly
+                                  ? "bg-primary text-primary-foreground border-primary"
+                                  : "bg-background text-muted-foreground border-border hover:text-foreground"
+                              }`}
+                            >
+                              {catalogMatchOnly ? "✓ เฉพาะหลักสูตร/สาขานี้" : "แสดงทุกสาขา (จัดลำดับสาขาตรงก่อน)"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="relative">
+                        <div className="flex gap-1.5">
+                          <div className="relative flex-1">
+                            <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input
+                              type="text"
+                              value={catalogSearch}
+                              onFocus={() => setIsCatalogOpen(true)}
+                              onChange={(e) => {
+                                setCatalogSearch(e.target.value);
+                                setIsCatalogOpen(true);
+                              }}
+                              placeholder="พิมพ์ค้นหารหัสวิชา (เช่น 000 102, 108) หรือชื่อวิชา (ไทย/อังกฤษ) หรืออาจารย์ผู้สอน..."
+                              className="w-full pl-8 pr-8 py-1.5 text-xs rounded-lg border border-border bg-background focus:ring-1 focus:ring-primary focus:outline-hidden"
+                            />
+                            {catalogSearch && (
+                              <button
+                                type="button"
+                                onClick={() => setCatalogSearch("")}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsCatalogOpen((prev) => !prev)}
+                            className="text-xs px-3 shrink-0 cursor-pointer"
+                          >
+                            {isCatalogOpen ? "ปิดรายการ" : `ดูรายวิชา (${catalogResults.length})`}
+                          </Button>
+                        </div>
+
+                        {isCatalogOpen && (
+                          <div className="absolute z-30 left-0 right-0 mt-1 max-h-60 overflow-y-auto rounded-xl border border-border bg-background shadow-xl divide-y divide-border/60">
+                            {catalogResults.length > 0 ? (
+                              catalogResults.slice(0, 30).map((course) => {
+                                const isCurrMatch =
+                                  Boolean(formData.curriculumId) &&
+                                  course.curriculumId === formData.curriculumId;
+                                const isDeptMatch =
+                                  Boolean(formData.departmentId) &&
+                                  course.departmentId === formData.departmentId;
+                                const degreeBadge =
+                                  course.degreeLevel === "BACHELOR"
+                                    ? "ป.ตรี"
+                                    : course.degreeLevel === "MASTER"
+                                    ? "ป.โท"
+                                    : course.degreeLevel === "DOCTORATE"
+                                    ? "ป.เอก"
+                                    : course.degreeLevel;
+
+                                return (
+                                  <button
+                                    key={course.id}
+                                    type="button"
+                                    onClick={() => handleSelectCatalogCourse(course)}
+                                    className="w-full text-left px-3 py-2 hover:bg-primary/10 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 cursor-pointer"
+                                  >
+                                    <div className="min-w-0 flex-1 space-y-0.5">
+                                      <div className="flex flex-wrap items-center gap-1.5">
+                                        <span className="font-mono font-bold text-xs px-1.5 py-0.5 rounded bg-primary/15 text-primary shrink-0">
+                                          {course.courseCode}
+                                        </span>
+                                        <span className="font-bold text-xs text-foreground truncate">
+                                          {course.courseNameTh}
+                                        </span>
+                                        {course.courseNameEn &&
+                                          course.courseNameEn !== course.courseNameTh && (
+                                            <span className="text-[11px] text-muted-foreground truncate">
+                                              ({course.courseNameEn})
+                                            </span>
+                                          )}
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                                        {course.instructor && (
+                                          <span className="truncate max-w-xs">
+                                            👨‍🏫 {course.instructor}
+                                          </span>
+                                        )}
+                                        {course.department?.nameTh && (
+                                          <span className="truncate">
+                                            🏛️ {course.department.nameTh}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      {(isCurrMatch || isDeptMatch) && (
+                                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                                          ตรงหลักสูตร/สาขา
+                                        </span>
+                                      )}
+                                      <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-semibold">
+                                        {course.credits} นก.
+                                      </span>
+                                      <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 text-[10px] font-semibold">
+                                        {degreeBadge}
+                                      </span>
+                                    </div>
+                                  </button>
+                                );
+                              })
+                            ) : (
+                              <div className="p-4 text-center text-xs text-muted-foreground">
+                                ไม่พบรายวิชาที่ตรงกับ &ldquo;{catalogSearch}&rdquo; ในทะเบียนรายวิชา
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {selectedCatalogCourse && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px] text-muted-foreground border-t border-primary/15">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold text-primary">
+                              ✓ ดึงจากทะเบียนรายวิชา:
+                            </span>
+                            <span className="font-mono font-bold text-foreground">
+                              {selectedCatalogCourse.courseCode}
+                            </span>
+                            <span>• {selectedCatalogCourse.credits} หน่วยกิต</span>
+                            <span>
+                              • ระดับ{" "}
+                              {selectedCatalogCourse.degreeLevel === "BACHELOR"
+                                ? "ปริญญาตรี"
+                                : selectedCatalogCourse.degreeLevel === "MASTER"
+                                ? "ปริญญาโท"
+                                : "ปริญญาเอก"}
+                            </span>
+                            {selectedCatalogCourse.department?.nameTh && (
+                              <span>• {selectedCatalogCourse.department.nameTh}</span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCatalogCourse(null)}
+                            className="text-[10px] text-muted-foreground hover:text-foreground underline cursor-pointer"
+                          >
+                            ล้างสถานะ
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
                     <div>
                       <label className="text-[11px] text-muted-foreground mb-1 block">วันในสัปดาห์</label>
@@ -1100,12 +1499,12 @@ export function TimetablesAdminClient({
                       <div className="space-y-1">
                         <select
                           value={
-                            STANDARD_TIME_PRESETS.find(
+                            dynamicTimePresets.find(
                               (p) => p.start === newSlot.startTime && p.end === newSlot.endTime
                             )?.label || "custom"
                           }
                           onChange={(e) => {
-                            const found = STANDARD_TIME_PRESETS.find((p) => p.label === e.target.value);
+                            const found = dynamicTimePresets.find((p) => p.label === e.target.value);
                             if (found && found.start) {
                               setNewSlot({
                                 ...newSlot,
@@ -1117,7 +1516,7 @@ export function TimetablesAdminClient({
                           className="w-full px-2 py-1 text-[11px] rounded-lg border border-border bg-background"
                         >
                           <option value="custom">⏱️ เลือกคาบมาตรฐาน...</option>
-                          {STANDARD_TIME_PRESETS.filter((p) => p.start).map((p) => (
+                          {dynamicTimePresets.map((p) => (
                             <option key={p.label} value={p.label}>
                               {p.label}
                             </option>
@@ -1144,26 +1543,95 @@ export function TimetablesAdminClient({
                       </div>
                     </div>
 
-                    <div>
-                      <label className="text-[11px] text-muted-foreground mb-1 block">รหัสวิชา *</label>
+                    <div className="relative">
+                      <label className="text-[11px] text-muted-foreground mb-1 block">
+                        รหัสวิชา * <span className="text-[10px] text-primary">(พิมพ์เพื่อค้นหาอัตโนมัติ)</span>
+                      </label>
                       <input
                         type="text"
                         value={newSlot.courseCode}
-                        onChange={(e) => setNewSlot({ ...newSlot, courseCode: e.target.value })}
+                        onFocus={() => setActiveAutocompleteField("code")}
+                        onBlur={() => setTimeout(() => setActiveAutocompleteField(null), 180)}
+                        onChange={(e) => {
+                          setNewSlot({ ...newSlot, courseCode: e.target.value });
+                          setActiveAutocompleteField("code");
+                        }}
                         placeholder="เช่น 101 101, 000 102"
                         className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background"
                       />
+                      {activeAutocompleteField === "code" && inlineSuggestions.length > 0 && (
+                        <div className="absolute z-30 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl border border-border bg-background shadow-lg divide-y divide-border/50">
+                          {inlineSuggestions.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleSelectCatalogCourse(c);
+                              }}
+                              className="w-full text-left px-2.5 py-1.5 hover:bg-primary/10 text-xs flex items-center justify-between gap-2 cursor-pointer"
+                            >
+                              <div className="truncate">
+                                <span className="font-mono font-bold text-primary mr-1.5">
+                                  {c.courseCode}
+                                </span>
+                                <span className="text-foreground">{c.courseNameTh}</span>
+                              </div>
+                              <span className="text-[10px] text-muted-foreground shrink-0">
+                                {c.credits} นก.
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
-                    <div>
-                      <label className="text-[11px] text-muted-foreground mb-1 block">ชื่อวิชา *</label>
+                    <div className="relative">
+                      <label className="text-[11px] text-muted-foreground mb-1 block">
+                        ชื่อวิชา * <span className="text-[10px] text-primary">(พิมพ์เพื่อค้นหาอัตโนมัติ)</span>
+                      </label>
                       <input
                         type="text"
                         value={newSlot.courseName}
-                        onChange={(e) => setNewSlot({ ...newSlot, courseName: e.target.value })}
+                        onFocus={() => setActiveAutocompleteField("name")}
+                        onBlur={() => setTimeout(() => setActiveAutocompleteField(null), 180)}
+                        onChange={(e) => {
+                          setNewSlot({ ...newSlot, courseName: e.target.value });
+                          setActiveAutocompleteField("name");
+                        }}
                         placeholder="เช่น Buddhism and Science"
                         className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background"
                       />
+                      {activeAutocompleteField === "name" && inlineSuggestions.length > 0 && (
+                        <div className="absolute z-30 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-xl border border-border bg-background shadow-lg divide-y divide-border/50">
+                          {inlineSuggestions.map((c) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleSelectCatalogCourse(c);
+                              }}
+                              className="w-full text-left px-2.5 py-1.5 hover:bg-primary/10 text-xs flex items-center justify-between gap-2 cursor-pointer"
+                            >
+                              <div className="truncate">
+                                <span className="font-mono font-bold text-primary mr-1.5">
+                                  {c.courseCode}
+                                </span>
+                                <span className="text-foreground">{c.courseNameTh}</span>
+                                {c.courseNameEn && c.courseNameEn !== c.courseNameTh && (
+                                  <span className="text-muted-foreground ml-1">
+                                    ({c.courseNameEn})
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-muted-foreground shrink-0">
+                                {c.credits} นก.
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div className="sm:col-span-2">
@@ -1193,11 +1661,22 @@ export function TimetablesAdminClient({
                       />
                     </div>
 
-                    <div className="flex items-end gap-1.5">
+                    <div>
+                      <label className="text-[11px] text-muted-foreground mb-1 block">หมายเหตุรายวิชา (Notes)</label>
+                      <input
+                        type="text"
+                        value={newSlot.notes || ""}
+                        onChange={(e) => setNewSlot({ ...newSlot, notes: e.target.value })}
+                        placeholder="เช่น วิชาบังคับ / เรียนร่วม"
+                        className="w-full px-2.5 py-1.5 text-xs rounded-lg border border-border bg-background"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2 md:col-span-4 flex justify-end pt-1">
                       <Button
                         type="button"
                         onClick={handleAddSlot}
-                        className={`w-full text-xs font-semibold ${
+                        className={`text-xs font-semibold px-5 ${
                           editingSlotId
                             ? "bg-amber-600 hover:bg-amber-700 text-white"
                             : ""
@@ -1206,12 +1685,12 @@ export function TimetablesAdminClient({
                         {editingSlotId ? (
                           <>
                             <Edit2 className="w-3.5 h-3.5 mr-1" />
-                            บันทึกการแก้ไข
+                            บันทึกการแก้ไขรายวิชา
                           </>
                         ) : (
                           <>
                             <Plus className="w-3.5 h-3.5 mr-1" />
-                            เพิ่มวิชานี้
+                            เพิ่มวิชานี้ลงตารางเรียน
                           </>
                         )}
                       </Button>
@@ -1244,6 +1723,11 @@ export function TimetablesAdminClient({
                             {slot.courseCode}
                           </span>
                           <span className="font-bold text-foreground truncate">{slot.courseName}</span>
+                          {slot.credits && (
+                            <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-semibold shrink-0">
+                              {slot.credits} นก.
+                            </span>
+                          )}
                           {slot.instructor && (
                             <span className="text-muted-foreground truncate max-w-xs shrink-0">
                               ({slot.instructor})
@@ -1405,7 +1889,7 @@ export function TimetablesAdminClient({
                   <select
                     value={quickCurrForm.degree}
                     onChange={(e) =>
-                      setQuickCurrForm({ ...quickCurrForm, degree: e.target.value as any })
+                      setQuickCurrForm({ ...quickCurrForm, degree: e.target.value as typeof quickCurrForm.degree })
                     }
                     className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background"
                   >
@@ -1499,7 +1983,7 @@ export function TimetablesAdminClient({
                 <select
                   value={quickDeptForm.type}
                   onChange={(e) =>
-                    setQuickDeptForm({ ...quickDeptForm, type: e.target.value as any })
+                    setQuickDeptForm({ ...quickDeptForm, type: e.target.value as typeof quickDeptForm.type })
                   }
                   className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background"
                 >

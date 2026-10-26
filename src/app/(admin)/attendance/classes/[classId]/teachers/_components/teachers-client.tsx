@@ -28,10 +28,51 @@ import {
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 
+interface CourseInfo {
+  id: string;
+  courseCode: string;
+  courseName: string;
+  courseNameEn?: string | null;
+  section?: string | null;
+  term: string;
+  credits?: number | null;
+  primaryTeacherId?: string | null;
+  primaryTeacher?: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  } | null;
+}
+
+interface AssignedTeacherItem {
+  id: string;
+  userId: string;
+  role: string;
+  isPrimary: boolean;
+  assignedAt?: string | Date;
+  createdAt?: string | Date;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    image?: string | null;
+  };
+}
+
+interface AvailableTeacherItem {
+  id: string;
+  name: string;
+  email: string;
+  position?: string | null;
+  department?: string | null;
+  image?: string | null;
+}
+
 interface TeacherClientProps {
-  course: any;
-  assignedTeachers: any[];
-  availableTeachers: any[];
+  course: CourseInfo;
+  assignedTeachers: AssignedTeacherItem[];
+  availableTeachers: AvailableTeacherItem[];
   isPrimary: boolean;
   currentUserId: string;
 }
@@ -41,7 +82,7 @@ export function TeachersClient({
   assignedTeachers,
   availableTeachers,
   isPrimary,
-  currentUserId,
+  currentUserId: _currentUserId,
 }: TeacherClientProps) {
   const router = useRouter();
   const [isAssignOpen, setIsAssignOpen] = useState(false);
@@ -49,7 +90,7 @@ export function TeachersClient({
   const [selectedRole, setSelectedRole] = useState<"PRIMARY_TEACHER" | "CO_TEACHER" | "GUEST_LECTURER" | "TEACHING_ASSISTANT">("CO_TEACHER");
   const [teacherSearch, setTeacherSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AssignedTeacherItem | null>(null);
 
   // กรองอาจารย์ที่ยังไม่ได้มอบหมายในวิชานี้
   const assignedUserIds = new Set(assignedTeachers.map((t) => t.userId));
@@ -86,8 +127,8 @@ export function TeachersClient({
         setSelectedUserId("");
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการมอบหมายผู้สอน");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการมอบหมายผู้สอน");
     } finally {
       setIsSubmitting(false);
     }
@@ -108,8 +149,8 @@ export function TeachersClient({
         toast.success(`ตั้ง "${teacherName}" เป็นอาจารย์ผู้รับผิดชอบหลักเรียบร้อยแล้ว`);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถเปลี่ยนอาจารย์หลักได้");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "ไม่สามารถเปลี่ยนอาจารย์หลักได้");
     } finally {
       setIsSubmitting(false);
     }
@@ -126,8 +167,8 @@ export function TeachersClient({
         setDeleteTarget(null);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการถอดถอน");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการถอดถอน");
     } finally {
       setIsSubmitting(false);
     }

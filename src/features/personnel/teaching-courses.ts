@@ -205,6 +205,25 @@ export function formatDegreeLevelLabel(level: DegreeLevel): string {
   }
 }
 
+/**
+ * Format structured TeachingCourse array into clean, human-readable Thai text without code/JSON
+ */
+export function formatTeachingCoursesToText(courses: TeachingCourse[]): string {
+  if (!courses || courses.length === 0) return "";
+  return courses
+    .map((c) => {
+      const levelTh =
+        c.level === "DOCTORAL" ? "ปริญญาเอก" : c.level === "MASTER" ? "ปริญญาโท" : "ปริญญาตรี";
+      const semStr = c.semester ? ` ภาคการศึกษาที่ ${c.semester}` : "";
+      const yearStr = c.year ? ` ปีการศึกษา ${c.year}` : "";
+      const creditStr = c.credits ? ` (${c.credits} หน่วยกิต)` : "";
+      const roleStr = c.role ? ` — ${c.role}` : "";
+      const descStr = c.description ? ` (${c.description})` : "";
+      return `• ${c.courseCode} ${c.courseNameTh}${creditStr} [ระดับ${levelTh}${yearStr}${semStr}]${roleStr}${descStr}`;
+    })
+    .join("\n");
+}
+
 export function getDegreeLevelColor(level: DegreeLevel) {
   switch (level) {
     case "BACHELOR":
@@ -270,10 +289,27 @@ export function parseTeachingExperiences(
   teacherInfo?: {
     id?: string;
     firstNameTh?: string;
-    lastNameTh?: string;
+    lastNameTh?: string | null;
+    firstNameEn?: string | null;
+    lastNameEn?: string | null;
     departmentName?: string | null;
   }
 ): TeachingCourse[] {
+  interface RawCourseJsonItem {
+    id?: string;
+    year?: string;
+    semester?: string | number;
+    level?: string;
+    courseCode?: string;
+    courseNameTh?: string;
+    courseNameEn?: string;
+    credits?: number | string;
+    programTh?: string;
+    programLanguage?: "THAI" | "ENGLISH";
+    role?: string;
+    description?: string;
+  }
+
   // 1. If rawExperiences is JSON array or JSON object with courses
   if (rawExperiences) {
     const trimmed = rawExperiences.trim();
@@ -281,7 +317,7 @@ export function parseTeachingExperiences(
       try {
         const parsed = JSON.parse(trimmed);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map((item: any, idx: number) => ({
+          return (parsed as RawCourseJsonItem[]).map((item, idx: number) => ({
             id: item.id || `tc-json-${idx}`,
             year: normalizeCourseYear(item.year) || item.year || "2569",
             semester: String(item.semester || "1").trim().replace(/^[^\d]*(\d+).*$/, "$1") || "1",
@@ -303,7 +339,7 @@ export function parseTeachingExperiences(
       try {
         const parsed = JSON.parse(trimmed);
         if (Array.isArray(parsed.courses) && parsed.courses.length > 0) {
-          return parsed.courses.map((item: any, idx: number) => ({
+          return (parsed.courses as RawCourseJsonItem[]).map((item, idx: number) => ({
             id: item.id || `tc-json-${idx}`,
             year: normalizeCourseYear(item.year) || item.year || "2569",
             semester: String(item.semester || "1").trim().replace(/^[^\d]*(\d+).*$/, "$1") || "1",
@@ -486,4 +522,27 @@ export function parseTeachingExperiences(
   );
 
   return list;
+}
+
+/**
+ * Helper to get deduplicated TeachingCourse list for a Personnel record (combining both Thai & English program courses)
+ */
+export function getTeachingCoursesForPersonnel(person: {
+  id?: string;
+  firstNameTh?: string;
+  lastNameTh?: string | null;
+  firstNameEn?: string | null;
+  lastNameEn?: string | null;
+  experiencesTh?: string | null;
+  department?: { nameTh?: string | null } | null;
+}): TeachingCourse[] {
+  const parsed = parseTeachingExperiences(person.experiencesTh, {
+    id: person.id,
+    firstNameTh: person.firstNameTh,
+    lastNameTh: person.lastNameTh,
+    firstNameEn: person.firstNameEn,
+    lastNameEn: person.lastNameEn,
+    departmentName: person.department?.nameTh,
+  });
+  return upsertTeachingCourses([], parsed).merged;
 }

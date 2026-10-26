@@ -142,7 +142,7 @@ export function StudentSemesterAttendanceDocument({ data, onClose }: Props) {
     URL.revokeObjectURL(url);
   };
 
-  const issuedDateObj = new Date(summary.issuedDate || Date.now());
+  const issuedDateObj = summary.issuedDate ? new Date(summary.issuedDate) : new Date("2026-01-01");
   const formattedIssuedDate = issuedDateObj.toLocaleDateString("th-TH", {
     year: "numeric",
     month: "long",
@@ -220,6 +220,7 @@ export function StudentSemesterAttendanceDocument({ data, onClose }: Props) {
 
         {/* ══════════ DOCUMENT HEADER ══════════ */}
         <div className="flex items-center gap-4 pb-4 border-b-2 border-slate-900">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/uploads/logo-b8eef236-b993-4bc9-a08c-b02935131b84-1792468122154.png"
             alt="MCU Logo"

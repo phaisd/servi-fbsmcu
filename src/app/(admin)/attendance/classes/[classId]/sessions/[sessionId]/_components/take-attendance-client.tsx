@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect, @next/next/no-img-element */
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, Fragment } from "react";
@@ -71,9 +72,86 @@ function formatMajor(major?: string | null, department?: string | null) {
   return raw || "-";
 }
 
+interface SessionAuditLogItem {
+  id: string;
+  studentCode: string;
+  studentName: string;
+  oldStatus: string;
+  newStatus: string;
+  reason: string;
+  actorName: string;
+  createdAt: string | Date;
+}
+
+interface SessionDetailObj {
+  id: string;
+  courseId?: string;
+  sessionNumber: number;
+  date: string | Date;
+  startTime?: string | null;
+  endTime?: string | null;
+  room?: string | null;
+  topic?: string | null;
+  sessionType: string;
+  status: string;
+  isCounted: boolean;
+  isLocked?: boolean;
+  lockedAt?: string | Date | null;
+  lockedBy?: string | null;
+  records?: Array<{
+    studentCode: string;
+    status: AttendanceStatusType;
+    note?: string | null;
+  }>;
+  auditLogs?: SessionAuditLogItem[];
+  classObj?: {
+    id: string;
+    courseCode: string;
+    courseName: string;
+    courseNameEn?: string | null;
+    section?: string | null;
+    term: string;
+    room?: string | null;
+    primaryTeacher?: { name?: string | null } | null;
+    instructor?: { name?: string | null } | null;
+  };
+  course?: {
+    id: string;
+    courseCode: string;
+    courseName: string;
+    courseNameEn?: string | null;
+    section?: string | null;
+    term: string;
+    room?: string | null;
+    primaryTeacher?: { name?: string | null } | null;
+    instructor?: { name?: string | null } | null;
+  };
+}
+
+interface EnrollmentRowItem {
+  id: string;
+  student: {
+    studentCode: string;
+    firstName: string;
+    lastName: string;
+    title?: string | null;
+    yearLevel: number;
+    department?: string | null;
+    major?: string | null;
+  };
+}
+
+interface ScannedStudentRecord {
+  studentCode: string;
+  studentName?: string;
+  status: AttendanceStatusType;
+  note?: string | null;
+  checkedInAt?: string | Date;
+}
+
 interface TakeAttendanceClientProps {
-  sessionDetail: any;
-  enrollments: any[];
+  sessionDetail: SessionDetailObj;
+  enrollments: EnrollmentRowItem[];
   currentUserName: string;
 }
 
@@ -83,7 +161,7 @@ export function TakeAttendanceClient({
   currentUserName,
 }: TakeAttendanceClientProps) {
   const router = useRouter();
-  const classObj = sessionDetail.classObj || sessionDetail.course;
+  const classObj = (sessionDetail.classObj || sessionDetail.course)!;
 
   // สร้าง Initial State โดยจับคู่กับ existing records
   const initialMap = new Map<string, { status: AttendanceStatusType; note: string }>();
@@ -114,17 +192,17 @@ export function TakeAttendanceClient({
 
   // สถานะ Dynamic Rolling QR Code เช็กชื่อ
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
-  const [qrToken, setQrToken] = useState("");
-  const [qrStep, setQrStep] = useState(0);
+  const [_qrToken, setQrToken] = useState("");
+  const [_qrStep, setQrStep] = useState(0);
   const [qrExpiresIn, setQrExpiresIn] = useState(20);
   const [qrDataUrl, setQrDataUrl] = useState("");
-  const [scannedStudents, setScannedStudents] = useState<any[]>([]);
+  const [_scannedStudents, setScannedStudents] = useState<ScannedStudentRecord[]>([]);
   const [isLoadingQr, setIsLoadingQr] = useState(false);
 
   const isFetchingQrRef = useRef(false);
   const targetExpiryRef = useRef<number>(0);
 
-  async function fetchQrData(isInitial = false) {
+  const fetchQrData = React.useCallback(async (isInitial = false) => {
     if (isFetchingQrRef.current) return;
     try {
       isFetchingQrRef.current = true;
@@ -155,12 +233,13 @@ export function TakeAttendanceClient({
         setQrDataUrl(dataUrl);
 
         if (data.scanned?.records) {
-          setScannedStudents(data.scanned.records);
+          const scannedList = data.scanned.records as ScannedStudentRecord[];
+          setScannedStudents(scannedList);
 
           // ซิงค์สถานะนิสิตที่เช็กชื่อเข้ามาในตารางทันที
           setRows((prev) =>
             prev.map((r) => {
-              const match = data.scanned.records.find((rec: any) => rec.studentCode === r.studentCode);
+              const match = scannedList.find((rec) => rec.studentCode === r.studentCode);
               if (match && match.status !== r.status) {
                 return { ...r, status: match.status, note: match.note || r.note };
               }
@@ -175,7 +254,7 @@ export function TakeAttendanceClient({
       isFetchingQrRef.current = false;
       if (isInitial) setIsLoadingQr(false);
     }
-  }
+  }, [sessionDetail.id]);
 
   // Effect เมื่อเปิด QR Modal: สร้าง QR Code ครั้งแรกและตั้งเวลานับถอยหลัง
   useEffect(() => {
@@ -184,21 +263,21 @@ export function TakeAttendanceClient({
 
     if (isQrModalOpen) {
       // โหลดครั้งแรก
-      fetchQrData(true);
+      void fetchQrData(true);
 
       // นับถอยหลังทุก 1 วินาที (ทำงานนอก setState อย่างปลอดภัย)
       countdownTimer = setInterval(() => {
         const secLeft = Math.max(0, Math.ceil((targetExpiryRef.current - Date.now()) / 1000));
         setQrExpiresIn(secLeft);
         if (secLeft <= 0 && !isFetchingQrRef.current) {
-          fetchQrData(false);
+          void fetchQrData(false);
         }
       }, 1000);
 
       // Realtime polling ดึงรายชื่อนิสิตที่เพิ่งสแกนทุก 3 วินาที
       pollTimer = setInterval(() => {
         if (!isFetchingQrRef.current) {
-          fetchQrData(false);
+          void fetchQrData(false);
         }
       }, 3000);
     }
@@ -207,7 +286,7 @@ export function TakeAttendanceClient({
       clearInterval(countdownTimer);
       clearInterval(pollTimer);
     };
-  }, [isQrModalOpen]);
+  }, [isQrModalOpen, fetchQrData]);
 
   // สถานะเกี่ยวกับการล็อคและ Audit Log
   const isLocked = sessionDetail.isLocked || false;
@@ -343,8 +422,8 @@ export function TakeAttendanceClient({
         setAuditReason("");
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการบันทึก");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการบันทึก");
     } finally {
       setIsSaving(false);
     }
@@ -360,8 +439,8 @@ export function TakeAttendanceClient({
         setIsLockModalOpen(false);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถปิดคาบเรียนได้");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "ไม่สามารถปิดคาบเรียนได้");
     } finally {
       setIsProcessingLock(false);
     }
@@ -382,8 +461,8 @@ export function TakeAttendanceClient({
         setUnlockReason("");
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถปลดล็อคได้");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "ไม่สามารถปลดล็อคได้");
     } finally {
       setIsProcessingLock(false);
     }
@@ -1024,7 +1103,7 @@ export function TakeAttendanceClient({
             </div>
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-96 overflow-y-auto pr-1">
-              {auditLogs.map((log: any) => {
+              {auditLogs.map((log: SessionAuditLogItem) => {
                 const logDate = new Date(log.createdAt);
                 const formattedLogDate = new Intl.DateTimeFormat("th-TH", {
                   dateStyle: "medium",

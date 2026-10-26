@@ -3,6 +3,16 @@ import { prisma as db } from "@/shared/lib/infra/prisma";
 import { writeAudit } from "@/features/identity/server";
 import { DegreeLevel } from "@/generated/prisma";
 import type { Prisma } from "@/generated/prisma";
+import {
+  timetablePeriodsArraySchema,
+  DEFAULT_TIMETABLE_PERIODS,
+  type TimetablePeriodConfig,
+} from "./validations";
+import {
+  normalizeCurriculumText,
+  findBestMatchingCurriculum,
+  findBestMatchingDepartment,
+} from "./csv-matcher";
 
 // ==========================================
 // CURRICULUM SERVICES
@@ -429,7 +439,7 @@ export async function createTimetable(
     termDates?: string | null;
     description?: string | null;
     notes?: string | null;
-    scheduleData?: any;
+    scheduleData?: unknown;
     isActive?: boolean;
     orderIndex?: number;
   }
@@ -486,7 +496,7 @@ export async function updateTimetable(
     termDates?: string | null;
     description?: string | null;
     notes?: string | null;
-    scheduleData?: any;
+    scheduleData?: unknown;
     isActive?: boolean;
     orderIndex?: number;
   }>
@@ -552,7 +562,7 @@ export interface BatchImportTimetableItem {
   termDates?: string | null;
   description?: string | null;
   notes?: string | null;
-  scheduleData: any[];
+  scheduleData: unknown[];
   isActive?: boolean;
 }
 
@@ -569,6 +579,10 @@ function detectDegree(text: string): "BACHELOR" | "MASTER" | "DOCTORATE" | "CERT
     return "CERTIFICATE";
   }
   return "BACHELOR";
+}
+
+function normalizeMatchKey(text: string): string {
+  return normalizeCurriculumText(text);
 }
 
 export async function batchImportTimetables(
@@ -590,13 +604,23 @@ export async function batchImportTimetables(
   const existingDepts = await db.department.findMany({ where: { tenantId } });
   for (const d of existingDepts) {
     deptMap.set(d.nameTh.trim(), d.id);
-    if (d.nameEn) deptMap.set(d.nameEn.trim().toLowerCase(), d.id);
+    deptMap.set(d.nameTh.trim().toLowerCase(), d.id);
+    deptMap.set(normalizeMatchKey(d.nameTh), d.id);
+    if (d.nameEn?.trim()) {
+      deptMap.set(d.nameEn.trim().toLowerCase(), d.id);
+      deptMap.set(normalizeMatchKey(d.nameEn), d.id);
+    }
   }
 
   const existingCurrs = await db.curriculum.findMany({ where: { tenantId } });
   for (const c of existingCurrs) {
     currMap.set(c.nameTh.trim(), c.id);
-    if (c.nameEn) currMap.set(c.nameEn.trim().toLowerCase(), c.id);
+    currMap.set(c.nameTh.trim().toLowerCase(), c.id);
+    currMap.set(normalizeMatchKey(c.nameTh), c.id);
+    if (c.nameEn?.trim()) {
+      currMap.set(c.nameEn.trim().toLowerCase(), c.id);
+      currMap.set(normalizeMatchKey(c.nameEn), c.id);
+    }
   }
 
   for (const item of items) {
@@ -610,7 +634,10 @@ export async function batchImportTimetables(
     const rawDeptName = item.departmentName?.trim();
     if (!targetDeptId && rawDeptName) {
       const foundDeptId =
-        deptMap.get(rawDeptName) || deptMap.get(rawDeptName.toLowerCase());
+        deptMap.get(rawDeptName) ||
+        deptMap.get(rawDeptName.toLowerCase()) ||
+        deptMap.get(normalizeMatchKey(rawDeptName)) ||
+        findBestMatchingDepartment(rawDeptName, existingDepts)?.id;
       if (foundDeptId) {
         targetDeptId = foundDeptId;
       } else {
@@ -627,6 +654,7 @@ export async function batchImportTimetables(
         targetDeptId = newDept.id;
         deptMap.set(rawDeptName, newDept.id);
         deptMap.set(rawDeptName.toLowerCase(), newDept.id);
+        deptMap.set(normalizeMatchKey(rawDeptName), newDept.id);
         autoCreatedDepartments++;
       }
     }
@@ -635,7 +663,10 @@ export async function batchImportTimetables(
     const rawCurrName = item.curriculumName?.trim();
     if (!targetCurrId && rawCurrName) {
       const foundCurrId =
-        currMap.get(rawCurrName) || currMap.get(rawCurrName.toLowerCase());
+        currMap.get(rawCurrName) ||
+        currMap.get(rawCurrName.toLowerCase()) ||
+        currMap.get(normalizeMatchKey(rawCurrName)) ||
+        findBestMatchingCurriculum(rawCurrName, existingCurrs)?.id;
       if (foundCurrId) {
         targetCurrId = foundCurrId;
       } else {
@@ -656,6 +687,7 @@ export async function batchImportTimetables(
         targetCurrId = newCurr.id;
         currMap.set(rawCurrName, newCurr.id);
         currMap.set(rawCurrName.toLowerCase(), newCurr.id);
+        currMap.set(normalizeMatchKey(rawCurrName), newCurr.id);
         autoCreatedCurriculums++;
       }
     }
@@ -750,7 +782,7 @@ export async function getAcademicCalendarWithEvents(
   tenantId: string,
   academicYear?: string
 ) {
-  const where: any = { tenantId, degreeLevel: "BACHELOR" };
+  const where: Prisma.AcademicCalendarWhereInput = { tenantId, degreeLevel: "BACHELOR" };
   if (academicYear) {
     where.academicYear = academicYear;
   } else {
@@ -929,9 +961,10 @@ export async function updateAcademicCalendarEvent(
     orderIndex?: number;
   }>
 ) {
-  const updateData: any = { ...data };
-  if (data.startDate) updateData.startDate = new Date(data.startDate);
-  if (data.endDate) updateData.endDate = new Date(data.endDate);
+  const { startDate, endDate, ...restData } = data;
+  const updateData: Prisma.AcademicCalendarEventUpdateInput = { ...restData };
+  if (startDate) updateData.startDate = new Date(startDate);
+  if (endDate) updateData.endDate = new Date(endDate);
 
   const result = await db.academicCalendarEvent.update({
     where: { id },
@@ -994,3 +1027,393 @@ export async function deleteAcademicCalendar(
 
 
 
+
+
+// ==========================================
+// MASTER COURSE SERVICES (Course Catalog)
+// ==========================================
+
+export async function getMasterCourses(
+  tenantId: string,
+  filters?: {
+    degreeLevel?: DegreeLevel | "ALL";
+    departmentId?: string | "ALL";
+    programLanguage?: string | "ALL";
+    search?: string;
+  }
+) {
+  const where: Prisma.MasterCourseWhereInput = { tenantId };
+
+  if (filters?.degreeLevel && filters.degreeLevel !== "ALL") {
+    where.degreeLevel = filters.degreeLevel;
+  }
+
+  if (filters?.departmentId && filters.departmentId !== "ALL") {
+    where.departmentId = filters.departmentId === "none" ? null : filters.departmentId;
+  }
+
+  if (filters?.programLanguage && filters.programLanguage !== "ALL") {
+    where.programLanguage = filters.programLanguage;
+  }
+
+  if (filters?.search && filters.search.trim()) {
+    const q = filters.search.trim();
+    where.OR = [
+      { courseCode: { contains: q, mode: "insensitive" } },
+      { courseNameTh: { contains: q, mode: "insensitive" } },
+      { courseNameEn: { contains: q, mode: "insensitive" } },
+      { instructor: { contains: q, mode: "insensitive" } },
+      { notes: { contains: q, mode: "insensitive" } },
+    ];
+  }
+
+  return db.masterCourse.findMany({
+    where,
+    include: {
+      department: true,
+      curriculum: true,
+    },
+    orderBy: [{ orderIndex: "asc" }, { courseCode: "asc" }],
+  });
+}
+
+export async function getMasterCourseById(tenantId: string, id: string) {
+  return db.masterCourse.findFirst({
+    where: { id, tenantId },
+    include: {
+      department: true,
+      curriculum: true,
+    },
+  });
+}
+
+export async function createMasterCourse(
+  tenantId: string,
+  actorId: string,
+  data: {
+    courseCode: string;
+    courseNameTh: string;
+    courseNameEn?: string | null;
+    credits?: number;
+    degreeLevel?: DegreeLevel;
+    departmentId?: string | null;
+    curriculumId?: string | null;
+    programLanguage?: string;
+    instructor?: string | null;
+    description?: string | null;
+    notes?: string | null;
+    isActive?: boolean;
+    orderIndex?: number;
+  }
+) {
+  const normalizedCode = data.courseCode.trim().replace(/\s+/g, " ");
+
+  const existing = await db.masterCourse.findFirst({
+    where: { tenantId, courseCode: normalizedCode },
+  });
+  if (existing) {
+    throw new Error(`รหัสวิชา "${normalizedCode}" มีอยู่ในระบบแล้ว`);
+  }
+
+  const result = await db.masterCourse.create({
+    data: {
+      tenantId,
+      courseCode: normalizedCode,
+      courseNameTh: data.courseNameTh.trim(),
+      courseNameEn: data.courseNameEn?.trim() || null,
+      credits: data.credits ?? 3,
+      degreeLevel: data.degreeLevel || "BACHELOR",
+      departmentId: data.departmentId || null,
+      curriculumId: data.curriculumId || null,
+      programLanguage: data.programLanguage || "THAI",
+      instructor: data.instructor?.trim() || null,
+      description: data.description?.trim() || null,
+      notes: data.notes?.trim() || null,
+      isActive: data.isActive ?? true,
+      orderIndex: data.orderIndex ?? 0,
+    },
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "masterCourse.create",
+    entity: "MasterCourse",
+    entityId: result.id,
+    after: result,
+  });
+
+  return result;
+}
+
+export async function updateMasterCourse(
+  tenantId: string,
+  actorId: string,
+  id: string,
+  data: {
+    courseCode?: string;
+    courseNameTh?: string;
+    courseNameEn?: string | null;
+    credits?: number;
+    degreeLevel?: DegreeLevel;
+    departmentId?: string | null;
+    curriculumId?: string | null;
+    programLanguage?: string;
+    instructor?: string | null;
+    description?: string | null;
+    notes?: string | null;
+    isActive?: boolean;
+    orderIndex?: number;
+  }
+) {
+  const before = await db.masterCourse.findFirst({ where: { id, tenantId } });
+  if (!before) {
+    throw new Error("ไม่พบข้อมูลรายวิชานี้");
+  }
+
+  const updateData: Prisma.MasterCourseUpdateInput = {};
+
+  if (data.courseCode !== undefined) {
+    const norm = data.courseCode.trim().replace(/\s+/g, " ");
+    if (norm !== before.courseCode) {
+      const dup = await db.masterCourse.findFirst({
+        where: { tenantId, courseCode: norm, NOT: { id } },
+      });
+      if (dup) {
+        throw new Error(`รหัสวิชา "${norm}" ซ้ำกับรายวิชาอื่นในระบบ`);
+      }
+      updateData.courseCode = norm;
+    }
+  }
+
+  if (data.courseNameTh !== undefined) updateData.courseNameTh = data.courseNameTh.trim();
+  if (data.courseNameEn !== undefined) updateData.courseNameEn = data.courseNameEn?.trim() || null;
+  if (data.credits !== undefined) updateData.credits = data.credits;
+  if (data.degreeLevel !== undefined) updateData.degreeLevel = data.degreeLevel;
+  if (data.departmentId !== undefined) {
+    updateData.department = data.departmentId ? { connect: { id: data.departmentId } } : { disconnect: true };
+  }
+  if (data.curriculumId !== undefined) {
+    updateData.curriculum = data.curriculumId ? { connect: { id: data.curriculumId } } : { disconnect: true };
+  }
+  if (data.programLanguage !== undefined) updateData.programLanguage = data.programLanguage;
+  if (data.instructor !== undefined) updateData.instructor = data.instructor?.trim() || null;
+  if (data.description !== undefined) updateData.description = data.description?.trim() || null;
+  if (data.notes !== undefined) updateData.notes = data.notes?.trim() || null;
+  if (data.isActive !== undefined) updateData.isActive = data.isActive;
+  if (data.orderIndex !== undefined) updateData.orderIndex = data.orderIndex;
+
+  const result = await db.masterCourse.update({
+    where: { id },
+    data: updateData,
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "masterCourse.update",
+    entity: "MasterCourse",
+    entityId: id,
+    before,
+    after: result,
+  });
+
+  return result;
+}
+
+export async function deleteMasterCourse(tenantId: string, actorId: string, id: string) {
+  const before = await db.masterCourse.findFirst({ where: { id, tenantId } });
+  if (!before) {
+    throw new Error("ไม่พบข้อมูลรายวิชานี้");
+  }
+
+  const result = await db.masterCourse.delete({ where: { id } });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "masterCourse.delete",
+    entity: "MasterCourse",
+    entityId: id,
+    before,
+  });
+
+  return result;
+}
+
+export async function toggleMasterCourseActive(tenantId: string, actorId: string, id: string) {
+  const before = await db.masterCourse.findFirst({ where: { id, tenantId } });
+  if (!before) {
+    throw new Error("ไม่พบข้อมูลรายวิชานี้");
+  }
+
+  const result = await db.masterCourse.update({
+    where: { id },
+    data: { isActive: !before.isActive },
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "masterCourse.toggleActive",
+    entity: "MasterCourse",
+    entityId: id,
+    before,
+    after: result,
+  });
+
+  return result;
+}
+
+export async function syncMasterCoursesFromTimetables(tenantId: string, actorId: string) {
+  const timetables = await db.curriculumTimetable.findMany({
+    where: { tenantId },
+    include: { curriculum: true, department: true },
+  });
+
+  let createdCount = 0;
+  let updatedCount = 0;
+
+  for (const t of timetables) {
+    const slots = Array.isArray(t.scheduleData)
+      ? (t.scheduleData as Array<{
+          courseCode?: string;
+          courseName?: string;
+          instructor?: string;
+        }>)
+      : [];
+    const isEngCurr =
+      t.curriculum?.nameTh?.toLowerCase().includes("english") ||
+      t.curriculum?.nameTh?.includes("ภาษาอังกฤษ") ||
+      t.curriculum?.nameEn?.toLowerCase().includes("english") ||
+      false;
+
+    for (const s of slots) {
+      const rawCode = (s.courseCode || "").trim().replace(/\s+/g, " ");
+      const rawName = (s.courseName || "").trim();
+      if (!rawCode && !rawName) continue;
+
+      const code = rawCode || rawName;
+      const isThai = /[\u0E00-\u0E7F]/.test(rawName);
+
+      const existing = await db.masterCourse.findFirst({
+        where: { tenantId, courseCode: code },
+      });
+
+      if (!existing) {
+        await db.masterCourse.create({
+          data: {
+            tenantId,
+            courseCode: code,
+            courseNameTh: isThai ? rawName : rawName,
+            courseNameEn: isThai ? null : rawName,
+            credits: 3,
+            degreeLevel: (t.curriculum?.degree as DegreeLevel) || "BACHELOR",
+            departmentId: t.departmentId || t.curriculum?.departmentId || null,
+            curriculumId: t.curriculumId || null,
+            programLanguage: isEngCurr ? "ENGLISH" : "THAI",
+            instructor: s.instructor ? s.instructor.trim() : null,
+            notes: t.curriculum?.nameTh ? `หลักสูตร: ${t.curriculum.nameTh}` : null,
+            isActive: true,
+          },
+        });
+        createdCount++;
+      } else {
+        const updateData: Prisma.MasterCourseUpdateInput = {};
+        if (isThai && !/[\u0E00-\u0E7F]/.test(existing.courseNameTh)) {
+          updateData.courseNameTh = rawName;
+        } else if (!isThai && rawName && !existing.courseNameEn) {
+          updateData.courseNameEn = rawName;
+        }
+        if (!existing.instructor && s.instructor) {
+          updateData.instructor = s.instructor.trim();
+        }
+        const targetDeptId = t.departmentId || t.curriculum?.departmentId;
+        if (!existing.departmentId && targetDeptId) {
+          updateData.department = { connect: { id: targetDeptId } };
+        }
+        if (!existing.curriculumId && t.curriculumId) {
+          updateData.curriculum = { connect: { id: t.curriculumId } };
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          await db.masterCourse.update({
+            where: { id: existing.id },
+            data: updateData,
+          });
+          updatedCount++;
+        }
+      }
+    }
+  }
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "masterCourse.syncFromTimetables",
+    entity: "MasterCourse",
+    entityId: tenantId,
+    after: { createdCount, updatedCount, totalTimetables: timetables.length },
+  });
+
+  return { createdCount, updatedCount };
+}
+
+// ==========================================
+// TIMETABLE PERIODS & TIMES CONFIGURATION
+// ==========================================
+
+export async function getTimetablePeriods(tenantId: string): Promise<TimetablePeriodConfig[]> {
+  const t = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: { settings: true },
+  });
+  const settingsObj = (t?.settings as Record<string, unknown>) ?? {};
+  const rawPeriods = settingsObj.timetablePeriods;
+  if (Array.isArray(rawPeriods) && rawPeriods.length > 0) {
+    const parsed = timetablePeriodsArraySchema.safeParse(rawPeriods);
+    if (parsed.success) {
+      return [...parsed.data].sort((a, b) => a.orderIndex - b.orderIndex);
+    }
+  }
+  return [...DEFAULT_TIMETABLE_PERIODS];
+}
+
+export async function updateTimetablePeriods(
+  tenantId: string,
+  actorId: string,
+  input: TimetablePeriodConfig[]
+): Promise<TimetablePeriodConfig[]> {
+  const valid = timetablePeriodsArraySchema.parse(input).map((p, idx) => ({
+    ...p,
+    orderIndex: idx + 1,
+  }));
+
+  const t = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: { settings: true },
+  });
+  const currentSettings = (t?.settings as Record<string, unknown>) ?? {};
+  const beforePeriods = currentSettings.timetablePeriods ?? DEFAULT_TIMETABLE_PERIODS;
+  const updatedSettings = {
+    ...currentSettings,
+    timetablePeriods: valid,
+  };
+
+  await db.tenant.update({
+    where: { id: tenantId },
+    data: { settings: updatedSettings as object },
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "curriculum.timetable_periods.update",
+    entity: "Tenant",
+    entityId: tenantId,
+    before: beforePeriods,
+    after: valid,
+  });
+
+  return valid;
+}

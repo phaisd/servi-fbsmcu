@@ -230,8 +230,8 @@ export function GradesClient({
       } else {
         toast.error("ไม่สามารถบันทึกคะแนนได้");
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการบันทึกคะแนน");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการบันทึกคะแนน");
     } finally {
       setIsSaving(false);
     }
@@ -262,8 +262,8 @@ export function GradesClient({
       } else {
         toast.error("ไม่สามารถบันทึกสัดส่วนคะแนนได้");
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการตั้งค่า");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการตั้งค่า");
     } finally {
       setIsSavingConfig(false);
     }
@@ -578,8 +578,8 @@ export function GradesClient({
       setIsImportOpen(false);
       setCsvText("");
       toast.success(`อัปเดตคะแนนจากไฟล์สำเร็จ (${matchedCount} คน) อย่าลืมกด 'บันทึกคะแนน'`);
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการประมวลผลไฟล์ CSV");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการประมวลผลไฟล์ CSV");
     } finally {
       setIsImporting(false);
     }
@@ -835,7 +835,7 @@ export function GradesClient({
 
             <select
               value={filterEligible}
-              onChange={(e) => setFilterEligible(e.target.value as any)}
+              onChange={(e) => setFilterEligible(e.target.value as "ALL" | "ELIGIBLE" | "INELIGIBLE")}
               className="text-xs px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300"
             >
               <option value="ALL">สถานะสิทธิ์สอบทั้งหมด</option>

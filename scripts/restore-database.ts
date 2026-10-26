@@ -58,8 +58,8 @@ async function runRestore() {
   try {
     execSync(cmd, { env, stdio: "inherit" });
     console.log("✓ กู้คืนฐานข้อมูลเสร็จสมบูรณ์!");
-  } catch (err: any) {
-    console.error("เกิดข้อผิดพลาดในการกู้คืนฐานข้อมูล:", err.message);
+  } catch (err: unknown) {
+    console.error("เกิดข้อผิดพลาดในการกู้คืนฐานข้อมูล:", err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
 }

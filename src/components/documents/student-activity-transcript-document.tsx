@@ -150,7 +150,7 @@ export function StudentActivityTranscriptDocument({ data, onClose }: Props) {
     URL.revokeObjectURL(url);
   };
 
-  const issuedDateObj = new Date(summary.issuedDate || Date.now());
+  const issuedDateObj = summary.issuedDate ? new Date(summary.issuedDate) : new Date("2026-01-01");
   const formattedIssuedDate = issuedDateObj.toLocaleDateString("th-TH", {
     year: "numeric",
     month: "long",

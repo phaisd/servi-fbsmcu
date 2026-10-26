@@ -22,3 +22,16 @@ export {
   getEarliestBookingDate,
   validateAdvanceBookingDate,
 } from "./_internal/business-days";
+export {
+  getThaiLunarDate,
+  getThaiHolidaysForYear,
+  getThaiHolidaysForDate,
+  getThaiCalendarDayInfo,
+  getMonthCalendarSummary,
+  toThaiNumerals,
+  type ThaiLunarDateInfo,
+  type ThaiHolidayInfo,
+  type ThaiHolidayKind,
+  type ThaiCalendarDayInfo,
+  type ThaiMonthCalendarSummary,
+} from "./_internal/thai-calendar";

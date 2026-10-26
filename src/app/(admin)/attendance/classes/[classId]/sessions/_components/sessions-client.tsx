@@ -53,9 +53,51 @@ interface SessionItem {
   };
 }
 
+interface SessionClassObj {
+  id: string;
+  courseCode: string;
+  courseName: string;
+  courseNameEn?: string | null;
+  credits?: number | null;
+  section?: string | null;
+  term: string;
+  academicYear?: string | null;
+  semester?: number | null;
+  room?: string | null;
+  dayOfWeek?: number | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  targetSessions?: number | null;
+  description?: string | null;
+  calculationRules?: { minPercent?: number } | unknown;
+  primaryTeacher?: { name?: string | null } | null;
+  instructor?: { name?: string | null } | null;
+  teachers?: Array<{
+    isPrimary?: boolean;
+    role?: string;
+    user?: { name?: string | null } | null;
+  }>;
+  _count?: {
+    enrollments?: number;
+    sessions?: number;
+  };
+}
+
+interface EditSessionForm {
+  sessionNumber: number;
+  date: string;
+  startTime: string;
+  endTime: string;
+  room: string;
+  topic: string;
+  sessionType: "REGULAR" | "SPECIAL" | string;
+  status: "SCHEDULED" | "COMPLETED" | "CANCELLED" | string;
+  isCounted: boolean;
+}
+
 interface SessionsClientProps {
-  initialItems: any[];
-  classObj: any;
+  initialItems: SessionItem[];
+  classObj: SessionClassObj;
   isSuperAdmin?: boolean;
 }
 
@@ -93,7 +135,7 @@ export function SessionsClient({ initialItems, classObj, isSuperAdmin: _isSuperA
 
   // Modal: แก้ไขคาบเรียน
   const [editingSession, setEditingSession] = useState<SessionItem | null>(null);
-  const [editFormData, setEditFormData] = useState<any>(null);
+  const [editFormData, setEditFormData] = useState<EditSessionForm | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
   // Modal: ลบคาบเรียน
@@ -113,7 +155,7 @@ export function SessionsClient({ initialItems, classObj, isSuperAdmin: _isSuperA
       const matrix = res.matrix || [];
 
       const sessionHeaders = sessionsList.map(
-        (s: any) =>
+        (s: { sessionNumber: number; date: string | Date }) =>
           `"คาบที่ ${s.sessionNumber} (${new Date(s.date).toLocaleDateString("th-TH", {
             day: "numeric",
             month: "short",
@@ -144,8 +186,25 @@ export function SessionsClient({ initialItems, classObj, isSuperAdmin: _isSuperA
         PENDING: "รอ",
       };
 
-      const rows = matrix.map((row: any, idx: number) => {
-        const sessionCells = sessionsList.map((s: any) => {
+      interface SessionMatrixRow {
+        studentCode: string;
+        studentName: string;
+        yearLevel?: number | null;
+        department?: string | null;
+        sessionRecords: Record<number, string>;
+        totals: {
+          present: number;
+          late: number;
+          excused: number;
+          absent: number;
+          pending: number;
+          percentage: number;
+          statusText: string;
+        };
+      }
+
+      const rows = (matrix as SessionMatrixRow[]).map((row, idx: number) => {
+        const sessionCells = sessionsList.map((s: { sessionNumber: number }) => {
           const st = row.sessionRecords[s.sessionNumber];
           return `"${statusThaiMap[st] || "-"}"`;
         });
@@ -170,7 +229,7 @@ export function SessionsClient({ initialItems, classObj, isSuperAdmin: _isSuperA
       const csvContent =
         "\uFEFF" +
         `"สมุดบันทึกเวลาเรียนรายคาบ (Matrix 16 คาบ) รายวิชา: ${classObj.courseCode} ${classObj.courseName}"\n` +
-        `"ภาคการศึกษา: ${classObj.term} | อาจารย์ผู้สอน: ${classObj.primaryTeacher?.name || classObj.instructor?.name || "-"} | เกณฑ์สิทธิ์สอบ: ${(classObj.calculationRules as any)?.minPercent || 80}%"\n` +
+        `"ภาคการศึกษา: ${classObj.term} | อาจารย์ผู้สอน: ${classObj.primaryTeacher?.name || classObj.instructor?.name || "-"} | เกณฑ์สิทธิ์สอบ: ${(classObj.calculationRules as { minPercent?: number } | null | undefined)?.minPercent || 80}%"\n` +
         `"พิมพ์เมื่อ: ${new Date().toLocaleString("th-TH")}"\n\n` +
         [headers.join(","), ...rows].join("\n");
 
@@ -186,8 +245,8 @@ export function SessionsClient({ initialItems, classObj, isSuperAdmin: _isSuperA
       link.click();
       document.body.removeChild(link);
       toast.success("ส่งออกสมุดบันทึกเวลาเรียน Matrix (16 คาบ) เรียบร้อยแล้ว");
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการส่งออก Matrix");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการส่งออก Matrix");
     } finally {
       setIsExportingMatrix(false);
     }
@@ -227,11 +286,11 @@ export function SessionsClient({ initialItems, classObj, isSuperAdmin: _isSuperA
 
       if (res.success && res.session) {
         toast.success(`เพิ่มคาบที่ ${addFormData.sessionNumber} เรียบร้อยแล้ว`);
-        setSessions([...sessions, res.session as any].sort((a, b) => a.sessionNumber - b.sessionNumber));
+        setSessions([...sessions, res.session as unknown as SessionItem].sort((a, b) => a.sessionNumber - b.sessionNumber));
         setIsAddOpen(false);
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการเพิ่มคาบเรียน");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการเพิ่มคาบเรียน");
     } finally {
       setIsAdding(false);
     }
@@ -248,8 +307,8 @@ export function SessionsClient({ initialItems, classObj, isSuperAdmin: _isSuperA
         setSessions(sessions.filter((s) => s.id !== deletingSession.id));
         setDeletingSession(null);
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการลบคาบเรียน");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการลบคาบเรียน");
     } finally {
       setIsDeleting(false);
     }
@@ -258,7 +317,7 @@ export function SessionsClient({ initialItems, classObj, isSuperAdmin: _isSuperA
   // บันทึกการแก้ไขคาบ
   async function handleUpdateSession(e: React.FormEvent) {
     e.preventDefault();
-    if (!editingSession) return;
+    if (!editingSession || !editFormData) return;
 
     try {
       setIsUpdating(true);
@@ -269,8 +328,8 @@ export function SessionsClient({ initialItems, classObj, isSuperAdmin: _isSuperA
         endTime: editFormData.endTime,
         room: editFormData.room,
         topic: editFormData.topic,
-        sessionType: editFormData.sessionType,
-        status: editFormData.status,
+        sessionType: editFormData.sessionType as "REGULAR" | "SPECIAL",
+        status: editFormData.status as "SCHEDULED" | "COMPLETED" | "CANCELLED",
         isCounted: editFormData.isCounted,
       });
 
@@ -278,13 +337,13 @@ export function SessionsClient({ initialItems, classObj, isSuperAdmin: _isSuperA
         toast.success(`อัปเดตข้อมูลคาบที่ ${editFormData.sessionNumber} สำเร็จ`);
         setSessions(
           sessions
-            .map((s) => (s.id === editingSession.id ? (res.session as any) : s))
+            .map((s) => (s.id === editingSession.id ? (res.session as unknown as SessionItem) : s))
             .sort((a, b) => a.sessionNumber - b.sessionNumber)
         );
         setEditingSession(null);
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการแก้ไขคาบเรียน");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการแก้ไขคาบเรียน");
     } finally {
       setIsUpdating(false);
     }
@@ -590,7 +649,7 @@ export function SessionsClient({ initialItems, classObj, isSuperAdmin: _isSuperA
                 </label>
                 <select
                   value={addFormData.sessionType}
-                  onChange={(e) => setAddFormData({ ...addFormData, sessionType: e.target.value as any })}
+                  onChange={(e) => setAddFormData({ ...addFormData, sessionType: e.target.value as "REGULAR" | "SPECIAL" })}
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
                 >
                   <option value="REGULAR">คาบปกติ (Regular Session)</option>

@@ -15,6 +15,7 @@ export {
   MCU_LATEST_TIMETABLE_YEAR,
   MCU_LATEST_TIMETABLE_SEMESTER,
   parseTeachingExperiences,
+  getTeachingCoursesForPersonnel,
   getLatestTeachingSummary,
   getCurriculumLanguageInfo,
   toThaiDigits,
@@ -26,3 +27,14 @@ export {
   formatDegreeLevelLabel,
   getDegreeLevelColor,
 } from "./teaching-courses";
+export {
+  type ExecutiveTier,
+  type ExecutiveSlotDefinition,
+  type MinimalPersonnelForExecutive,
+  type ClassifiedExecutive,
+  FACULTY_EXECUTIVE_SLOTS,
+  matchExecutiveSlot,
+  classifyExecutivePersonnel,
+  computeStepDownUpdates,
+  computeAppointExecutiveUpdates,
+} from "./executive-roles";

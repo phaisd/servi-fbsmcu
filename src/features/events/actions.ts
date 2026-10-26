@@ -245,7 +245,7 @@ export async function submitEventEvaluationAction(
     ratingFacility: number;
     ratingTime: number;
     ratingOverall: number;
-    customAnswers?: Record<string, any>;
+    customAnswers?: Record<string, unknown>;
     feedback?: string;
   }
 ) {

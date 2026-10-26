@@ -13,14 +13,22 @@ import {
 } from "lucide-react";
 import {
   TimetableGridView,
+  type TimetableData,
+  type TimetablePeriodConfig,
 } from "@/features/curriculum/_components/timetable-grid-view";
 import { Button } from "@/components/ui/button";
 import type { Curriculum, Department } from "@/generated/prisma";
 
+interface PortalTimetableItem extends TimetableData {
+  curriculumId?: string | null;
+  departmentId?: string | null;
+}
+
 interface TimetablesPortalClientProps {
-  initialItems: any[];
+  initialItems: PortalTimetableItem[];
   curriculums: Curriculum[];
   departments: Department[];
+  periods?: TimetablePeriodConfig[];
   locale?: string;
 }
 
@@ -35,6 +43,7 @@ export function TimetablesPortalClient({
   initialItems,
   curriculums,
   departments: _departments,
+  periods,
   locale = "th",
 }: TimetablesPortalClientProps) {
   const searchParams = useSearchParams();
@@ -130,17 +139,18 @@ export function TimetablesPortalClient({
     selectedYearLevel,
   ]);
 
-  // Currently active timetable to display
+  // Currently active timetable to display (never fall back to initialItems[0] when filteredTimetables is empty)
   const activeTimetable = React.useMemo(() => {
+    if (filteredTimetables.length === 0) return null;
     if (selectedTimetableId) {
       return (
-        initialItems.find((it) => it.id === selectedTimetableId) ||
+        filteredTimetables.find((it) => it.id === selectedTimetableId) ||
         filteredTimetables[0] ||
         null
       );
     }
-    return filteredTimetables[0] || initialItems[0] || null;
-  }, [selectedTimetableId, filteredTimetables, initialItems]);
+    return filteredTimetables[0] || null;
+  }, [selectedTimetableId, filteredTimetables]);
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8 print:p-0 print:m-0 print:max-w-none print:w-full">
@@ -297,7 +307,7 @@ export function TimetablesPortalClient({
               value={String(selectedYearLevel)}
               onChange={(e) => {
                 const val = e.target.value === "ALL" ? "ALL" : Number(e.target.value);
-                setSelectedYearLevel(val as any);
+                setSelectedYearLevel(val);
                 setSelectedTimetableId(null);
               }}
               className="w-full px-3 py-2 text-xs rounded-xl border border-border bg-background focus:ring-1 focus:ring-primary focus:outline-hidden font-medium cursor-pointer"
@@ -477,21 +487,90 @@ export function TimetablesPortalClient({
         <div className="space-y-4">
           <TimetableGridView
             timetable={activeTimetable}
+            periods={periods}
             locale={locale}
             showHeaderActions={true}
           />
         </div>
       ) : (
-        <div className="py-20 text-center text-muted-foreground rounded-2xl border border-dashed p-8">
-          <Calendar className="w-12 h-12 mx-auto mb-3 text-muted-foreground/30" />
-          <p className="text-base font-semibold">
-            {locale === "th" ? "ไม่พบตารางเรียนที่ตรงกับเงื่อนไข" : "No timetables found."}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {locale === "th"
-              ? "ลองเลือกหลักสูตรหรือชั้นปีอื่น หรือล้างคำค้นหา"
-              : "Try choosing another curriculum or year level."}
-          </p>
+        <div className="py-16 px-6 text-center rounded-2xl border border-dashed border-border bg-card/60 shadow-2xs space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto">
+            <Calendar className="w-8 h-8" />
+          </div>
+          <div className="space-y-1.5 max-w-lg mx-auto">
+            <h3 className="text-lg sm:text-xl font-bold text-foreground">
+              {locale === "th"
+                ? "ยังไม่มีข้อมูลตารางสอนในภาคการศึกษานี้"
+                : "No class schedule data available for this semester"}
+            </h3>
+            <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+              {locale === "th"
+                ? selectedSemester !== "ALL"
+                  ? `ยังไม่มีการประกาศตารางเรียนตารางสอนสำหรับ${
+                      selectedSemester === "3"
+                        ? "ภาคฤดูร้อน"
+                        : `ภาคการศึกษาที่ ${selectedSemester}`
+                    }${
+                      selectedAcademicYear !== "ALL"
+                        ? ` ปีการศึกษา ${selectedAcademicYear}`
+                        : ""
+                    } หรือไม่พบตารางเรียนที่ตรงกับตัวกรองที่เลือก กรุณาเลือกภาคการศึกษาอื่นหรือล้างตัวกรอง`
+                  : "ยังไม่มีการประกาศตารางเรียนตารางสอนสำหรับเงื่อนไขที่เลือก ลองเลือกภาคการศึกษา หลักสูตร หรือชั้นปีอื่น"
+                : selectedSemester !== "ALL"
+                ? `The class schedule for ${
+                    selectedSemester === "3"
+                      ? "Summer Semester"
+                      : `Semester ${selectedSemester}`
+                  }${
+                    selectedAcademicYear !== "ALL"
+                      ? `, Academic Year ${selectedAcademicYear}`
+                      : ""
+                  } has not been published yet. Please select another semester or reset filters.`
+                : "The class schedule for the selected academic year or semester has not been published yet."}
+            </p>
+          </div>
+          {(selectedSemester !== "ALL" ||
+            selectedAcademicYear !== "ALL" ||
+            selectedDegree !== "ALL" ||
+            selectedCurriculumId !== "ALL" ||
+            selectedYearLevel !== "ALL" ||
+            search.trim() !== "") && (
+            <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
+              {selectedSemester !== "ALL" && (
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedSemester("ALL");
+                    setSelectedTimetableId(null);
+                  }}
+                  className="text-xs font-semibold cursor-pointer"
+                >
+                  {locale === "th"
+                    ? "ดูตารางเรียนทุกภาคการศึกษา"
+                    : "View All Semesters"}
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedAcademicYear("ALL");
+                  setSelectedSemester("ALL");
+                  setSelectedDegree("ALL");
+                  setSelectedCurriculumId("ALL");
+                  setSelectedYearLevel("ALL");
+                  setSearch("");
+                  setSelectedTimetableId(null);
+                }}
+                className="text-xs cursor-pointer"
+              >
+                {locale === "th" ? "ล้างตัวกรองทั้งหมด" : "Reset All Filters"}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -62,8 +62,8 @@ async function runBackup() {
 
   try {
     execSync(cmd, { env, stdio: "inherit" });
-  } catch (err: any) {
-    console.error("เกิดข้อผิดพลาดในการรัน pg_dump:", err.message);
+  } catch (err: unknown) {
+    console.error("เกิดข้อผิดพลาดในการรัน pg_dump:", err instanceof Error ? err.message : String(err));
     throw err;
   }
 

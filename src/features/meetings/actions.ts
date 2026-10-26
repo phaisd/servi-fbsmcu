@@ -1,6 +1,10 @@
 "use server";
 
+import fs from "node:fs/promises";
+import path from "node:path";
+import crypto from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { validateUploadFile } from "@/shared/lib/security/file-validation";
 import { auth, requireSession, requirePermission } from "@/features/identity/server";
 import { resolvePublicTenantId } from "@/features/news/server";
 import { prisma as db } from "@/shared/lib/infra/prisma";
@@ -56,6 +60,44 @@ export async function deleteMeetingRoomAction(id: string) {
   revalidatePath("/meetings/rooms");
   revalidatePath("/portal/meetings");
   return res;
+}
+
+export async function uploadMeetingRoomImageAction(formData: FormData) {
+  await requireSession();
+  await requirePermission(MEETINGS_P.manage);
+
+  const file = formData.get("file");
+  if (!file || !(file instanceof File) || file.size === 0) {
+    throw new Error("กรุณาเลือกไฟล์รูปภาพ");
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  const validation = validateUploadFile(file.name, buffer, {
+    allowedExtensions: ["png", "jpg", "jpeg", "webp"],
+    maxSizeBytes: 10 * 1024 * 1024,
+  });
+
+  if (!validation.valid) {
+    throw new Error(validation.error || "ไฟล์รูปภาพไม่ถูกต้อง (รองรับเฉพาะ JPG, PNG, WEBP ขนาดไม่เกิน 10MB)");
+  }
+
+  const uploadsDir = path.join(process.cwd(), "public", "uploads", "meetings");
+  await fs.mkdir(uploadsDir, { recursive: true });
+
+  const safeBaseName = path
+    .basename(file.name, `.${validation.ext}`)
+    .replace(/[^a-zA-Z0-9_\u0E00-\u0E7F-]/g, "_")
+    .slice(0, 30);
+
+  const uniqueId = crypto.randomUUID().slice(0, 8);
+  const filename = `room-${Date.now()}-${uniqueId}-${safeBaseName || "photo"}.${validation.ext}`;
+  const filePath = path.join(uploadsDir, filename);
+
+  await fs.writeFile(filePath, buffer);
+
+  const url = `/uploads/meetings/${filename}`;
+  return { url, fileName: file.name, fileSize: file.size };
 }
 
 // Booking Actions

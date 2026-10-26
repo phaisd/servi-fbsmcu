@@ -18,8 +18,9 @@ const DAY_NAMES: Record<number, string> = {
 
 const EXCLUDED_TITLES = new Set([
   "dr.", "dr", "ven.", "ven", "prof.", "prof", "assoc.", "assoc", "asst.", "asst", "ph.d.", "ph.d",
+  "phramaha", "phrakhru", "phrakru", "phrakhrupalad", "phra", "most", "rev.", "rev", "mae", "chee", "maechee",
   "พระ", "มหา", "ดร.", "ผศ.", "รศ.", "ศ.", "อาจารย์", "อาจารย์,", "ผศ.ดร.", "รศ.ดร.", "ศ.ดร.", "อ.ดร.", "อ.",
-  "นาย", "นาง", "นางสาว", "เจ้าคุณ", "พระครู", "พระมหา", "ดร", "ผศ", "รศ", "ศ"
+  "นาย", "นาง", "นางสาว", "เจ้าคุณ", "พระครู", "พระมหา", "ดร", "ผศ", "รศ", "ศ", "วิ.", "พิเศษ"
 ]);
 
 function normalizeThaiConsonants(str: string): string {
@@ -46,37 +47,45 @@ function cleanKaran(str: string): string {
 export function extractTeacherKeywords(teacher: {
   firstNameTh: string;
   lastNameTh?: string | null;
+  firstNameEn?: string | null;
+  lastNameEn?: string | null;
   academicPosition?: string | null;
   email?: string | null;
 }): { rawTokens: string[]; normalizedTokens: string[] } {
   const f = teacher.firstNameTh.trim();
   const l = (teacher.lastNameTh || "").trim();
+  const fEn = (teacher.firstNameEn || "").trim();
+  const lEn = (teacher.lastNameEn || "").trim();
 
   const titlePrefixes = [
     "พระครูปลัด", "พระครูวินัยธร", "พระครูธรรมธร", "พระครูสมุห์", "พระครูใบฎีกา", "พระครู",
     "พระราชญาณวชิรเวที", "พระราชอุดมวัชรเมธี", "พระราช", "พระเทพ", "พระธรรม", "พระพรหม",
     "พระสิทธิวัชรบัณฑิต", "พระสิทธิ", "พระศรีวชิราภินันท์", "พระศรี",
-    "พระมหา", "พระสมุห์", "พระใบฎีกา", "พระปลัด", "พระ", "สามเณร",
-    "ผศ.ดร.", "รศ.ดร.", "ศ.ดร.", "อ.ดร.", "ดร.", "ผศ.", "รศ.", "ศ.",
-    "อาจารย์,", "อาจารย์", "อ.", "นาย", "นางสาว", "นาง", "Ven.", "Assoc. Prof.", "Dr."
+    "พระมหา", "พระสมุห์", "พระใบฎีกา", "พระปลัด", "พระ", "สามเณร", "แม่ชี",
+    "ผศ.พิเศษ ดร.", "รศ.พิเศษ ดร.", "ผศ.ดร.", "รศ.ดร.", "ศ.ดร.", "อ.ดร.", "ดร.", "ผศ.", "รศ.", "ศ.",
+    "อาจารย์,", "อาจารย์", "อ.", "นาย", "นางสาว", "นาง",
+    "Assoc. Prof. Dr.", "Asst. Prof. Dr.", "Assoc. Prof.", "Asst. Prof.", "Prof. Dr.",
+    "Phrakhrupalad", "Phrakhru", "Phrakru", "Phramaha", "Phra", "Ven. Dr.", "Ven.", "Dr."
   ];
 
-  const rawParts = `${f} ${l}`
+  const rawParts = `${f} ${l} ${fEn} ${lEn}`
     .replace(/[\(\)（）\*,]/g, " ")
     .split(/\s+/)
     .filter((p) => p.length >= 2);
 
   const rawTokens = new Set<string>();
-  rawTokens.add(f);
+  if (f) rawTokens.add(f);
   if (l) rawTokens.add(l);
+  if (fEn) rawTokens.add(fEn);
+  if (lEn) rawTokens.add(lEn);
 
   for (const part of rawParts) {
     rawTokens.add(part);
     let stripped = part;
     for (const prefix of titlePrefixes) {
-      if (stripped.startsWith(prefix) && stripped.length > prefix.length + 2) {
-        stripped = stripped.substring(prefix.length);
-        rawTokens.add(stripped);
+      if (stripped.toLowerCase().startsWith(prefix.toLowerCase()) && stripped.length > prefix.length + 2) {
+        stripped = stripped.substring(prefix.length).trim();
+        if (stripped.length >= 3) rawTokens.add(stripped);
       }
     }
   }
@@ -106,10 +115,13 @@ export function checkInstructorMatch(
   for (let idx = 0; idx < instructors.length; idx++) {
     const rawInst = instructors[idx];
     const cleanInst = rawInst.replace(/[\*]/g, "").trim();
+    const cleanInstLower = cleanInst.toLowerCase();
     const normInst = normalizeThaiConsonants(cleanInst);
     const cleanedInst = cleanKaran(normInst);
 
-    const directHit = teacherKeywords.rawTokens.some((tok) => cleanInst.includes(tok));
+    const directHit = teacherKeywords.rawTokens.some(
+      (tok) => cleanInst.includes(tok) || cleanInstLower.includes(tok.toLowerCase())
+    );
     const fuzzyHit = !directHit && teacherKeywords.normalizedTokens.some((tok) => normInst.includes(tok) || cleanedInst.includes(tok));
 
     if (directHit || fuzzyHit) {
@@ -126,6 +138,8 @@ export async function findTeacherCoursesFromTimetables(
   teacher: {
     firstNameTh: string;
     lastNameTh?: string | null;
+    firstNameEn?: string | null;
+    lastNameEn?: string | null;
     academicPosition?: string | null;
     email?: string | null;
   }
@@ -140,8 +154,22 @@ export async function findTeacherCoursesFromTimetables(
     orderBy: [{ academicYear: "desc" }, { semester: "desc" }],
   });
 
+  interface RawTimetableSlot {
+    instructor?: string;
+    courseCode?: string;
+    courseName?: string;
+    courseNameEn?: string;
+    credits?: number | string;
+    dayOfWeek?: number | string;
+    startTime?: string;
+    endTime?: string;
+    room?: string | null;
+  }
+
   for (const tt of timetables) {
-    const slots = Array.isArray(tt.scheduleData) ? (tt.scheduleData as any[]) : [];
+    const slots = Array.isArray(tt.scheduleData)
+      ? (tt.scheduleData as unknown as RawTimetableSlot[])
+      : [];
     const yearNorm = normalizeCourseYear(tt.academicYear) || "2569";
     const semNorm = String(tt.semester || "1");
 
@@ -190,6 +218,14 @@ export async function findTeacherCoursesFromTimetables(
             : "หลักสูตรพุทธศาสตรบัณฑิต (พธ.บ.)");
 
         const role = match.isPrimary ? "อาจารย์ผู้สอนประจำวิชา" : "ผู้สอนร่วม";
+        const isEnglishProg =
+          progName.includes("ภาษาอังกฤษ") ||
+          progName.toLowerCase().includes("english") ||
+          progName.includes("นานาชาติ") ||
+          (tt.titleTh || "").includes("ภาษาอังกฤษ") ||
+          (tt.titleTh || "").toLowerCase().includes("english") ||
+          rawCode.toUpperCase().startsWith("IB");
+        const programLanguage = isEnglishProg ? "ENGLISH" : "THAI";
 
         if (courseMap.has(key)) {
           // รวมตารางเวลา/ห้องเรียนถ้ามีหลายคาบ
@@ -213,6 +249,7 @@ export async function findTeacherCoursesFromTimetables(
             courseNameEn: slot.courseNameEn || undefined,
             credits: Number(slot.credits) || 3,
             programTh,
+            programLanguage,
             role,
             description: scheduleInfo || undefined,
           });
@@ -221,19 +258,27 @@ export async function findTeacherCoursesFromTimetables(
     }
   }
 
-  // 2. ตรวจสอบจาก Course และ CourseTeacher ในระบบ
+  // 2. ตรวจสอบจาก Course และ CourseTeacher ในระบบ (รองรับทั้งชื่อภาษาไทยและภาษาอังกฤษ)
   const email = teacher.email ? teacher.email.trim() : "";
   const firstName = teacher.firstNameTh.trim();
   const lastName = teacher.lastNameTh ? teacher.lastNameTh.trim() : "";
+  const firstNameEn = teacher.firstNameEn ? teacher.firstNameEn.trim() : "";
+  const lastNameEn = teacher.lastNameEn ? teacher.lastNameEn.trim() : "";
+  const searchTokens = Array.from(
+    new Set(
+      [firstName, lastName, firstNameEn, lastNameEn, ...kws.rawTokens]
+        .map((s) => s.trim())
+        .filter((s) => s.length >= 3)
+    )
+  );
 
   const dbCourses = await prisma.course.findMany({
     where: {
       tenantId,
       OR: [
         ...(email ? [{ primaryTeacher: { email } }] : []),
-        ...(firstName ? [{ primaryTeacher: { name: { contains: firstName } } }] : []),
-        ...(lastName ? [{ primaryTeacher: { name: { contains: lastName } } }] : []),
-        ...(firstName ? [{ teachers: { some: { user: { name: { contains: firstName } } } } }] : []),
+        ...searchTokens.map((tok) => ({ primaryTeacher: { name: { contains: tok, mode: "insensitive" as const } } })),
+        ...searchTokens.map((tok) => ({ teachers: { some: { user: { name: { contains: tok, mode: "insensitive" as const } } } } })),
       ],
     },
     include: { primaryTeacher: true },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Building2,
@@ -14,6 +14,8 @@ import {
   Tv,
   Settings,
   Check,
+  Camera,
+  UploadCloud,
 } from "lucide-react";
 import type { MeetingRoom } from "@/generated/prisma";
 import {
@@ -21,6 +23,7 @@ import {
   updateMeetingRoomAction,
   deleteMeetingRoomAction,
   updateMeetingFormSettingsAction,
+  uploadMeetingRoomImageAction,
 } from "@/features/meetings/actions";
 import type {
   MeetingFormSettings,
@@ -49,6 +52,39 @@ export function MeetingRoomsClient({
   const [formEquipment, setFormEquipment] = useState("");
   const [formImageUrl, setFormImageUrl] = useState("");
   const [formIsActive, setFormIsActive] = useState(true);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      notify("กรุณาเลือกไฟล์รูปภาพ (JPG, PNG, WEBP)");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      notify("ขนาดไฟล์รูปภาพต้องไม่เกิน 10MB");
+      return;
+    }
+
+    try {
+      setIsUploadingImage(true);
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await uploadMeetingRoomImageAction(formData);
+      setFormImageUrl(res.url);
+      notify("อัปโหลดรูปภาพห้องประชุมสำเร็จ");
+    } catch (err: unknown) {
+      notify(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ");
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
 
   // Form Settings Modal state (วัตถุประสงค์ & อุปกรณ์)
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -401,17 +437,93 @@ export function MeetingRoomsClient({
                 />
               </div>
 
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  URL รูปภาพห้องประชุม (ถ้ามี)
-                </label>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    รูปภาพห้องประชุม (Room Image)
+                  </label>
+                  {formImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setFormImageUrl("")}
+                      className="text-xs text-rose-600 hover:underline"
+                    >
+                      ลบรูปภาพ
+                    </button>
+                  )}
+                </div>
+
+                {/* Hidden file input */}
                 <input
-                  type="text"
-                  value={formImageUrl}
-                  onChange={(e) => setFormImageUrl(e.target.value)}
-                  placeholder="https://... หรือ /uploads/..."
-                  className="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-xs"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={handleImageUpload}
                 />
+
+                {/* Preview Box & Upload Area */}
+                <div className="rounded-2xl border border-dashed border-slate-300 p-3 bg-slate-50/50 flex flex-col items-center justify-center gap-2">
+                  {formImageUrl ? (
+                    <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-slate-900 border border-slate-200">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={formImageUrl}
+                        alt="Room preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploadingImage}
+                          className="px-3 py-1.5 rounded-lg bg-white/90 hover:bg-white text-slate-800 text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Camera className="w-3.5 h-3.5" />
+                          <span>เปลี่ยนรูปภาพ</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-6 flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-slate-100/60 rounded-xl transition border border-transparent"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center">
+                        {isUploadingImage ? (
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <UploadCloud className="w-5 h-5" />
+                        )}
+                      </div>
+                      <span className="text-xs font-bold text-slate-700">
+                        {isUploadingImage ? "กำลังอัปโหลดรูปภาพ..." : "คลิกเพื่ออัปโหลดรูปภาพห้องประชุม"}
+                      </span>
+                      <span className="text-[11px] text-slate-400">
+                        รองรับไฟล์ JPG, PNG, WEBP (ไม่เกิน 10MB)
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="w-full flex items-center gap-2 pt-1 border-t border-slate-200/60">
+                    <button
+                      type="button"
+                      disabled={isUploadingImage}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-700 text-xs font-bold border border-orange-200 transition shrink-0 cursor-pointer"
+                    >
+                      {isUploadingImage ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+                      <span>{formImageUrl ? "เปลี่ยนรูป" : "อัปโหลดรูปภาพ"}</span>
+                    </button>
+                    <input
+                      type="text"
+                      value={formImageUrl}
+                      onChange={(e) => setFormImageUrl(e.target.value)}
+                      placeholder="หรือระบุ URL รูปภาพ (https://... หรือ /uploads/...)"
+                      className="flex-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-slate-600 bg-white"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t">

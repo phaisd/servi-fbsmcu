@@ -88,8 +88,8 @@ async function main() {
 
       console.log(`✓ สำเร็จ! -> ${publicPath}`);
       successCount++;
-    } catch (err: any) {
-      console.log(`❌ ล้มเหลว (${err.message})`);
+    } catch (err: unknown) {
+      console.log(`❌ ล้มเหลว (${err instanceof Error ? err.message : String(err)})`);
     }
   }
 

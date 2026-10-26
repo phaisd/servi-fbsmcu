@@ -10,6 +10,7 @@ export const MESSAGES: Dictionary = {
   "personnel.type.EXECUTIVE": { th: "สายผู้บริหาร", en: "Executive" },
   "personnel.type.ACADEMIC": { th: "สายวิชาการ", en: "Academic" },
   "personnel.type.SUPPORT": { th: "สายสนับสนุน", en: "Support Staff" },
+  "personnel.type.SPECIAL": { th: "อาจารย์พิเศษ", en: "Special Lecturer" },
 
   "roles.module.personnel": { th: "ระบบจัดการบุคลากร", en: "Personnel Directory" },
   "perm.personnel:read": { th: "ดูข้อมูลบุคลากร", en: "View personnel directory" },

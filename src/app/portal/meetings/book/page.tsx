@@ -13,7 +13,7 @@ export const metadata = {
 export default async function BookMeetingPage({
   searchParams,
 }: {
-  searchParams: Promise<{ roomId?: string }>;
+  searchParams: Promise<{ roomId?: string; date?: string }>;
 }) {
   const session = await getSessionContext().catch(() => null);
   const tenantId = session?.tenantId || (await resolvePublicTenantId());
@@ -50,6 +50,7 @@ export default async function BookMeetingPage({
     <MeetingBookingFormClient
       rooms={rooms}
       initialRoomId={resolvedParams.roomId}
+      initialDate={resolvedParams.date}
       personnelList={personnelList}
       currentUser={currentUser}
       formSettings={formSettings}

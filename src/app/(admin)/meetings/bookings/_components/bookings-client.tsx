@@ -89,7 +89,7 @@ const APPROVER_POSITION_PRESETS = [
   },
 ];
 
-export function BookingsClient({ initialItems, personnelList = [], formSettings }: Props) {
+export function BookingsClient({ initialItems, personnelList = [], formSettings: _formSettings }: Props) {
   const router = useRouter();
   const [items, setItems] = useState<BookingWithRelations[]>(initialItems);
   const [personnel, setPersonnel] = useState<PersonnelItem[]>(personnelList);
@@ -362,9 +362,9 @@ export function BookingsClient({ initialItems, personnelList = [], formSettings 
   }, 0);
 
   // Overall counts
-  const pendingCount = items.filter((i) => i.status === "PENDING").length;
-  const approvedCount = items.filter((i) => i.status === "APPROVED").length;
-  const rejectedCount = items.filter((i) => i.status === "REJECTED").length;
+  const _pendingCount = items.filter((i) => i.status === "PENDING").length;
+  const _approvedCount = items.filter((i) => i.status === "APPROVED").length;
+  const _rejectedCount = items.filter((i) => i.status === "REJECTED").length;
 
   // Generate dataset for Export
   const generateExportData = () => {

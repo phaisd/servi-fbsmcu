@@ -29,7 +29,9 @@ import {
   ChevronDown,
   Camera,
   CheckCircle2,
+  Award,
 } from "lucide-react";
+import { ExecutiveRoleManagerDialog } from "./executive-role-manager-dialog";
 import { useT } from "@/shared/lib/i18n/client";
 import {
   LiyonCard,
@@ -53,14 +55,17 @@ import {
   createResearchPublicationAction,
   deleteResearchPublicationAction,
   importPersonnelBatchAction,
+  updatePersonnelPortalConfigAction,
   type ImportPersonnelItem,
 } from "@/features/personnel/actions";
 import {
   type TeachingCourse,
   type DegreeLevel,
   parseTeachingExperiences,
+  formatTeachingCoursesToText,
   formatDegreeLevelLabel,
   getDegreeLevelColor,
+  normalizeCourseYear,
   MCU_STANDARD_COURSES,
   getCourseUniqueKey,
   upsertTeachingCourses,
@@ -77,9 +82,15 @@ interface Props {
   initialItems: PersonnelWithRelations[];
   departmentList: Department[];
   canManage: boolean;
+  initialPublicationYearsLimit?: number;
 }
 
-export function PersonnelAdminClient({ initialItems, departmentList, canManage }: Props) {
+export function PersonnelAdminClient({
+  initialItems,
+  departmentList,
+  canManage,
+  initialPublicationYearsLimit = 5,
+}: Props) {
   const t = useT();
   const router = useRouter();
   const [items, setItems] = useState<PersonnelWithRelations[]>(initialItems);
@@ -87,6 +98,29 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
   const [deptFilter, setDeptFilter] = useState<string>("ALL");
   const [isPending, startTransition] = useTransition();
+  const [pubYearsLimit, setPubYearsLimit] = useState<number>(initialPublicationYearsLimit);
+  const [isSavingPortalConfig, setIsSavingPortalConfig] = useState(false);
+  const [executiveDialogOpen, setExecutiveDialogOpen] = useState(false);
+
+  const handleSavePortalYearsLimit = async (nextLimit: number) => {
+    const clean = Math.max(0, Math.min(50, Math.floor(Number(nextLimit) || 0)));
+    setPubYearsLimit(clean);
+    try {
+      setIsSavingPortalConfig(true);
+      await updatePersonnelPortalConfigAction({ publicationYearsLimit: clean });
+      if (clean === 0) {
+        toast.success("บันทึกตั้งค่า: แสดงผลงานวิจัยทุกปี พ.ศ. ทั้งหมดบนหน้า Portal เรียบร้อยแล้ว");
+      } else {
+        const minYr = 2569 - clean + 1;
+        toast.success(`บันทึกตั้งค่า: แสดงผลงานวิจัยย้อนหลัง ${clean} ปี (พ.ศ. 2569 ถึง พ.ศ. ${minYr}) เรียบร้อยแล้ว`);
+      }
+      router.refresh();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการบันทึกตั้งค่า");
+    } finally {
+      setIsSavingPortalConfig(false);
+    }
+  };
 
   // Personnel Modal Dialog State
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -103,7 +137,7 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
   const [formAcademicPosition, setFormAcademicPosition] = useState("");
   const [formAcademicPositionEn, setFormAcademicPositionEn] = useState("");
   const [formTitlePlacement, setFormTitlePlacement] = useState<"PREFIX" | "SUFFIX">("PREFIX");
-  const [formType, setFormType] = useState<"EXECUTIVE" | "ACADEMIC" | "SUPPORT">("ACADEMIC");
+  const [formType, setFormType] = useState<"EXECUTIVE" | "ACADEMIC" | "SUPPORT" | "SPECIAL">("ACADEMIC");
   const [formDepartmentId, setFormDepartmentId] = useState("");
   const [formEmail, setFormEmail] = useState("");
   const [formPhoneNumber, setFormPhoneNumber] = useState("");
@@ -129,6 +163,49 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
   const [isSyncingCourses, setIsSyncingCourses] = useState(false);
   const [showCourseForm, setShowCourseForm] = useState(false);
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+
+  // Teaching Courses Filter States
+  const [courseFilterLevel, setCourseFilterLevel] = useState<"ALL" | DegreeLevel>("ALL");
+  const [courseFilterYear, setCourseFilterYear] = useState<string>("ALL");
+  const [courseFilterSearch, setCourseFilterSearch] = useState<string>("");
+
+  const availableCourseYears = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of editingTeachingCourses) {
+      const norm = normalizeCourseYear(c.year) || c.year?.trim() || "";
+      if (norm) set.add(norm);
+    }
+    return Array.from(set).sort((a, b) => b.localeCompare(a));
+  }, [editingTeachingCourses]);
+
+  const filteredTeachingCourses = useMemo(() => {
+    return editingTeachingCourses.filter((c) => {
+      // 1. Level filter
+      if (courseFilterLevel !== "ALL" && c.level !== courseFilterLevel) {
+        return false;
+      }
+      // 2. Year filter
+      if (courseFilterYear !== "ALL") {
+        const norm = normalizeCourseYear(c.year) || c.year?.trim();
+        if (norm !== courseFilterYear) {
+          return false;
+        }
+      }
+      // 3. Search query filter
+      if (courseFilterSearch.trim()) {
+        const q = courseFilterSearch.trim().toLowerCase();
+        const codeMatch = c.courseCode.toLowerCase().includes(q);
+        const nameThMatch = c.courseNameTh.toLowerCase().includes(q);
+        const nameEnMatch = c.courseNameEn?.toLowerCase().includes(q) || false;
+        const progMatch = c.programTh?.toLowerCase().includes(q) || false;
+        const roleMatch = c.role?.toLowerCase().includes(q) || false;
+        if (!codeMatch && !nameThMatch && !nameEnMatch && !progMatch && !roleMatch) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [editingTeachingCourses, courseFilterLevel, courseFilterYear, courseFilterSearch]);
 
   // Course Form States
   const [cCode, setCCode] = useState("");
@@ -242,7 +319,10 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
 
     try {
       setIsSyncingCourses(true);
-      const synced = await syncTeacherCoursesFromTimetablesAction(teacherName, editingItem?.id);
+      const synced = await syncTeacherCoursesFromTimetablesAction(teacherName, editingItem?.id, {
+        firstNameEn: formFirstNameEn,
+        lastNameEn: formLastNameEn,
+      });
       if (!synced || synced.length === 0) {
         toast.info("ไม่พบรายวิชาที่ตรงกับชื่ออาจารย์ในตารางสอนภาคเรียนนี้");
         return;
@@ -255,7 +335,7 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
       );
 
       setEditingTeachingCourses(merged);
-      setFormExperiencesTh(JSON.stringify(merged));
+      setFormExperiencesTh(formatTeachingCoursesToText(merged));
 
       if (addedCount > 0 && updatedCount > 0) {
         toast.success(`ดึงข้อมูลตารางสอนสำเร็จ: เพิ่มวิชาใหม่ ${addedCount} วิชา และอัปเดตข้อมูลเดิม ${updatedCount} วิชา`);
@@ -293,13 +373,13 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
       role: "อาจารย์ผู้สอนประจำวิชา",
     }));
 
-    const { merged, addedCount, updatedCount } = upsertTeachingCourses(
+    const { merged, addedCount } = upsertTeachingCourses(
       editingTeachingCourses,
       toUpsert
     );
 
     setEditingTeachingCourses(merged);
-    setFormExperiencesTh(JSON.stringify(merged));
+    setFormExperiencesTh(formatTeachingCoursesToText(merged));
 
     if (addedCount > 0) {
       toast.success(`เพิ่มรายวิชามาตรฐาน มจร (${formatDegreeLevelLabel(level)}) จำนวน ${addedCount} วิชา!`);
@@ -389,6 +469,9 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
     setEditingResearchList([]);
     setEditingTeachingCourses([]);
     resetCourseForm();
+    setCourseFilterLevel("ALL");
+    setCourseFilterYear("ALL");
+    setCourseFilterSearch("");
     setShowAddResearchForm(false);
     setActiveTab("general");
     setDialogOpen(true);
@@ -403,8 +486,8 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
     setFormPositionTh(item.positionTh || "");
     setFormPositionEn(item.positionEn || "");
     setFormAcademicPosition(item.academicPosition || "");
-    setFormAcademicPositionEn((item as any).academicPositionEn || "");
-    setFormTitlePlacement(((item as any).titlePlacement === "SUFFIX") ? "SUFFIX" : "PREFIX");
+    setFormAcademicPositionEn(item.academicPositionEn || "");
+    setFormTitlePlacement(item.titlePlacement === "SUFFIX" ? "SUFFIX" : "PREFIX");
     setFormType(item.type);
     setFormDepartmentId(item.departmentId || "");
     setFormEmail(item.email || "");
@@ -412,11 +495,6 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
     setFormContactInfo(item.contactInfo || "");
     setFormImageUrl(item.imageUrl || "");
     setFormEducationTh(item.educationTh || "");
-    setFormExperiencesTh(item.experiencesTh || "");
-    setFormBioTh(item.bioTh || "");
-    setFormIsActive(item.isActive);
-    setFormOrderIndex(item.orderIndex);
-    setEditingResearchList(item.researchPublications || []);
     const parsedTeaching = parseTeachingExperiences(item.experiencesTh, {
       id: item.id,
       firstNameTh: item.firstNameTh,
@@ -425,7 +503,21 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
     });
     const cleanTeaching = upsertTeachingCourses([], parsedTeaching).merged;
     setEditingTeachingCourses(cleanTeaching);
+
+    const isRawJson = item.experiencesTh?.trim().startsWith("[") || item.experiencesTh?.trim().startsWith("{");
+    if (isRawJson) {
+      setFormExperiencesTh(formatTeachingCoursesToText(cleanTeaching));
+    } else {
+      setFormExperiencesTh(item.experiencesTh || "");
+    }
+    setFormBioTh(item.bioTh || "");
+    setFormIsActive(item.isActive);
+    setFormOrderIndex(item.orderIndex);
+    setEditingResearchList(item.researchPublications || []);
     resetCourseForm();
+    setCourseFilterLevel("ALL");
+    setCourseFilterYear("ALL");
+    setCourseFilterSearch("");
     setShowAddResearchForm(false);
     setActiveTab(defaultTab);
     setDialogOpen(true);
@@ -746,7 +838,7 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
       escapeCell(p.academicPosition || ""),
       escapeCell(p.firstNameTh),
       escapeCell(p.lastNameTh || ""),
-      escapeCell((p as any).academicPositionEn || ""),
+      escapeCell(p.academicPositionEn || ""),
       escapeCell(p.firstNameEn || ""),
       escapeCell(p.lastNameEn || ""),
       escapeCell(p.positionTh),
@@ -980,7 +1072,7 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
               const posTh = r[5]?.trim() || "";
               const posEn = r[6]?.trim() || null;
               const rawType = r[7]?.trim().toUpperCase();
-              const type = rawType === "SUPPORT" || rawType === "EXECUTIVE" ? rawType : "ACADEMIC";
+              const type = rawType === "SUPPORT" || rawType === "EXECUTIVE" || rawType === "SPECIAL" ? rawType : "ACADEMIC";
               const deptName = r[8]?.trim() || null;
               const email = r[9]?.trim() || null;
               const phone = r[10]?.trim() || null;
@@ -1228,7 +1320,7 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
             lastNameEn?: string | null;
             positionTh?: string;
             positionEn?: string | null;
-            type?: "EXECUTIVE" | "ACADEMIC" | "SUPPORT";
+            type?: "EXECUTIVE" | "ACADEMIC" | "SUPPORT" | "SPECIAL";
             departmentId?: string | null;
             departmentName?: string | null;
             department?: string | null;
@@ -1277,7 +1369,7 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
           if (pObj.academicPosition !== undefined) setFormAcademicPosition(pObj.academicPosition || "");
           if (pObj.positionTh !== undefined) setFormPositionTh(pObj.positionTh || "");
           if (pObj.positionEn !== undefined) setFormPositionEn(pObj.positionEn || "");
-          if (pObj.type && ["EXECUTIVE", "ACADEMIC", "SUPPORT"].includes(pObj.type)) {
+          if (pObj.type && ["EXECUTIVE", "ACADEMIC", "SUPPORT", "SPECIAL"].includes(pObj.type)) {
             setFormType(pObj.type);
           }
 
@@ -1307,15 +1399,16 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
           // Teaching courses
           if (courses.length > 0) {
             setEditingTeachingCourses(courses);
-            setFormExperiencesTh(JSON.stringify(courses));
+            setFormExperiencesTh(formatTeachingCoursesToText(courses));
           } else if (pObj.experiencesTh) {
-            setFormExperiencesTh(pObj.experiencesTh);
+            const isRawJson = pObj.experiencesTh.trim().startsWith("[") || pObj.experiencesTh.trim().startsWith("{");
             const parsedCourses = parseTeachingExperiences(pObj.experiencesTh, {
               id: editingItem?.id,
               firstNameTh: pObj.firstNameTh,
               lastNameTh: pObj.lastNameTh || undefined,
             });
             setEditingTeachingCourses(parsedCourses);
+            setFormExperiencesTh(isRawJson ? formatTeachingCoursesToText(parsedCourses) : pObj.experiencesTh);
           }
 
           // Research publications
@@ -1392,8 +1485,8 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
           if (lEn !== undefined) setFormLastNameEn(lEn);
           if (posTh) setFormPositionTh(posTh);
           if (posEn !== undefined) setFormPositionEn(posEn);
-          if (typeVal && ["EXECUTIVE", "ACADEMIC", "SUPPORT"].includes(typeVal)) {
-            setFormType(typeVal as "EXECUTIVE" | "ACADEMIC" | "SUPPORT");
+          if (typeVal && ["EXECUTIVE", "ACADEMIC", "SUPPORT", "SPECIAL"].includes(typeVal)) {
+            setFormType(typeVal as "EXECUTIVE" | "ACADEMIC" | "SUPPORT" | "SPECIAL");
           }
           if (deptName) {
             const found = departmentList.find((d) => d.nameTh.includes(deptName) || deptName.includes(d.nameTh));
@@ -1409,13 +1502,14 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
           if (activeVal !== undefined) setFormIsActive(activeVal === "1" || activeVal.toLowerCase() === "true");
 
           if (expVal) {
-            setFormExperiencesTh(expVal);
             const parsedCourses = parseTeachingExperiences(expVal, {
               id: editingItem?.id,
               firstNameTh: fTh,
               lastNameTh: lTh,
             });
             setEditingTeachingCourses(parsedCourses);
+            const isRawJson = expVal.trim().startsWith("[") || expVal.trim().startsWith("{");
+            setFormExperiencesTh(isRawJson ? formatTeachingCoursesToText(parsedCourses) : expVal);
           }
 
           setActiveTab("general");
@@ -1454,6 +1548,15 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
               <Button onClick={openCreate} className="gap-2 cursor-pointer shadow-xs">
                 <Plus className="w-4 h-4" />
                 <span>เพิ่มอาจารย์ / บุคลากร</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setExecutiveDialogOpen(true)}
+                className="gap-1.5 cursor-pointer border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 font-semibold"
+              >
+                <Award className="w-4 h-4 text-amber-600" />
+                <span>สลับตำแหน่งผู้บริหาร</span>
               </Button>
               <Button
                 variant="outline"
@@ -1524,6 +1627,80 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
         </Link>
       </div>
 
+      {/* Portal Publication Years Limit Setting Bar */}
+      {canManage && (
+        <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+              <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>ตั้งค่าจำนวนปีที่แสดงในส่วน &ldquo;เลือกดูผลงาน&rdquo; หน้าเว็บไซต์ (Portal)</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {pubYearsLimit > 0 ? (
+                <>
+                  กำลังแสดงผลย้อนหลัง <strong className="text-primary">{pubYearsLimit} ปี</strong>:{" "}
+                  <strong className="text-foreground">
+                    ตั้งแต่ พ.ศ. 2569 ถึงปี พ.ศ. {2569 - pubYearsLimit + 1}
+                  </strong>{" "}
+                  (เช่น 5 = พ.ศ. 2569 ถึง 2565, 7 = พ.ศ. 2569 ถึง 2563)
+                </>
+              ) : (
+                <>
+                  กำลังแสดงผล <strong className="text-primary">ทุกปี พ.ศ. ทั้งหมด (ไม่จำกัดจำนวนปี)</strong>
+                </>
+              )}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              { label: "3 ปี (ถึง 2567)", val: 3 },
+              { label: "5 ปี (ถึง 2565)", val: 5 },
+              { label: "7 ปี (ถึง 2563)", val: 7 },
+              { label: "10 ปี (ถึง 2560)", val: 10 },
+              { label: "ทุกปี (ทั้งหมด)", val: 0 },
+            ].map((opt) => (
+              <button
+                key={opt.val}
+                type="button"
+                disabled={isSavingPortalConfig}
+                onClick={() => handleSavePortalYearsLimit(opt.val)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                  pubYearsLimit === opt.val
+                    ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                    : "bg-background text-muted-foreground hover:bg-muted border-border"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+
+            <div className="flex items-center gap-1.5 pl-2 border-l border-border">
+              <span className="text-xs text-muted-foreground">กำหนดเอง:</span>
+              <input
+                type="number"
+                min={0}
+                max={50}
+                value={pubYearsLimit}
+                onChange={(e) => setPubYearsLimit(Math.max(0, parseInt(e.target.value || "0", 10)))}
+                className="w-16 px-2 py-1 text-xs font-bold text-center rounded-md border border-input bg-background"
+                aria-label="จำนวนปีที่แสดงผลงานวิจัย"
+              />
+              <span className="text-xs text-muted-foreground">ปี</span>
+              <Button
+                type="button"
+                size="sm"
+                disabled={isSavingPortalConfig}
+                onClick={() => handleSavePortalYearsLimit(pubYearsLimit)}
+                className="h-7 px-3 text-xs cursor-pointer"
+              >
+                บันทึก
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Filter and Search Bar */}
       <LiyonCard>
         <div className="p-4 space-y-4">
@@ -1547,6 +1724,7 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
               >
                 <option value="ALL">-- ทุกประเภทสายงาน --</option>
                 <option value="ACADEMIC">สายวิชาการ (อาจารย์/นักวิจัย)</option>
+                <option value="SPECIAL">อาจารย์พิเศษ (วิทยากร/อาจารย์รับเชิญ)</option>
                 <option value="SUPPORT">สายสนับสนุน (เจ้าหน้าที่)</option>
                 <option value="EXECUTIVE">สายผู้บริหาร</option>
               </select>
@@ -1725,6 +1903,8 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
                               ? "bg-purple-100 text-purple-800 border border-purple-200"
                               : item.type === "EXECUTIVE"
                               ? "bg-amber-100 text-amber-800 border border-amber-200"
+                              : item.type === "SPECIAL"
+                              ? "bg-teal-100 text-teal-800 border border-teal-200"
                               : "bg-blue-100 text-blue-800 border border-blue-200"
                           }`}
                         >
@@ -2124,10 +2304,11 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
                     id="field-type"
                     value={formType}
                     onChange={(e) =>
-                      setFormType(e.target.value as "EXECUTIVE" | "ACADEMIC" | "SUPPORT")
+                      setFormType(e.target.value as "EXECUTIVE" | "ACADEMIC" | "SUPPORT" | "SPECIAL")
                     }
                   >
                     <option value="ACADEMIC">สายวิชาการ (อาจารย์/นักวิจัย)</option>
+                    <option value="SPECIAL">อาจารย์พิเศษ (วิทยากร/อาจารย์รับเชิญ)</option>
                     <option value="SUPPORT">สายสนับสนุน (เจ้าหน้าที่)</option>
                     <option value="EXECUTIVE">สายผู้บริหาร</option>
                   </LiyonSelect>
@@ -2196,14 +2377,33 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
                 htmlFor="field-experiences"
                 hint="ระบุประสบการณ์สอนในระดับปริญญาตรี โท เอก หรือภาระงานหลักสูตร"
               >
-                <textarea
-                  id="field-experiences"
-                  rows={4}
-                  value={formExperiencesTh}
-                  onChange={(e) => setFormExperiencesTh(e.target.value)}
-                  placeholder="อาจารย์ประจำหลักสูตรพุทธศาสตรบัณฑิต...&#10;อาจารย์ผู้สอนรายวิชา: ปรัชญาเบื้องต้น, พุทธปรัชญาเถรวาท..."
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring font-sans"
-                />
+                <div className="space-y-2">
+                  <textarea
+                    id="field-experiences"
+                    rows={4}
+                    value={formExperiencesTh}
+                    onChange={(e) => setFormExperiencesTh(e.target.value)}
+                    placeholder="อาจารย์ประจำหลักสูตรพุทธศาสตรบัณฑิต...&#10;อาจารย์ผู้สอนรายวิชา: ปรัชญาเบื้องต้น, พุทธปรัชญาเถรวาท..."
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring font-sans leading-relaxed"
+                  />
+                  {editingTeachingCourses.length > 0 && (
+                    <div className="flex items-center justify-between p-2.5 rounded-lg bg-primary/5 border border-primary/20 text-xs">
+                      <div className="flex items-center gap-1.5 text-muted-foreground">
+                        <BookOpen className="w-3.5 h-3.5 text-primary" />
+                        <span>
+                          มีรายวิชาที่สอนในระบบ <strong>{editingTeachingCourses.length} รายวิชา</strong>
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("teaching")}
+                        className="text-primary hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>จัดการรายวิชาแบบละเอียดที่แท็บ &quot;รายวิชาที่สอน&quot; →</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </LiyonField>
 
               <LiyonField
@@ -2310,18 +2510,129 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
                 </div>
               </div>
 
-              {/* Stats badges */}
+              {/* Stats badges & Filters */}
               {editingTeachingCourses.length > 0 && (
-                <div className="flex items-center gap-2 flex-wrap text-xs">
-                  <span className="px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 font-medium">
-                    🏛️ ป.ตรี ({editingTeachingCourses.filter((c) => c.level === "BACHELOR").length})
-                  </span>
-                  <span className="px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20 font-medium">
-                    📜 ป.โท ({editingTeachingCourses.filter((c) => c.level === "MASTER").length})
-                  </span>
-                  <span className="px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 font-medium">
-                    🪷 ป.เอก ({editingTeachingCourses.filter((c) => c.level === "DOCTORAL").length})
-                  </span>
+                <div className="p-3 bg-muted/40 rounded-xl border border-border/80 space-y-2.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    {/* Level Filter Buttons */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setCourseFilterLevel("ALL")}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer border ${
+                          courseFilterLevel === "ALL"
+                            ? "bg-primary text-primary-foreground border-primary shadow-2xs font-semibold"
+                            : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground"
+                        }`}
+                      >
+                        ทั้งหมด ({editingTeachingCourses.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCourseFilterLevel(courseFilterLevel === "BACHELOR" ? "ALL" : "BACHELOR")}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer border flex items-center gap-1 ${
+                          courseFilterLevel === "BACHELOR"
+                            ? "bg-blue-600 text-white border-blue-600 shadow-2xs font-semibold"
+                            : "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20 hover:bg-blue-500/20"
+                        }`}
+                      >
+                        <span>🏛️</span>
+                        <span>ป.ตรี ({editingTeachingCourses.filter((c) => c.level === "BACHELOR").length})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCourseFilterLevel(courseFilterLevel === "MASTER" ? "ALL" : "MASTER")}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer border flex items-center gap-1 ${
+                          courseFilterLevel === "MASTER"
+                            ? "bg-purple-600 text-white border-purple-600 shadow-2xs font-semibold"
+                            : "bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20 hover:bg-purple-500/20"
+                        }`}
+                      >
+                        <span>📜</span>
+                        <span>ป.โท ({editingTeachingCourses.filter((c) => c.level === "MASTER").length})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCourseFilterLevel(courseFilterLevel === "DOCTORAL" ? "ALL" : "DOCTORAL")}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors cursor-pointer border flex items-center gap-1 ${
+                          courseFilterLevel === "DOCTORAL"
+                            ? "bg-amber-600 text-white border-amber-600 shadow-2xs font-semibold"
+                            : "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20 hover:bg-amber-500/20"
+                        }`}
+                      >
+                        <span>🪷</span>
+                        <span>ป.เอก ({editingTeachingCourses.filter((c) => c.level === "DOCTORAL").length})</span>
+                      </button>
+                    </div>
+
+                    {/* Year Filter Dropdown & Search Input */}
+                    <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                      {/* Year select */}
+                      <div className="relative min-w-[135px]">
+                        <select
+                          value={courseFilterYear}
+                          onChange={(e) => setCourseFilterYear(e.target.value)}
+                          className="w-full text-xs rounded-lg border border-input bg-background pl-2.5 pr-6 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring font-medium"
+                          title="กรองตามปีการศึกษา"
+                        >
+                          <option value="ALL">📅 ทุกปีการศึกษา</option>
+                          {availableCourseYears.map((yr) => (
+                            <option key={yr} value={yr}>
+                              ปี พ.ศ. {yr} ({editingTeachingCourses.filter((c) => (normalizeCourseYear(c.year) || c.year) === yr).length} วิชา)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Quick Search */}
+                      <div className="relative flex-1 sm:w-44">
+                        <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                        <input
+                          type="text"
+                          value={courseFilterSearch}
+                          onChange={(e) => setCourseFilterSearch(e.target.value)}
+                          placeholder="ค้นหารหัส/ชื่อวิชา..."
+                          className="w-full text-xs rounded-lg border border-input bg-background pl-8 pr-6 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+                        />
+                        {courseFilterSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setCourseFilterSearch("")}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Reset filter button if any filter is active */}
+                      {(courseFilterLevel !== "ALL" || courseFilterYear !== "ALL" || courseFilterSearch.trim()) && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setCourseFilterLevel("ALL");
+                            setCourseFilterYear("ALL");
+                            setCourseFilterSearch("");
+                          }}
+                          className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground shrink-0"
+                          title="ล้างตัวกรองทั้งหมด"
+                        >
+                          ล้างตัวกรอง
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Filter Status Text if filtered */}
+                  {(courseFilterLevel !== "ALL" || courseFilterYear !== "ALL" || courseFilterSearch.trim()) && (
+                    <div className="text-[11px] text-muted-foreground flex items-center justify-between border-t border-border/50 pt-1.5">
+                      <span>
+                        พบ <strong>{filteredTeachingCourses.length}</strong> จากทั้งหมด {editingTeachingCourses.length} รายวิชา
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -2490,9 +2801,32 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
                     กดปุ่ม <strong>&quot;⚡ ดึงจากตารางสอน&quot;</strong> เพื่อดึงข้อมูลรายวิชาที่อาจารย์ท่านนี้สอนจากตารางเรียนตามหลักสูตรอัตโนมัติ หรือกดปุ่ม <strong>&quot;+ เพิ่มรายวิชาเอง&quot;</strong>
                   </p>
                 </div>
+              ) : filteredTeachingCourses.length === 0 ? (
+                <div className="p-8 text-center bg-muted/20 rounded-xl border border-dashed border-border space-y-2">
+                  <Search className="w-8 h-8 text-muted-foreground mx-auto opacity-50" />
+                  <p className="text-sm font-medium text-foreground">
+                    ไม่พบรายวิชาที่ตรงกับเงื่อนไขตัวกรอง
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    ลองเปลี่ยนระดับการศึกษา ปีการศึกษา หรือคำค้นหา
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setCourseFilterLevel("ALL");
+                      setCourseFilterYear("ALL");
+                      setCourseFilterSearch("");
+                    }}
+                    className="h-7 text-xs mt-1"
+                  >
+                    ล้างตัวกรองทั้งหมด
+                  </Button>
+                </div>
               ) : (
                 <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1">
-                  {editingTeachingCourses.map((c) => {
+                  {filteredTeachingCourses.map((c) => {
                     const style = getDegreeLevelColor(c.level);
                     return (
                       <div
@@ -2579,12 +2913,12 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
                   />
                 </LiyonField>
 
-                <LiyonField label="เบอร์โทรศัพท์ (Phone Number)" htmlFor="field-phone">
+                <LiyonField label="เบอร์ติดต่อที่ทำงาน (Work Phone Number)" htmlFor="field-phone">
                   <input
                     id="field-phone"
                     value={formPhoneNumber}
                     onChange={(e) => setFormPhoneNumber(e.target.value)}
-                    placeholder="098-387-5997"
+                    placeholder="035-248-000 หรือ 098-387-5997"
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </LiyonField>
@@ -3143,6 +3477,21 @@ export function PersonnelAdminClient({ initialItems, departmentList, canManage }
           </div>
         </LiyonDialogFooter>
       </LiyonDialog>
+
+      <ExecutiveRoleManagerDialog
+        open={executiveDialogOpen}
+        onOpenChange={setExecutiveDialogOpen}
+        items={items}
+        onUpdatedItems={(updatedBatch) => {
+          setItems((prev) =>
+            prev.map((item) => {
+              const found = updatedBatch.find((u) => u.id === item.id);
+              return found ? { ...item, ...found } : item;
+            })
+          );
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

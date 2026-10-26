@@ -21,7 +21,7 @@ export async function getEventEvaluationConfig(tenantId: string, eventId: string
     title: string;
     description: string | null;
     is_active: boolean;
-    questions: any;
+    questions: unknown;
   }>>`
     SELECT id, title, description, is_active, questions
     FROM event_evaluation_configs
@@ -40,7 +40,7 @@ export async function getEventEvaluationConfig(tenantId: string, eventId: string
       }
     }
     if (Array.isArray(questions)) {
-      questions = questions.map((q: any) => {
+      questions = (questions as EvaluationCriterion[]).map((q) => {
         if (!q.subQuestions || !Array.isArray(q.subQuestions) || q.subQuestions.length === 0) {
           const defaultMatch = DEFAULT_EVALUATION_QUESTIONS.find((d) => d.category === q.category);
           if (defaultMatch && defaultMatch.subQuestions) {
@@ -56,7 +56,7 @@ export async function getEventEvaluationConfig(tenantId: string, eventId: string
       title: config.title || "แบบประเมินความพึงพอใจการเข้าร่วมกิจกรรม",
       description: config.description || "เพื่อนำผลการประเมินไปพัฒนาและปรับปรุงการจัดกิจกรรมในครั้งต่อไป",
       isActive: config.is_active ?? true,
-      questions: questions || DEFAULT_EVALUATION_QUESTIONS,
+      questions: (questions as EvaluationCriterion[]) || DEFAULT_EVALUATION_QUESTIONS,
     };
   }
 
@@ -125,7 +125,7 @@ export async function submitEventEvaluation(
     ratingFacility: number;
     ratingTime: number;
     ratingOverall: number;
-    customAnswers?: Record<string, any>;
+    customAnswers?: Record<string, unknown>;
     feedback?: string;
   }
 ) {
@@ -140,7 +140,7 @@ export async function submitEventEvaluation(
     throw new Error("ไม่พบกิจกรรมนี้");
   }
 
-  let reg: any = null;
+  let reg: Awaited<ReturnType<typeof db.eventRegistration.findFirst>> = null;
   let resolvedName = isAnonymous ? "ผู้ตอบแบบประเมิน (ไม่ระบุตัวตน)" : (submission.studentName || "");
   let resolvedRole = isAnonymous ? "ANONYMOUS" : (submission.role || "STUDENT");
 

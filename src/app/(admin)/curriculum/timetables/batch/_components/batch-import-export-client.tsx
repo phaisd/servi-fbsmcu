@@ -24,12 +24,23 @@ import {
   TimetableGridView,
   type TimetableSlot,
 } from "@/features/curriculum/_components/timetable-grid-view";
-import type { Curriculum, Department } from "@/generated/prisma";
+import {
+  findBestMatchingCurriculum,
+  findBestMatchingDepartment,
+  type TimetablePeriodConfig,
+} from "@/features/curriculum";
+import type { Curriculum, CurriculumTimetable, Department } from "@/generated/prisma";
+
+type TimetableWithRelations = CurriculumTimetable & {
+  curriculum?: Curriculum | null;
+  department?: Department | null;
+};
 
 interface BatchImportExportClientProps {
-  timetables: any[];
+  timetables: TimetableWithRelations[];
   curriculums: Curriculum[];
   departments: Department[];
+  periods?: TimetablePeriodConfig[];
 }
 
 interface ParsedSlotRow {
@@ -56,8 +67,10 @@ interface GroupedTimetablePreview {
   titleEn?: string;
   curriculumId?: string;
   curriculumName: string;
+  rawCsvCurriculumName: string;
   departmentId?: string;
   departmentName: string;
+  rawCsvDepartmentName: string;
   academicYear: string;
   semester: number;
   yearLevel: number;
@@ -71,13 +84,14 @@ export function BatchImportExportClient({
   timetables,
   curriculums,
   departments,
+  periods,
 }: BatchImportExportClientProps) {
   const [activeTab, setActiveTab] = React.useState<"import" | "export">("import");
 
   // ─────────────────────────────────────────────
   // IMPORT STATE
   // ─────────────────────────────────────────────
-  const [csvContent, setCsvContent] = React.useState("");
+  const [_csvContent, setCsvContent] = React.useState("");
   const [fileName, setFileName] = React.useState("");
   const [parsedRows, setParsedRows] = React.useState<ParsedSlotRow[]>([]);
   const [groupedTimetables, setGroupedTimetables] = React.useState<GroupedTimetablePreview[]>([]);
@@ -87,6 +101,8 @@ export function BatchImportExportClient({
     createdCount: number;
     updatedCount: number;
     totalSlots: number;
+    autoCreatedCurriculums?: number;
+    autoCreatedDepartments?: number;
   } | null>(null);
 
   // ─────────────────────────────────────────────
@@ -210,9 +226,21 @@ export function BatchImportExportClient({
       const yearIdx = findIndex(["ปีการศึกษา", "academic_year"]);
       const semIdx = findIndex(["ภาคเรียน", "ภาคการศึกษา", "semester"]);
       const yearLevelIdx = findIndex(["ชั้นปี", "year_level"]);
-      const roomIdx = findIndex(["ห้องเรียนประจำ", "ห้องเรียน", "main_room", "room"]);
+      const roomIdx = headers.findIndex(
+        (h) =>
+          h.includes("ห้องเรียนประจำ") ||
+          h === "ห้องเรียน" ||
+          h === "main_room" ||
+          h === "room"
+      );
       const termDatesIdx = findIndex(["ระยะเวลา", "วันเปิด", "term_dates"]);
-      const dayIdx = findIndex(["วัน", "day"]);
+      const dayIdx = headers.findIndex(
+        (h) =>
+          h.includes("วันในสัปดาห์") ||
+          h === "วัน" ||
+          h === "day_of_week" ||
+          h === "day"
+      );
       const startIdx = findIndex(["เวลาเริ่ม", "start_time", "start"]);
       const endIdx = findIndex(["เวลาสิ้นสุด", "end_time", "end"]);
       const codeIdx = findIndex(["รหัสวิชา", "course_code", "code"]);
@@ -280,23 +308,11 @@ export function BatchImportExportClient({
       const groupsMap = new Map<string, GroupedTimetablePreview>();
 
       for (const row of rows) {
-        // Find matching curriculum in database
-        const matchedCurr = curriculums.find(
-          (c) =>
-            (row.curriculumName &&
-              (c.nameTh.includes(row.curriculumName) ||
-                (c.nameEn && c.nameEn.toLowerCase().includes(row.curriculumName.toLowerCase())))) ||
-            (row.curriculumName &&
-              row.curriculumName.toLowerCase().includes((c.nameEn || "").toLowerCase()))
-        );
+        // Find matching curriculum in database (strict 3-tier matching; never matches empty string)
+        const matchedCurr = findBestMatchingCurriculum(row.curriculumName, curriculums);
 
-        // Find matching department
-        const matchedDept = departments.find(
-          (d) =>
-            row.departmentName &&
-            (d.nameTh.includes(row.departmentName) ||
-              (d.nameEn && d.nameEn.toLowerCase().includes(row.departmentName.toLowerCase())))
-        );
+        // Find matching department in database
+        const matchedDept = findBestMatchingDepartment(row.departmentName, departments);
 
         const groupKey = `${matchedCurr?.id || row.curriculumName || "unknown"}__${row.yearLevel}__${row.academicYear}__${row.semester}`;
 
@@ -309,8 +325,10 @@ export function BatchImportExportClient({
             titleEn: matchedCurr?.nameEn ? `Timetable of Year ${row.yearLevel} Students` : undefined,
             curriculumId: matchedCurr?.id,
             curriculumName: displayCurrName,
+            rawCsvCurriculumName: row.curriculumName,
             departmentId: matchedDept?.id || matchedCurr?.departmentId || undefined,
             departmentName: matchedDept?.nameTh || row.departmentName || "คณะพุทธศาสตร์",
+            rawCsvDepartmentName: row.departmentName,
             academicYear: row.academicYear,
             semester: row.semester,
             yearLevel: row.yearLevel,
@@ -337,8 +355,10 @@ export function BatchImportExportClient({
 
       setGroupedTimetables(Array.from(groupsMap.values()));
       toast.success(`อ่านข้อมูลสำเร็จ: พบ ${groupsMap.size} ตารางเรียน รวม ${rows.length} รายวิชา`);
-    } catch (err: any) {
-      setParseErrors([err.message || "เกิดข้อผิดพลาดในการอ่านไฟล์ CSV"]);
+    } catch (err: unknown) {
+      setParseErrors([
+        err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการอ่านไฟล์ CSV",
+      ]);
     }
   };
 
@@ -363,6 +383,60 @@ export function BatchImportExportClient({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleChangeGroupCurriculum = (groupKey: string, selectedCurriculumId: string) => {
+    setGroupedTimetables((prev) =>
+      prev.map((g) => {
+        if (g.groupKey !== groupKey) return g;
+        if (selectedCurriculumId === "__AUTO_CREATE__") {
+          const fallbackName = g.rawCsvCurriculumName || g.curriculumName || "หลักสูตร";
+          return {
+            ...g,
+            curriculumId: undefined,
+            curriculumName: fallbackName,
+            titleTh: `ตารางสอนชั้นปีที่ ${g.yearLevel} ${fallbackName}`,
+            titleEn: undefined,
+          };
+        }
+        const curr = curriculums.find((c) => c.id === selectedCurriculumId);
+        if (!curr) return g;
+        const autoDept = curr.departmentId
+          ? departments.find((d) => d.id === curr.departmentId)
+          : undefined;
+        return {
+          ...g,
+          curriculumId: curr.id,
+          curriculumName: curr.nameTh,
+          titleTh: `ตารางสอนชั้นปีที่ ${g.yearLevel} ${curr.nameTh}`,
+          titleEn: curr.nameEn ? `Timetable of Year ${g.yearLevel} Students` : undefined,
+          departmentId: autoDept?.id || g.departmentId,
+          departmentName: autoDept?.nameTh || g.departmentName,
+        };
+      })
+    );
+  };
+
+  const handleChangeGroupDepartment = (groupKey: string, selectedDepartmentId: string) => {
+    setGroupedTimetables((prev) =>
+      prev.map((g) => {
+        if (g.groupKey !== groupKey) return g;
+        if (selectedDepartmentId === "__AUTO_CREATE__") {
+          return {
+            ...g,
+            departmentId: undefined,
+            departmentName: g.rawCsvDepartmentName || g.departmentName || "คณะพุทธศาสตร์",
+          };
+        }
+        const dept = departments.find((d) => d.id === selectedDepartmentId);
+        if (!dept) return g;
+        return {
+          ...g,
+          departmentId: dept.id,
+          departmentName: dept.nameTh,
+        };
+      })
+    );
   };
 
   const handleConfirmImport = async () => {
@@ -393,12 +467,12 @@ export function BatchImportExportClient({
       const res = await batchImportTimetablesAction(itemsToImport);
       setImportResult(res);
       let successMsg = `นำเข้าตารางเรียนสำเร็จ! สร้างใหม่ ${res.createdCount} ตาราง, อัปเดต ${res.updatedCount} ตาราง (รวม ${res.totalSlots} รายวิชา)`;
-      if ((res as any).autoCreatedCurriculums > 0 || (res as any).autoCreatedDepartments > 0) {
-        successMsg += ` [สร้างหลักสูตรอัตโนมัติ: ${(res as any).autoCreatedCurriculums || 0}, สาขาวิชา: ${(res as any).autoCreatedDepartments || 0}]`;
+      if ((res.autoCreatedCurriculums ?? 0) > 0 || (res.autoCreatedDepartments ?? 0) > 0) {
+        successMsg += ` [สร้างหลักสูตรอัตโนมัติ: ${res.autoCreatedCurriculums || 0}, สาขาวิชา: ${res.autoCreatedDepartments || 0}]`;
       }
       toast.success(successMsg);
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการนำเข้าข้อมูล");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการนำเข้าข้อมูล");
     } finally {
       setIsImporting(false);
     }
@@ -446,7 +520,15 @@ export function BatchImportExportClient({
       const termDates = t.termDates || "";
       const notes = t.notes || "";
 
-      const slots = Array.isArray(t.scheduleData) ? t.scheduleData : [];
+      const slots = (Array.isArray(t.scheduleData) ? t.scheduleData : []) as Array<{
+        dayOfWeek?: number | string;
+        startTime?: string;
+        endTime?: string;
+        courseCode?: string;
+        courseName?: string;
+        instructor?: string;
+        room?: string;
+      }>;
       if (slots.length === 0) {
         rows.push([
           currName,
@@ -693,18 +775,18 @@ export function BatchImportExportClient({
                 สร้างตารางเรียนใหม่: <b>{importResult.createdCount}</b> ตาราง | อัปเดตตารางเดิม:{" "}
                 <b>{importResult.updatedCount}</b> ตาราง | รวมรายวิชาทั้งหมด:{" "}
                 <b>{importResult.totalSlots}</b> รายวิชา
-                {(importResult as any).autoCreatedCurriculums > 0 && (
+                {(importResult.autoCreatedCurriculums ?? 0) > 0 && (
                   <span>
                     {" "}
                     | สร้างหลักสูตรใหม่อัตโนมัติ:{" "}
-                    <b className="text-primary">{(importResult as any).autoCreatedCurriculums}</b> หลักสูตร
+                    <b className="text-primary">{importResult.autoCreatedCurriculums}</b> หลักสูตร
                   </span>
                 )}
-                {(importResult as any).autoCreatedDepartments > 0 && (
+                {(importResult.autoCreatedDepartments ?? 0) > 0 && (
                   <span>
                     {" "}
                     | สร้างสาขาวิชาใหม่อัตโนมัติ:{" "}
-                    <b className="text-primary">{(importResult as any).autoCreatedDepartments}</b> สาขา
+                    <b className="text-primary">{importResult.autoCreatedDepartments}</b> สาขา
                   </span>
                 )}
               </p>
@@ -772,15 +854,83 @@ export function BatchImportExportClient({
                       </span>
                     </div>
 
-                    <div>
-                      <h4 className="font-bold text-sm text-foreground line-clamp-1">
-                        {item.titleTh}
-                      </h4>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="font-bold text-sm text-foreground line-clamp-1">
+                          {item.titleTh}
+                        </h4>
+                        {item.curriculumId ? (
+                          <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                            <CheckCircle2 className="w-3 h-3" />
+                            จับคู่หลักสูตรแล้ว
+                          </span>
+                        ) : (
+                          <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                            <AlertCircle className="w-3 h-3" />
+                            สร้างหลักสูตรใหม่
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
                         <Building2 className="w-3 h-3 text-primary" />
                         <span>{item.departmentName}</span>
                         {item.room && <span>• 📍 {item.room}</span>}
                       </p>
+
+                      {item.rawCsvCurriculumName && (
+                        <div className="text-[11px] text-muted-foreground bg-muted/40 px-2.5 py-1.5 rounded-lg border border-border/50 space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] text-muted-foreground">
+                              ค่าจาก CSV: <b className="text-foreground">{item.rawCsvCurriculumName}</b>
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
+                            <div>
+                              <label className="text-[10px] text-muted-foreground block mb-0.5">
+                                หลักสูตรเป้าหมายในระบบ:
+                              </label>
+                              <select
+                                value={item.curriculumId || "__AUTO_CREATE__"}
+                                onChange={(e) =>
+                                  handleChangeGroupCurriculum(item.groupKey, e.target.value)
+                                }
+                                className="w-full px-2 py-1 text-[11px] rounded-md border border-border bg-background text-foreground"
+                              >
+                                <option value="__AUTO_CREATE__">
+                                  ✨ สร้างหลักสูตรใหม่ ({item.rawCsvCurriculumName})
+                                </option>
+                                {curriculums.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    🎓 {c.nameTh}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-muted-foreground block mb-0.5">
+                                ภาควิชาเป้าหมาย:
+                              </label>
+                              <select
+                                value={item.departmentId || "__AUTO_CREATE__"}
+                                onChange={(e) =>
+                                  handleChangeGroupDepartment(item.groupKey, e.target.value)
+                                }
+                                className="w-full px-2 py-1 text-[11px] rounded-md border border-border bg-background text-foreground"
+                              >
+                                <option value="__AUTO_CREATE__">
+                                  ✨ ตามชื่อใน CSV ({item.rawCsvDepartmentName || "ไม่ระบุ"})
+                                </option>
+                                {departments.map((d) => (
+                                  <option key={d.id} value={d.id}>
+                                    🏛️ {d.nameTh}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Quick list of slots */}
@@ -955,7 +1105,7 @@ export function BatchImportExportClient({
               .filter((t) => selectedForPrint.includes(t.id))
               .map((t) => (
                 <div key={t.id} className="print:break-after-page">
-                  <TimetableGridView timetable={t} showHeaderActions={false} />
+                  <TimetableGridView timetable={t} periods={periods} showHeaderActions={false} />
                 </div>
               ))}
 

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { resolvePublicTenantId } from "@/features/news/server";
-import { getPublicPersonnelById } from "@/features/personnel/server";
+import { getPublicPersonnelById, getPersonnelPortalConfig } from "@/features/personnel/server";
 import { formatPersonnelName } from "@/features/personnel";
 import { getLocale } from "@/shared/lib/i18n/server";
 import { PersonnelProfileClient } from "./_components/personnel-profile-client";
@@ -39,11 +39,20 @@ export default async function PersonnelDetailPage({ params }: PageProps) {
   const { id } = await params;
   const locale = await getLocale();
   const tenantId = await resolvePublicTenantId();
-  const person = await getPublicPersonnelById(tenantId, id);
+  const [person, portalConfig] = await Promise.all([
+    getPublicPersonnelById(tenantId, id),
+    getPersonnelPortalConfig(tenantId),
+  ]);
 
   if (!person) {
     notFound();
   }
 
-  return <PersonnelProfileClient person={person} locale={locale} />;
+  return (
+    <PersonnelProfileClient
+      person={person}
+      locale={locale}
+      publicationYearsLimit={portalConfig.publicationYearsLimit}
+    />
+  );
 }

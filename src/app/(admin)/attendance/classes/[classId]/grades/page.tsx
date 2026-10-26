@@ -14,8 +14,8 @@ export default async function ClassGradesPage({ params }: PageProps) {
 
   try {
     await assertCourseAccess(ctx.tenantId, classId, ctx.userId, ctx.isSuperAdmin);
-  } catch (err: any) {
-    if (err.message?.includes("NOT_FOUND")) notFound();
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes("NOT_FOUND")) notFound();
     throw err;
   }
 

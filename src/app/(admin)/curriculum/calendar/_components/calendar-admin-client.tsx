@@ -54,7 +54,7 @@ interface CalendarItem {
 }
 
 interface CalendarAdminClientProps {
-  calendars: any[];
+  calendars: CalendarItem[];
   currentCalendar: CalendarItem | null;
   isSuperAdmin?: boolean;
 }
@@ -157,8 +157,8 @@ export function CalendarAdminClient({
       }
       setIsEventModalOpen(false);
       router.refresh();
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการบันทึก");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการบันทึก");
     } finally {
       setIsSavingEvent(false);
     }
@@ -170,8 +170,8 @@ export function CalendarAdminClient({
       await deleteAcademicCalendarEventAction(id);
       toast.success("ลบกำหนดการสำเร็จ");
       router.refresh();
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถลบกำหนดการได้");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "ไม่สามารถลบกำหนดการได้");
     }
   };
 
@@ -186,8 +186,8 @@ export function CalendarAdminClient({
         router.push(`/curriculum/calendar?year=${newYearForm.academicYear}`);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการสร้างปฏิทิน");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการสร้างปฏิทิน");
     } finally {
       setIsCreatingYear(false);
     }

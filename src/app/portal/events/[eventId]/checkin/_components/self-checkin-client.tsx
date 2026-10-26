@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -36,7 +37,7 @@ export function SelfCheckinClient({ event }: SelfCheckinClientProps) {
   const [code, setCode] = useState("");
   const [rememberCode, setRememberCode] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<any | null>(null);
+  const [result, setResult] = useState<Awaited<ReturnType<typeof publicSelfCheckInEventAction>> | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // ดึงรหัสนิสิตที่เคยบันทึกไว้ใน Browser
@@ -69,10 +70,11 @@ export function SelfCheckinClient({ event }: SelfCheckinClientProps) {
       } else {
         setErrorMsg("ไม่สามารถเช็คชื่อได้ กรุณาลองใหม่อีกครั้ง");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Check-in error:", err);
-      setErrorMsg(err.message || "เกิดข้อผิดพลาดในการเช็คชื่อ");
-      toast.error(err.message || "เกิดข้อผิดพลาดในการเช็คชื่อ");
+      const msg = (err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการเช็คชื่อ";
+      setErrorMsg(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }

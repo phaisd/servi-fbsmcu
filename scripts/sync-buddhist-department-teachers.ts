@@ -197,13 +197,14 @@ async function main() {
   console.log("--- 1. ดำเนินการตรวจสอบและอัปเดตตาราง User ---");
   for (const t of MCU_BUDDHISM_TEACHERS) {
     // ค้นหา User จากอีเมลหรือชื่อ
+    const userOrConditions = [
+      { email: t.preferredEmail },
+      ...(t.crawledEmail ? [{ email: t.crawledEmail }] : []),
+      ...t.aliases.map((a) => (a.includes("@") ? { email: a } : { name: { contains: a } })),
+    ];
     let user = await db.user.findFirst({
       where: {
-        OR: [
-          { email: t.preferredEmail },
-          { email: t.crawledEmail ? t.crawledEmail : undefined },
-          ...t.aliases.map((a) => (a.includes("@") ? { email: a } : { name: { contains: a } })),
-        ].filter(Boolean) as any,
+        OR: userOrConditions,
       },
       include: {
         userTenants: {
@@ -286,13 +287,14 @@ async function main() {
   // 2. เคลียร์ข้อมูลซ้ำซ้อนในตาราง Personnel และอัปเดตอีเมลโปรไฟล์
   console.log("\n--- 2. ดำเนินการตรวจสอบและจัดระเบียบตาราง Personnel ---");
   for (const t of MCU_BUDDHISM_TEACHERS) {
+    const personnelOrConditions = [
+      { email: t.preferredEmail },
+      ...(t.crawledEmail ? [{ email: t.crawledEmail }] : []),
+      { firstNameTh: { contains: t.firstNameTh.slice(0, 10) } },
+    ];
     const records = await db.personnel.findMany({
       where: {
-        OR: [
-          { email: t.preferredEmail },
-          { email: t.crawledEmail ? t.crawledEmail : undefined },
-          { firstNameTh: { contains: t.firstNameTh.slice(0, 10) } },
-        ].filter(Boolean) as any,
+        OR: personnelOrConditions,
       },
       include: { researchPublications: true },
       orderBy: { createdAt: "asc" },

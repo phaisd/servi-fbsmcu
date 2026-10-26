@@ -43,7 +43,11 @@ import {
 import { ActivityRosterDocument } from "./activity-roster-document";
 import { EventQrStandeeModal } from "./event-qr-standee-modal";
 import { EventEvaluationReportDocument } from "./event-evaluation-report-document";
-import { EVALUATION_TEMPLATES } from "@/features/events/templates";
+import {
+  EVALUATION_TEMPLATES,
+  type EvaluationCriterion,
+  type SubQuestion,
+} from "@/features/events/templates";
 
 interface AttendeeItem {
   id: string;
@@ -95,8 +99,8 @@ export function RegistrationsClient({ event, initialItems }: Props) {
   const [isEvalModalOpen, setIsEvalModalOpen] = useState(false);
   const [isEvalReportOpen, setIsEvalReportOpen] = useState(false);
   const [evalTab, setEvalTab] = useState<"SUMMARY" | "SETTINGS">("SUMMARY");
-  const [evalStats, setEvalStats] = useState<any>(null);
-  const [evalConfig, setEvalConfig] = useState<any>(null);
+  const [evalStats, setEvalStats] = useState<Awaited<ReturnType<typeof getEventEvaluationStatsAction>> | null>(null);
+  const [evalConfig, setEvalConfig] = useState<Awaited<ReturnType<typeof getEventEvaluationConfigAction>> | null>(null);
   const [isLoadingEval, setIsLoadingEval] = useState(false);
   const [isSavingEval, setIsSavingEval] = useState(false);
   const [addMode, setAddMode] = useState<"BATCH" | "INDIVIDUAL" | "EXECUTIVE" | "EXCEL_IMPORT">("EXCEL_IMPORT");
@@ -195,8 +199,8 @@ export function RegistrationsClient({ event, initialItems }: Props) {
             : `ยกเลิกการเช็คชื่อ: ${item.studentName}`
         );
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการปรับปรุงสถานะ");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการปรับปรุงสถานะ");
     }
   };
 
@@ -227,8 +231,8 @@ export function RegistrationsClient({ event, initialItems }: Props) {
         );
         setQuickCode("");
       }
-    } catch (err: any) {
-      toast.error(err.message || "เช็คชื่อไม่สำเร็จ");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "เช็คชื่อไม่สำเร็จ");
     } finally {
       setIsQuickChecking(false);
     }
@@ -262,8 +266,8 @@ export function RegistrationsClient({ event, initialItems }: Props) {
         setExecCode("");
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถเพิ่มข้อมูลได้");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "ไม่สามารถเพิ่มข้อมูลได้");
     } finally {
       setIsAdding(false);
     }
@@ -279,8 +283,8 @@ export function RegistrationsClient({ event, initialItems }: Props) {
         setIsAddModalOpen(false);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถดึงข้อมูลได้");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "ไม่สามารถดึงข้อมูลได้");
     } finally {
       setIsAdding(false);
     }
@@ -298,8 +302,8 @@ export function RegistrationsClient({ event, initialItems }: Props) {
       ]);
       setEvalStats(stats);
       setEvalConfig(config);
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูลแบบประเมิน");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการโหลดข้อมูลแบบประเมิน");
     } finally {
       setIsLoadingEval(false);
     }
@@ -316,8 +320,8 @@ export function RegistrationsClient({ event, initialItems }: Props) {
         setEvalStats(stats);
         setEvalConfig(config);
         setIsEvalReportOpen(true);
-      } catch (err: any) {
-        toast.error(err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูลแบบประเมิน");
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการโหลดข้อมูลแบบประเมิน");
       } finally {
         setIsLoadingEval(false);
       }
@@ -338,8 +342,8 @@ export function RegistrationsClient({ event, initialItems }: Props) {
         questions: evalConfig.questions,
       });
       toast.success("บันทึกการแก้ไขแบบประเมินเรียบร้อยแล้ว");
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถบันทึกการตั้งค่าได้");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "ไม่สามารถบันทึกการตั้งค่าได้");
     } finally {
       setIsSavingEval(false);
     }
@@ -373,13 +377,13 @@ export function RegistrationsClient({ event, initialItems }: Props) {
     if (!evalConfig || !evalConfig.questions) return;
     const updated = [...evalConfig.questions];
     const targetQ = updated[categoryIdx];
-    const subList = (targetQ.subQuestions || []).filter((_: any, i: number) => i !== subIdx);
+    const subList = (targetQ.subQuestions || []).filter((_: SubQuestion, i: number) => i !== subIdx);
     updated[categoryIdx] = { ...targetQ, subQuestions: subList };
     setEvalConfig({ ...evalConfig, questions: updated });
   };
 
   const handleLoadTemplate = (templateKey: string) => {
-    const template = (EVALUATION_TEMPLATES as any)[templateKey];
+    const template = EVALUATION_TEMPLATES[templateKey];
     if (!template || !evalConfig) return;
     setEvalConfig({
       ...evalConfig,
@@ -497,14 +501,14 @@ export function RegistrationsClient({ event, initialItems }: Props) {
         setParsedItems([]);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการนำเข้า");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการนำเข้า");
     } finally {
       setIsAdding(false);
     }
   };
 
-  const handleExportExcel = () => {
+  const _handleExportExcel = () => {
     if (filtered.length === 0) {
       toast.error("ไม่มีข้อมูลที่จะส่งออก");
       return;
@@ -567,8 +571,8 @@ export function RegistrationsClient({ event, initialItems }: Props) {
         setIsAddModalOpen(false);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถเพิ่มรายชื่อได้");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "ไม่สามารถเพิ่มรายชื่อได้");
     } finally {
       setIsAdding(false);
     }
@@ -587,8 +591,8 @@ export function RegistrationsClient({ event, initialItems }: Props) {
         setIndividualCode("");
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถเพิ่มได้");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "ไม่สามารถเพิ่มได้");
     } finally {
       setIsAdding(false);
     }
@@ -601,8 +605,8 @@ export function RegistrationsClient({ event, initialItems }: Props) {
       await removeAttendeeFromEventAction(event.id, regId);
       setItems((prev) => prev.filter((i) => i.id !== regId));
       toast.success(`ลบ "${name}" ออกจากกิจกรรมเรียบร้อยแล้ว`);
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถลบได้");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "ไม่สามารถลบได้");
     }
   };
 
@@ -617,8 +621,8 @@ export function RegistrationsClient({ event, initialItems }: Props) {
         );
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถซิงค์รายชื่อได้");
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "ไม่สามารถซิงค์รายชื่อได้");
     } finally {
       setIsSyncing(false);
     }
@@ -892,7 +896,7 @@ export function RegistrationsClient({ event, initialItems }: Props) {
             {/* Status Filter */}
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
+              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
               className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-2xs"
             >
               <option value="ALL">สถานะ: ทั้งหมด</option>
@@ -1343,7 +1347,7 @@ export function RegistrationsClient({ event, initialItems }: Props) {
                     </label>
                     <select
                       value={batchLanguage}
-                      onChange={(e) => setBatchLanguage(e.target.value as any)}
+                      onChange={(e) => setBatchLanguage(e.target.value as typeof batchLanguage)}
                       className="w-full border border-slate-200 rounded-lg p-2 bg-white text-xs font-medium"
                     >
                       <option value="ALL">ทั้งหมด (ทุกหลักสูตรภาษา)</option>
@@ -1727,13 +1731,13 @@ export function RegistrationsClient({ event, initialItems }: Props) {
                       ข้อเสนอแนะและความคิดเห็น ({evalStats.feedbacks.length} รายการ)
                     </span>
                     <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
-                      {evalStats.feedbacks.map((f: any, i: number) => (
+                      {evalStats.feedbacks.map((f, i: number) => (
                         <div key={i} className="bg-white p-2.5 rounded-lg border border-slate-200 text-xs space-y-1">
                           <div className="flex items-center justify-between text-2xs text-slate-400">
-                            <span className="font-bold text-slate-700">{f.student_name}</span>
-                            <span>{new Date(f.created_at).toLocaleDateString("th-TH")}</span>
+                            <span className="font-bold text-slate-700">{f.name}</span>
+                            <span>{new Date(f.date).toLocaleDateString("th-TH")}</span>
                           </div>
-                          <p className="text-slate-600 text-2xs italic">&quot;{f.feedback}&quot;</p>
+                          <p className="text-slate-600 text-2xs italic">&quot;{f.comment}&quot;</p>
                         </div>
                       ))}
                     </div>
@@ -1751,7 +1755,7 @@ export function RegistrationsClient({ event, initialItems }: Props) {
                     type="text"
                     required
                     value={evalConfig?.title || ""}
-                    onChange={(e) => setEvalConfig({ ...evalConfig, title: e.target.value })}
+                    onChange={(e) => setEvalConfig((prev) => (prev ? { ...prev, title: e.target.value } : null))}
                     className="w-full border border-slate-200 rounded-lg p-2"
                   />
                 </div>
@@ -1763,7 +1767,7 @@ export function RegistrationsClient({ event, initialItems }: Props) {
                   <textarea
                     rows={2}
                     value={evalConfig?.description || ""}
-                    onChange={(e) => setEvalConfig({ ...evalConfig, description: e.target.value })}
+                    onChange={(e) => setEvalConfig((prev) => (prev ? { ...prev, description: e.target.value } : null))}
                     className="w-full border border-slate-200 rounded-lg p-2"
                   />
                 </div>
@@ -1806,8 +1810,8 @@ export function RegistrationsClient({ event, initialItems }: Props) {
                     </span>
                   </div>
 
-                  {evalConfig?.questions?.map((q: any, idx: number) => {
-                    const subQuestions: any[] = q.subQuestions || [];
+                  {evalConfig?.questions?.map((q: EvaluationCriterion, idx: number) => {
+                    const subQuestions: SubQuestion[] = q.subQuestions || [];
                     return (
                       <div
                         key={q.id || idx}
@@ -1845,7 +1849,7 @@ export function RegistrationsClient({ event, initialItems }: Props) {
                             ข้อคำถามย่อย (ระดับความพึงพอใจ 5 ระดับ):
                           </span>
 
-                          {subQuestions.map((subQ: any, sIdx: number) => (
+                          {subQuestions.map((subQ: SubQuestion, sIdx: number) => (
                             <div key={subQ.id || sIdx} className="flex items-center gap-2">
                               <span className="text-2xs font-mono font-bold text-slate-500 w-8 shrink-0 text-right">
                                 {idx + 1}.{sIdx + 1}

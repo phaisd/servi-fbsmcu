@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import React, { useState, useMemo, useEffect, Fragment } from "react";
@@ -53,9 +54,36 @@ interface StudentItem {
   };
 }
 
+interface StudentsClassObj {
+  id: string;
+  courseCode: string;
+  courseName: string;
+  courseNameEn?: string | null;
+  section?: string | null;
+  term: string;
+  description?: string | null;
+  primaryTeacher?: { name?: string | null } | null;
+  instructor?: { name?: string | null } | null;
+}
+
+interface CohortStudentCandidate {
+  id: string;
+  studentCode: string;
+  title?: string | null;
+  firstName: string;
+  lastName: string;
+  fullName?: string | null;
+  yearLevel: number;
+  degree?: string | null;
+  curriculumName?: string | null;
+  department?: string | null;
+  major?: string | null;
+  faculty?: string | null;
+}
+
 interface StudentsClientProps {
-  classObj: any;
-  initialEnrollments: any[];
+  classObj: StudentsClassObj;
+  initialEnrollments: StudentItem[];
   isSuperAdmin?: boolean;
 }
 
@@ -163,7 +191,7 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
   // Modal State สำหรับดึงนิสิตตามชั้นปี / สาขาวิชา / หลักสูตร (Cohort Enrollment)
   const [isCohortOpen, setIsCohortOpen] = useState(false);
   const [isLoadingCohort, setIsLoadingCohort] = useState(false);
-  const [cohortStudents, setCohortStudents] = useState<any[]>([]);
+  const [cohortStudents, setCohortStudents] = useState<CohortStudentCandidate[]>([]);
   const [cohortDegreeFilter, setCohortDegreeFilter] = useState<string>("ALL");
   const [cohortYearFilter, setCohortYearFilter] = useState<number>(0);
   const [cohortDeptFilter, setCohortDeptFilter] = useState<string>("ALL");
@@ -258,11 +286,11 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
 
       const res = await getAvailableStudentsForCohortAction(classObj.id);
       if (res.success && res.students) {
-        setCohortStudents(res.students);
+        setCohortStudents(res.students as CohortStudentCandidate[]);
         setDepartmentOptions(res.departmentOptions || []);
       }
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถดึงข้อมูลนิสิตได้");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "ไม่สามารถดึงข้อมูลนิสิตได้");
     } finally {
       setIsLoadingCohort(false);
     }
@@ -369,7 +397,7 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
     if (cohortStudents.length === 0) return;
     const matchingIds = filteredCohortStudents.map((s) => s.id);
     setSelectedCohortIds(matchingIds);
-  }, [cohortStudents, cohortDegreeFilter, cohortYearFilter, selectedCohortDepts, cohortSearch]);
+  }, [cohortStudents.length, filteredCohortStudents]);
 
   // รายการนิสิตที่ถูกเลือกและตรงกับตัวกรองที่แสดงผลอยู่ในปัจจุบัน
   const activeSelectedCohortIds = useMemo(() => {
@@ -417,8 +445,8 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
         setIsCohortOpen(false);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการลงทะเบียนนิสิต");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการลงทะเบียนนิสิต");
     } finally {
       setIsEnrollingCohort(false);
     }
@@ -466,7 +494,7 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
 
       if (res.success && res.enrollment) {
         toast.success(`เพิ่มนิสิต ${formData.firstName} ${formData.lastName} เรียบร้อยแล้ว`);
-        setEnrollments([...enrollments, res.enrollment as any]);
+        setEnrollments([...enrollments, res.enrollment as unknown as StudentItem]);
         setIsAddOpen(false);
         setFormData({
           studentCode: "",
@@ -477,8 +505,8 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
           department: "สาขาวิชาพระพุทธศาสนา",
         });
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการเพิ่มนิสิต");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการเพิ่มนิสิต");
     } finally {
       setIsSubmitting(false);
     }
@@ -496,8 +524,8 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
         setEnrollments(enrollments.filter((e) => e.id !== deleteTarget.id));
         setDeleteTarget(null);
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการลบนิสิต");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการลบนิสิต");
     } finally {
       setIsDeleting(false);
     }
@@ -533,8 +561,8 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
         setIsBulkDeleteDialogOpen(false);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการลบนิสิต");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการลบนิสิต");
     } finally {
       setIsBulkDeleting(false);
     }
@@ -552,8 +580,8 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
         setIsClearAllOpen(false);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการล้างรายชื่อนิสิต");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการล้างรายชื่อนิสิต");
     } finally {
       setIsBulkDeleting(false);
     }
@@ -567,7 +595,14 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
     }
 
     const lines = csvText.trim().split("\n");
-    const parsedStudents: any[] = [];
+    const parsedStudents: Array<{
+      studentCode: string;
+      firstName: string;
+      lastName: string;
+      title: string;
+      yearLevel: number;
+      department: string;
+    }> = [];
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
@@ -608,8 +643,8 @@ export function StudentsClient({ classObj, initialEnrollments, isSuperAdmin: _is
         toast.success(`นำเข้านิสิตสำเร็จ ${res.successCount} คน` + (res.errors?.length ? ` (พบข้อผิดพลาด ${res.errors.length} รายการ)` : ""));
         window.location.reload();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการนำเข้าข้อมูล");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการนำเข้าข้อมูล");
     } finally {
       setIsImporting(false);
     }

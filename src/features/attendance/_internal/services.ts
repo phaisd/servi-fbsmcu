@@ -20,7 +20,7 @@ export async function assertCourseAccess(
   courseId: string,
   userId: string,
   isSuperAdmin = false
-): Promise<{ course: any; isTeacher: boolean; isPrimary: boolean; teacherRole: string }> {
+) {
   const course = await db.course.findUnique({
     where: { id: courseId },
     include: {
@@ -43,7 +43,7 @@ export async function assertCourseAccess(
   }
 
   const isPrimary = course.primaryTeacherId === userId;
-  const teacherRecord = course.teachers.find((t: any) => t.userId === userId);
+  const teacherRecord = course.teachers.find((t) => t.userId === userId);
   const isAssigned = isPrimary || !!teacherRecord;
 
   if (!isAssigned) {
@@ -591,8 +591,8 @@ export async function updateCourse(
     dayOfWeek: number | null;
     startTime: string | null;
     endTime: string | null;
-    status: any;
-    calculationRules: any;
+    status: CourseStatus;
+    calculationRules: Prisma.InputJsonValue;
     primaryTeacherId: string;
   }>
 ) {
@@ -853,7 +853,7 @@ export async function batchRemoveStudentsFromCourse(
   courseId: string,
   enrollmentIds?: string[]
 ) {
-  const whereClause: any = { courseId };
+  const whereClause: Prisma.CourseEnrollmentWhereInput = { courseId };
   if (enrollmentIds && enrollmentIds.length > 0) {
     whereClause.id = { in: enrollmentIds };
   }
@@ -923,9 +923,10 @@ export async function batchEnrollStudents(
       }
       await enrollStudentInCourse(tenantId, actorId, courseId, item);
       successCount++;
-    } catch (err: any) {
-      if (!err.message?.includes("DUPLICATE")) {
-        errors.push(`${item.studentCode}: ${err.message}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes("DUPLICATE")) {
+        errors.push(`${item.studentCode}: ${msg}`);
       }
     }
   }
@@ -1279,7 +1280,7 @@ export async function verifyAndCheckInWithQr(params: {
     },
   });
 
-  const record = await db.attendanceRecord.upsert({
+  await db.attendanceRecord.upsert({
     where: {
       sessionId_studentCode: {
         sessionId: session.id,
@@ -1548,19 +1549,7 @@ export async function getCourseEligibilityReport(
   courseId: string,
   userId?: string,
   isSuperAdmin = false
-): Promise<{
-  course: any;
-  summaries: StudentAttendanceSummary[];
-  stats: {
-    totalStudents: number;
-    eligibleCount: number;
-    ineligibleCount: number;
-    undeterminedCount: number;
-    conductedSessions: number;
-    totalSessions: number;
-    averageAttendanceRate: number;
-  };
-}> {
+) {
   if (userId) {
     await assertCourseAccess(tenantId, courseId, userId, isSuperAdmin);
   }
@@ -1588,19 +1577,19 @@ export async function getCourseEligibilityReport(
   if (!course) throw new Error("NOT_FOUND: ไม่พบรายวิชา");
 
   const scheduledCountedSessions = course.sessions.filter(
-    (s: any) => s.isCounted && s.status !== SessionStatus.CANCELLED
+    (s) => s.isCounted && s.status !== SessionStatus.CANCELLED
   ).length;
 
   const conductedCountedSessions = course.sessions.filter(
-    (s: any) =>
+    (s) =>
       s.isCounted &&
       (s.status === SessionStatus.COMPLETED || s.status === SessionStatus.IN_PROGRESS)
   ).length;
 
-  const rules = (course.calculationRules as any) || {};
+  const rules = (course.calculationRules as Record<string, number>) || {};
 
-  const summaries: StudentAttendanceSummary[] = course.enrollments.map((enr: any) => {
-    const formattedRecords = enr.records.map((r: any) => ({
+  const summaries: StudentAttendanceSummary[] = course.enrollments.map((enr) => {
+    const formattedRecords = enr.records.map((r) => ({
       status: r.status,
       isCountedSession: r.session.isCounted,
       sessionStatus: r.session.status,
@@ -1895,7 +1884,7 @@ async function findOrCreateTeacherUser(
   teacherName: string,
   academicYear: string,
   runningCounter: { value: number }
-): Promise<{ user: any; isNew: boolean; plainPassword?: string; email: string }> {
+) {
   const cleanName = teacherName.trim();
 
   // 1. ตรวจสอบว่ามีผู้ใช้นี้อยู่แล้วหรือไม่
@@ -2040,8 +2029,22 @@ export async function getAvailableTimetablesForSync(
     ],
   });
 
+  interface RawTimetableScheduleSlot {
+    id?: string;
+    courseCode?: string;
+    courseName?: string;
+    instructor?: string;
+    dayOfWeek?: number;
+    startTime?: string;
+    endTime?: string;
+    room?: string | null;
+    periodLabel?: string;
+  }
+
   return timetables.map((t) => {
-    const schedule = Array.isArray(t.scheduleData) ? (t.scheduleData as any[]) : [];
+    const schedule = Array.isArray(t.scheduleData)
+      ? (t.scheduleData as unknown as RawTimetableScheduleSlot[])
+      : [];
     return {
       id: t.id,
       titleTh: t.titleTh,
@@ -2107,13 +2110,24 @@ export async function syncCoursesFromTimetable(
     throw new Error("NOT_FOUND: ไม่พบตารางเรียนที่ระบุ");
   }
 
+  interface RawSyncTimetableSlot {
+    courseCode?: string;
+    courseName?: string;
+    instructor?: string;
+    dayOfWeek?: number;
+    startTime?: string;
+    endTime?: string;
+    room?: string | null;
+    credits?: number;
+  }
+
   const scheduleSlots = Array.isArray(timetable.scheduleData)
-    ? (timetable.scheduleData as any[])
+    ? (timetable.scheduleData as unknown as RawSyncTimetableSlot[])
     : [];
 
   const slotsToImport =
     params.selectedCourseCodes && params.selectedCourseCodes.length > 0
-      ? scheduleSlots.filter((slot) => params.selectedCourseCodes!.includes(slot.courseCode))
+      ? scheduleSlots.filter((slot) => params.selectedCourseCodes!.includes(slot.courseCode || ""))
       : scheduleSlots;
 
   if (slotsToImport.length === 0) {
@@ -2247,9 +2261,9 @@ export async function syncCoursesFromTimetable(
     }
 
     // แยกรายชื่ออาจารย์
-    const parsedInstructors = parseInstructorsFromSlot(slot.instructor);
+    const parsedInstructors = parseInstructorsFromSlot(slot.instructor || "");
     const teacherAccounts: Array<{
-      user: any;
+      user: { id: string; name: string | null; email: string };
       isPrimary: boolean;
       isNew: boolean;
       plainPassword?: string;
@@ -2725,21 +2739,21 @@ export async function getStudentPersonalAttendance(
     };
   }
 
-  const coursesList = student.enrollments.map((enr: any) => {
+  const coursesList = student.enrollments.map((enr) => {
     const course = enr.course;
-    const rules = (course.calculationRules as any) || {};
+    const rules = (course.calculationRules as Record<string, number>) || {};
 
     const scheduledCountedSessions = course.sessions.filter(
-      (s: any) => s.isCounted && s.status !== SessionStatus.CANCELLED
+      (s) => s.isCounted && s.status !== SessionStatus.CANCELLED
     ).length;
 
     const conductedCountedSessions = course.sessions.filter(
-      (s: any) =>
+      (s) =>
         s.isCounted &&
         (s.status === SessionStatus.COMPLETED || s.status === SessionStatus.IN_PROGRESS)
     ).length;
 
-    const formattedRecords = enr.records.map((r: any) => ({
+    const formattedRecords = enr.records.map((r) => ({
       status: r.status,
       isCountedSession: r.session.isCounted,
       sessionStatus: r.session.status,
@@ -2758,12 +2772,12 @@ export async function getStudentPersonalAttendance(
       rules,
     });
 
-    const recordMap = new Map<string, any>();
+    const recordMap = new Map<string, (typeof enr.records)[number]>();
     for (const r of enr.records) {
       recordMap.set(r.sessionId, r);
     }
 
-    const sessionBreakdown = course.sessions.map((sess: any) => {
+    const sessionBreakdown = course.sessions.map((sess) => {
       const rec = recordMap.get(sess.id);
       return {
         id: sess.id,
@@ -2868,19 +2882,19 @@ export async function getCourseAttendanceMatrix(
   if (!course) throw new Error("NOT_FOUND: ไม่พบรายวิชา");
 
   const scheduledCountedSessions = course.sessions.filter(
-    (s: any) => s.isCounted && s.status !== SessionStatus.CANCELLED
+    (s) => s.isCounted && s.status !== SessionStatus.CANCELLED
   ).length;
 
   const conductedCountedSessions = course.sessions.filter(
-    (s: any) =>
+    (s) =>
       s.isCounted &&
       (s.status === SessionStatus.COMPLETED || s.status === SessionStatus.IN_PROGRESS)
   ).length;
 
-  const rules = (course.calculationRules as any) || {};
+  const rules = (course.calculationRules as Record<string, number>) || {};
 
-  const matrix = course.enrollments.map((enr: any) => {
-    const formattedRecords = enr.records.map((r: any) => ({
+  const matrix = course.enrollments.map((enr) => {
+    const formattedRecords = enr.records.map((r) => ({
       status: r.status,
       isCountedSession: r.session.isCounted,
       sessionStatus: r.session.status,
@@ -2936,7 +2950,7 @@ export async function getCourseAttendanceMatrix(
       primaryTeacher: course.primaryTeacher?.name || "-",
       calculationRules: rules,
     },
-    sessions: course.sessions.map((s: any) => ({
+    sessions: course.sessions.map((s) => ({
       id: s.id,
       sessionNumber: s.sessionNumber,
       date: s.date,
@@ -3069,7 +3083,7 @@ export async function getCourseGrades(
     finalMax: 30,
   };
 
-  const rawConfig = (course.gradingConfig as any) || {};
+  const rawConfig = (course.gradingConfig as Partial<CourseGradingConfig>) || {};
   const gradingConfig: CourseGradingConfig = {
     assignmentMax: Number(rawConfig.assignmentMax) >= 0 ? Number(rawConfig.assignmentMax) : defaultConfig.assignmentMax,
     midtermMax: Number(rawConfig.midtermMax) >= 0 ? Number(rawConfig.midtermMax) : defaultConfig.midtermMax,
@@ -3078,19 +3092,19 @@ export async function getCourseGrades(
   };
 
   const scheduledCountedSessions = course.sessions.filter(
-    (s: any) => s.isCounted && s.status !== SessionStatus.CANCELLED
+    (s) => s.isCounted && s.status !== SessionStatus.CANCELLED
   ).length;
 
   const conductedCountedSessions = course.sessions.filter(
-    (s: any) =>
+    (s) =>
       s.isCounted &&
       (s.status === SessionStatus.COMPLETED || s.status === SessionStatus.IN_PROGRESS)
   ).length;
 
-  const rules = (course.calculationRules as any) || {};
+  const rules = (course.calculationRules as Record<string, number>) || {};
 
-  const students = course.enrollments.map((enr: any) => {
-    const formattedRecords = enr.records.map((r: any) => ({
+  const students = course.enrollments.map((enr) => {
+    const formattedRecords = enr.records.map((r) => ({
       status: r.status,
       isCountedSession: r.session.isCounted,
       sessionStatus: r.session.status,
@@ -3145,7 +3159,7 @@ export async function getCourseGrades(
       studyStatus: enr.student.studyStatus || "ปกติ",
       attendancePercentage: eligibility.percentage,
       isEligible: eligibility.isEligible,
-      eligibilityStatusTh: (eligibility as any).statusTh || "",
+      eligibilityStatusTh: eligibility.statusText || "",
       assignmentScore: enr.assignmentScore,
       midtermScore: enr.midtermScore,
       affectiveScore: enr.affectiveScore,
@@ -3158,21 +3172,21 @@ export async function getCourseGrades(
 
   // คำนวณข้อมูลระดับหลักสูตร, ภาคภาษา, คณะ, ชั้นปี, สาขาวิชา และช่วงวันเรียนสำหรับหัวกระดาษรายงาน
   const distinctDegrees = Array.from(
-    new Set(course.enrollments.map((e: any) => e.student?.degree).filter(Boolean))
+    new Set(course.enrollments.map((e) => e.student?.degree).filter(Boolean))
   );
   const rawDegree = distinctDegrees.length > 0 ? distinctDegrees.join(", ") : "ปริญญาตรี";
   const degree = rawDegree.startsWith("ระดับ") ? rawDegree : `ระดับ${rawDegree}`;
 
   const distinctFaculties = Array.from(
-    new Set(course.enrollments.map((e: any) => e.student?.faculty).filter(Boolean))
+    new Set(course.enrollments.map((e) => e.student?.faculty).filter(Boolean))
   );
   const faculty = distinctFaculties.length > 0 ? distinctFaculties.join(", ") : "คณะพุทธศาสตร์";
 
   const distinctCurriculums = Array.from(
-    new Set(course.enrollments.map((e: any) => e.student?.curriculumName).filter(Boolean))
+    new Set(course.enrollments.map((e) => e.student?.curriculumName).filter(Boolean))
   );
   const isInter = distinctCurriculums.some(
-    (c: any) =>
+    (c) =>
       typeof c === "string" &&
       (c.toLowerCase().includes("inter") ||
         c.includes("นานาชาติ") ||
@@ -3182,8 +3196,8 @@ export async function getCourseGrades(
   const programLanguage = isInter ? "ภาคภาษาอังกฤษ" : "ภาคภาษาไทย";
 
   const distinctYears = Array.from(
-    new Set(course.enrollments.map((e: any) => e.student?.yearLevel).filter(Boolean))
-  ).sort((a: any, b: any) => Number(a) - Number(b));
+    new Set(course.enrollments.map((e) => e.student?.yearLevel).filter(Boolean))
+  ).sort((a, b) => Number(a) - Number(b));
   const yearLevel =
     distinctYears.length > 0
       ? distinctYears.map((y) => `ชั้นปีที่ ${y}`).join(", ")
@@ -3192,15 +3206,15 @@ export async function getCourseGrades(
   const distinctMajors = Array.from(
     new Set(
       course.enrollments
-        .map((e: any) => e.student?.major || e.student?.department)
+        .map((e) => e.student?.major || e.student?.department)
         .filter(Boolean)
     )
   );
   const major = distinctMajors.length > 0 ? distinctMajors.join(", ") : "สาขาวิชาพระพุทธศาสนา";
 
-  const validSessions = (course.sessions || []).filter((s: any) => s.date);
+  const validSessions = (course.sessions || []).filter((s) => s.date);
   const sortedSessions = [...validSessions].sort(
-    (a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime()
+    (a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime()
   );
   const startDate = sortedSessions.length > 0 && sortedSessions[0]?.date ? new Date(sortedSessions[0].date).toISOString() : null;
   const endDate =
@@ -3342,7 +3356,7 @@ export async function updateCourseGradingConfig(
   const updated = await db.course.update({
     where: { id: courseId },
     data: {
-      gradingConfig: sanitizedConfig as any,
+      gradingConfig: sanitizedConfig as unknown as Prisma.InputJsonValue,
     },
   });
 
@@ -3363,7 +3377,7 @@ export async function updateCourseGradingConfig(
  * รองรับการล็อกขอบเขตการมองเห็นข้อมูลตามสาขาวิชาและระดับการศึกษาสำหรับเจ้าหน้าที่หลักสูตร
  */
 export async function getAllStudentsDirectory(tenantId: string, actorId?: string) {
-  const where: any = { tenantId };
+  const where: Prisma.StudentWhereInput = { tenantId };
 
   if (actorId) {
     const userTenant = await db.userTenant.findUnique({
@@ -4000,7 +4014,18 @@ export async function getAvailableCoursesForStudent(
   });
 
   // 3. ตรวจสอบสถานะการลงทะเบียนของนิสิตคนนี้ (หากมีระบุรหัสนิสิต)
-  let studentData: any = null;
+  let studentData: {
+    id: string;
+    studentCode: string;
+    fullName: string;
+    firstName: string;
+    lastName: string;
+    title: string | null;
+    degree: string | null;
+    yearLevel: number;
+    department: string | null;
+    major: string | null;
+  } | null = null;
   const enrolledCourseIdSet = new Set<string>();
 
   if (studentCode && studentCode.trim()) {

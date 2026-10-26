@@ -6,4 +6,7 @@ export {
   getPublicPersonnelList,
   getPublicPersonnelById,
   getResearchPublications,
+  getPersonnelPortalConfig,
+  updatePersonnelPortalConfig,
+  type PersonnelPortalConfig,
 } from "./_internal/services";

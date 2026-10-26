@@ -25,15 +25,12 @@ interface Props {
 export function EventQrStandeeModal({ event, initialMode = "EVALUATION", onClose }: Props) {
   const [mode, setMode] = useState<"EVALUATION" | "CHECKIN">(initialMode);
   const [qrDataUrl, setQrDataUrl] = useState<string>("");
-  const [targetUrl, setTargetUrl] = useState<string>("");
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const path = mode === "EVALUATION" ? "evaluate" : "checkin";
+  const targetUrl = `${origin}/portal/events/${event.id}/${path}`;
 
   useEffect(() => {
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const path = mode === "EVALUATION" ? "evaluate" : "checkin";
-    const url = `${origin}/portal/events/${event.id}/${path}`;
-    setTargetUrl(url);
-
-    QRCode.toDataURL(url, {
+    QRCode.toDataURL(targetUrl, {
       width: 600,
       margin: 2,
       color: {
@@ -44,7 +41,7 @@ export function EventQrStandeeModal({ event, initialMode = "EVALUATION", onClose
     })
       .then((dataUrl) => setQrDataUrl(dataUrl))
       .catch((err) => console.error("Failed to generate QR code", err));
-  }, [event.id, mode]);
+  }, [targetUrl, mode]);
 
   const handlePrint = () => {
     window.print();

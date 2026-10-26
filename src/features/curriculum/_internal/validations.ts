@@ -39,6 +39,8 @@ export const timetableSlotSchema = z.object({
   instructor: z.string().default(""),
   room: z.string().optional().nullable(),
   periodLabel: z.string().optional().nullable(),
+  credits: z.number().int().optional().nullable(),
+  notes: z.string().optional().nullable(),
 });
 
 export const timetableSchema = z.object({
@@ -68,3 +70,94 @@ export type TimetableSlotInput = z.infer<typeof timetableSlotSchema>;
 export type TimetableInput = z.infer<typeof timetableSchema>;
 export type UpdateTimetableInput = z.infer<typeof updateTimetableSchema>;
 
+
+
+export const masterCourseSchema = z.object({
+  courseCode: z.string().min(1, "กรุณาระบุรหัสวิชา"),
+  courseNameTh: z.string().min(1, "กรุณาระบุชื่อรายวิชา (ภาษาไทย)"),
+  courseNameEn: z.string().optional().nullable(),
+  credits: z.coerce.number().int().min(1).default(3),
+  degreeLevel: z.enum(["BACHELOR", "MASTER", "DOCTORATE"]).default("BACHELOR"),
+  departmentId: z.string().uuid().optional().nullable(),
+  curriculumId: z.string().uuid().optional().nullable(),
+  programLanguage: z.enum(["THAI", "ENGLISH"]).default("THAI"),
+  instructor: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  isActive: z.boolean().default(true),
+  orderIndex: z.coerce.number().int().default(0),
+});
+
+export const updateMasterCourseSchema = masterCourseSchema.partial();
+export type MasterCourseInput = z.infer<typeof masterCourseSchema>;
+export type UpdateMasterCourseInput = z.infer<typeof updateMasterCourseSchema>;
+
+export const timetablePeriodConfigSchema = z.object({
+  id: z.string().min(1, "กรุณาระบุรหัสคาบ"),
+  periodNumber: z.coerce.number().int().default(1),
+  labelTh: z.string().min(1, "กรุณาระบุชื่อคาบเรียน (ภาษาไทย)"),
+  labelEn: z.string().min(1, "กรุณาระบุชื่อคาบเรียน (ภาษาอังกฤษ)"),
+  subLabelTh: z.string().optional().nullable(),
+  subLabelEn: z.string().optional().nullable(),
+  startTime: z.string().min(1, "กรุณาระบุเวลาเริ่ม"),
+  endTime: z.string().min(1, "กรุณาระบุเวลาสิ้นสุด"),
+  type: z.enum(["CLASS", "BREAK"]).default("CLASS"),
+  orderIndex: z.coerce.number().int().default(1),
+});
+
+export const timetablePeriodsArraySchema = z
+  .array(timetablePeriodConfigSchema)
+  .min(1, "ต้องมีคาบเรียนอย่างน้อย 1 รายการ");
+
+export type TimetablePeriodConfig = z.infer<typeof timetablePeriodConfigSchema>;
+
+export const DEFAULT_TIMETABLE_PERIODS: TimetablePeriodConfig[] = [
+  {
+    id: "period-1",
+    periodNumber: 1,
+    labelTh: "คาบที่ 1",
+    labelEn: "Period 1",
+    subLabelTh: "ช่วงเช้า (Morning)",
+    subLabelEn: "Morning",
+    startTime: "09.00",
+    endTime: "11.30",
+    type: "CLASS",
+    orderIndex: 1,
+  },
+  {
+    id: "period-break",
+    periodNumber: 0,
+    labelTh: "พักกลางวัน",
+    labelEn: "Lunch Break",
+    subLabelTh: "ฉันภัตตาหารเพล / พักเที่ยง",
+    subLabelEn: "Lunch Break",
+    startTime: "11.30",
+    endTime: "13.00",
+    type: "BREAK",
+    orderIndex: 2,
+  },
+  {
+    id: "period-2",
+    periodNumber: 2,
+    labelTh: "คาบที่ 2",
+    labelEn: "Period 2",
+    subLabelTh: "ช่วงบ่าย (Afternoon)",
+    subLabelEn: "Afternoon",
+    startTime: "12.30",
+    endTime: "15.10",
+    type: "CLASS",
+    orderIndex: 3,
+  },
+  {
+    id: "period-3",
+    periodNumber: 3,
+    labelTh: "คาบที่ 3",
+    labelEn: "Period 3",
+    subLabelTh: "ช่วงบ่าย (Afternoon)",
+    subLabelEn: "Afternoon",
+    startTime: "15.10",
+    endTime: "17.00",
+    type: "CLASS",
+    orderIndex: 4,
+  },
+];

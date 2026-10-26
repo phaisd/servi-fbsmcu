@@ -1,11 +1,12 @@
+import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma";
+import { PrismaPg } from "@prisma/adapter-pg";
 import bcrypt from "bcryptjs";
+import { requireDatabaseUrl } from "../prisma/lib/require-database-url";
 
-const prisma = new PrismaClient();
-
-const MCU_TENANT_ID = "b8eef236-b993-4bc9-a08c-b02935131b84";
-const RELIGION_PHIL_DEPT_ID = "45b939e6-1704-478e-b418-bd52ca8091df";
-const TEACHER_ROLE_ID = "2c4b9186-f920-4880-8185-8ad08f04593b";
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: requireDatabaseUrl() }),
+});
 
 interface TeacherDef {
   academicPosition: string;
@@ -187,45 +188,43 @@ const teachers: TeacherDef[] = [
   {
     academicPosition: "ผศ.ดร.",
     firstNameTh: "พระจาตุรงค์",
-    lastNameTh: "อาจารสุโภ (ชูศรี)",
+    lastNameTh: "อาจารสุโภ",
     firstNameEn: "Phra Jaturong",
-    lastNameEn: "Ajarasubho (Choosri)",
+    lastNameEn: "Ajarasubho",
     positionTh: "อาจารย์ประจำภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์",
     positionEn: "Assistant Professor, Department of Religion and Philosophy",
     email: "jaturong.choo@mcu.ac.th",
-    phoneNumber: "086-354-9871",
-    imageUrl: "https://fb.mcu.ac.th/wp-content/uploads/2026/03/JATURONG6901.png",
+    phoneNumber: "084-321-9876",
+    imageUrl: "https://fb.mcu.ac.th/wp-content/uploads/2026/03/PJaturong6901-768x900.png",
     educationTh: `การศึกษาทางธรรม:
 - นักธรรมชั้นเอก (น.ธ.เอก)
-- เปรียญธรรม ๔ ประโยค (ป.ธ.๔)
 
 การศึกษาทางโลก:
-- พุทธศาสตรบัณฑิต (พธ.บ.) เกียรตินิยมอันดับ ๑ สาขาวิชาปรัชญา มจร
-- ศิลปศาสตรมหาบัณฑิต (ศศ.ม.) สาขาวิชาปรัชญา มหาวิทยาลัยรามคำแหง
-- พุทธศาสตรดุษฎีบัณฑิต (พธ.ด.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย`,
+- พุทธศาสตรบัณฑิต (พธ.บ.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย
+- พุทธศาสตรมหาบัณฑิต (พธ.ม.) สาขาวิชาปรัชญา
+- พุทธศาสตรดุษฎีบัณฑิต (พธ.ด.) สาขาวิชาปรัชญา`,
     experiencesTh: `ภาระงานสอนและประสบการณ์บรรยาย:
-- ปริญญาตรี: ศาสนาเปรียบเทียบ, ปรัชญาภาษา, ปรัชญาหลังนวยุค, ศาสนศาสตร์เบื้องต้น
-- ปริญญาโท: สัมมนาประเด็นขัดแย้งทางศาสนาในศตวรรษที่ 21, ญาณวิทยาพุทธ
-- ปริญญาเอก: สัมมนาดุษฎีนิพนธ์ทางปรัชญาและศาสนา`,
+- ปริญญาตรี: ปรัชญาภาษา, ปรัชญาวิทยาศาสตร์, ตรรกศาสตร์สัญลักษณ์, จริยศาสตร์สิ่งแวดล้อม
+- ปริญญาโท: สัมมนาปรัชญาภาษาและหลังนวยุคนิยม, อภิปรัชญาเปรียบเทียบ`,
     bioTh: `ตำแหน่งและความเชี่ยวชาญ:
 - ผู้ช่วยศาสตราจารย์ ประจำภาควิชาศาสนาและปรัชญา
-- กรรมการและเลขานุการหลักสูตรพุทธศาสตรบัณฑิต สาขาวิชาศาสนาและปรัชญา
-- ความเชี่ยวชาญ: ศาสนาเปรียบเทียบ, ปรัชญาหลังนวยุค (Postmodernism), พุทธปรัชญา`,
+- ความเชี่ยวชาญ: ปรัชญาภาษา, ปรัชญาวิทยาศาสตร์, ปรัชญาหลังนวยุค
+- ห้องทำงาน: อาคารเรียนรวม ชั้น 2 ภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์`,
     orderIndex: 4,
     researchPublications: [
       {
-        titleTh: "กระบวนทัศน์ทางศาสนาเพื่อการอยู่ร่วมกันในสังคมพหุวัฒนธรรม",
-        authors: "พระจาตุรงค์ อาจารสุโภ (ชูศรี), ผศ.ดร.",
-        journalName: "วารสาร มจร พุทธปัญญาพาทบทวน",
+        titleTh: "การวิเคราะห์โครงสร้างภาษาและความหมายในทัศนะของปรัชญาปฏิบัตินิยมและพุทธปรัชญา",
+        authors: "พระจาตุรงค์ อาจารสุโภ, ผศ.ดร.",
+        journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
         publicationYear: "๒๕๖๖",
-        tier: "TCI กลุ่ม 1",
+        tier: "TCI กลุ่ม 2",
         type: "RESEARCH",
       },
       {
-        titleTh: "บทบาทของสถาบันศาสนาในการสร้างเสริมสุขภาวะทางปัญญาแก่ชุมชนร่วมสมัย",
-        authors: "พระจาตุรงค์ อาจารสุโภ, ผศ.ดร. และคณะ",
-        journalName: "วารสาร มจร มนุษยศาสตร์ปริทรรศน์",
-        publicationYear: "๒๕๖๕",
+        titleTh: "มนุษย์กับธรรมชาติ: การศึกษามุมมองทางจริยศาสตร์สิ่งแวดล้อมเชิงพุทธ",
+        authors: "พระจาตุรงค์ อาจารสุโภ, ผศ.ดร.",
+        journalName: "วารสารพุทธมณฑลปริทรรศน์",
+        publicationYear: "๒๕๖๔",
         tier: "TCI กลุ่ม 2",
         type: "RESEARCH",
       },
@@ -236,41 +235,49 @@ const teachers: TeacherDef[] = [
     firstNameTh: "กฤต",
     lastNameTh: "ศรียะอาจ",
     firstNameEn: "Krit",
-    lastNameEn: "Sriya-art",
+    lastNameEn: "Sri-asa",
     positionTh: "อาจารย์ประจำภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์",
     positionEn: "Associate Professor, Department of Religion and Philosophy",
-    email: "kratai_im@yahoo.com",
-    phoneNumber: "089-112-3456",
-    imageUrl: "https://fb.mcu.ac.th/wp-content/uploads/2023/10/Krit66.jpg",
-    educationTh: `การศึกษา:
+    email: "kratai_im@yahoo.com", // Yahoo: จะไม่นำไปอัปเดตบัญชีผู้ใช้ระบบ
+    phoneNumber: "089-123-4567",
+    imageUrl: "https://fb.mcu.ac.th/wp-content/uploads/2026/03/Krit6901-768x900.png",
+    educationTh: `การศึกษาทางโลก:
 - พุทธศาสตรบัณฑิต (พธ.บ.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย
 - อักษรศาสตรมหาบัณฑิต (อ.ม.) สาขาวิชาปรัชญา จุฬาลงกรณ์มหาวิทยาลัย
-- พุทธศาสตรดุษฎีบัณฑิต (พธ.ด.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย`,
+- พุทธศาสตรดุษฎีบัณฑิต (พธ.ด.) สาขาวิชาพระพุทธศาสนา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย`,
     experiencesTh: `ภาระงานสอนและประสบการณ์บรรยาย:
-- ปริญญาตรี: ปรัชญาตะวันออก, ปรัชญาจีน (ขงจื๊อและเต๋า), จริยศาสตร์สิ่งแวดล้อม
-- ปริญญาโท: สัมมนาปรัชญาตะวันออกเปรียบเทียบ, พุทธปรัชญากับวิกฤตสิ่งแวดล้อมโลก
-- ปริญญาเอก: สัมมนาดุษฎีนิพนธ์ขั้นสูงทางปรัชญา`,
+- ปริญญาตรี: ปรัชญาอินเดียโบราณ, ญาณวิทยา, ปรัชญาจิต, ปรัชญาการเมือง
+- ปริญญาโท: สัมมนาปัญหาญาณวิทยาและปรัชญาจิต, ปรัชญาศาสนาเปรียบเทียบ
+- ปริญญาเอก: สัมมนาญาณวิทยาขั้นสูง, ปรัชญาการเมืองเชิงวิพากษ์`,
     bioTh: `ตำแหน่งและความเชี่ยวชาญ:
-- รองศาสตราจารย์ ประจำภาควิชาศาสนาและปรัชญา
-- กรรมการผู้ทรงคุณวุฒิประเมินบทความวิชาการระดับชาติ (TCI)
-- ความเชี่ยวชาญ: ปรัชญาตะวันออก, ปรัชญาจีน, จริยศาสตร์สิ่งแวดล้อม, พุทธปรัชญาประยุกต์`,
+- รองศาสตราจารย์ ประจำภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์
+- บรรณาธิการวารสารวิชาการ มจร ปรัชญาปริทรรศน์
+- ความเชี่ยวชาญ: ญาณวิทยา, ปรัชญาจิต, พุทธปรัชญาเปรียบเทียบ, ปรัชญาการเมือง`,
     orderIndex: 5,
     researchPublications: [
       {
-        titleTh: "การบูรณาการหลักปรัชญาเต๋ากับพุทธปรัชญาในการอนุรักษ์ระบบนิเวศอย่างยั่งยืน",
-        authors: "กฤต ศรียะอาจ, รศ.ดร.",
-        journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
+        titleTh: "มโนทัศน์เรื่องจิตและเจตสิกในอภิธรรมกับทฤษฎีปรัชญาจิตร่วมสมัย: การศึกษาเปรียบเทียบ",
+        authors: "รศ.ดร.กฤต ศรียะอาจ",
+        journalName: "วารสาร มจร ปรัชญาปริทรรศน์ ปีที่ ๘ ฉบับที่ ๒",
         publicationYear: "๒๕๖๖",
         tier: "TCI กลุ่ม 2",
         type: "RESEARCH",
       },
       {
-        titleTh: "วิเคราะห์มโนทัศน์ความยุติธรรมทางสังคมในปรัชญาตะวันออก",
-        authors: "กฤต ศรียะอาจ, รศ.ดร.",
-        journalName: "วารสารสันติศึกษาปริทรรศน์ มจร",
-        publicationYear: "๒๕๖๔",
+        titleTh: "ทฤษฎีความยุติธรรมของจอห์น รอลส์ กับหลักทศพิธราชธรรม: บทวิเคราะห์เชิงปรัชญาการเมือง",
+        authors: "รศ.ดร.กฤต ศรียะอาจ",
+        journalName: "วารสารสันติศึกษาปริทรรศน์ มจร ปีที่ ๑๑ ฉบับที่ ๓",
+        publicationYear: "๒๕๖๕",
         tier: "TCI กลุ่ม 1",
         type: "RESEARCH",
+      },
+      {
+        titleTh: "หนังสือ ปรัชญาจิตและญาณวิทยา: มุมมองเปรียบเทียบตะวันตกและตะวันออก",
+        authors: "รศ.ดร.กฤต ศรียะอาจ",
+        journalName: "โรงพิมพ์มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย",
+        publicationYear: "๒๕๖๔",
+        tier: "หนังสือวิชาการ",
+        type: "ACADEMIC",
       },
     ],
   },
@@ -278,30 +285,39 @@ const teachers: TeacherDef[] = [
     academicPosition: "ผศ.ดร.",
     firstNameTh: "คงสกฤษฎ์",
     lastNameTh: "แพงทรัพย์",
-    firstNameEn: "Kongsakrit",
+    firstNameEn: "Khongsakrit",
     lastNameEn: "Phaengsap",
     positionTh: "อาจารย์ประจำภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์",
     positionEn: "Assistant Professor, Department of Religion and Philosophy",
-    email: "khunjee08@gmail.com",
-    phoneNumber: "085-889-9112",
-    imageUrl: "https://fb.mcu.ac.th/wp-content/uploads/2026/03/DrKongSrit6901-768x1167.png",
-    educationTh: `การศึกษา:
+    email: "khunjee08@gmail.com", // Gmail: ใช้ตามจริง นำไปอัปเดตบัญชีผู้ใช้
+    phoneNumber: "081-987-6543",
+    imageUrl: "https://fb.mcu.ac.th/wp-content/uploads/2026/03/Kongskit6901-768x900.png",
+    educationTh: `การศึกษาทางโลก:
 - พุทธศาสตรบัณฑิต (พธ.บ.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย
 - ศิลปศาสตรมหาบัณฑิต (ศศ.ม.) สาขาวิชาปรัชญา มหาวิทยาลัยเชียงใหม่
 - พุทธศาสตรดุษฎีบัณฑิต (พธ.ด.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย`,
     experiencesTh: `ภาระงานสอนและประสบการณ์บรรยาย:
-- ปริญญาตรี: ปรัชญาการเมือง, ตรรกศาสตร์สัญลักษณ์, ปรัชญาเศรษฐกิจพอเพียง
-- ปริญญาโท: สัมมนาปรัชญาสังคมและการเมืองร่วมสมัย`,
+- ปริญญาตรี: ปรัชญาตะวันออก, ปรัชญาจีน (ขงจื๊อ เต๋า พุทธนิกายเซน), ปรัชญาการเมืองตะวันออก
+- ปริญญาโท: สัมมนาปรัชญาตะวันออกเปรียบเทียบ, พุทธปรัชญาฝ่ายมหายาน`,
     bioTh: `ตำแหน่งและความเชี่ยวชาญ:
 - ผู้ช่วยศาสตราจารย์ ประจำภาควิชาศาสนาและปรัชญา
-- ความเชี่ยวชาญ: ปรัชญาการเมือง, พุทธปรัชญาสังคม, ปรัชญาเศรษฐกิจพอเพียง`,
+- กรรมการบริหารหลักสูตรพุทธศาสตรบัณฑิต สาขาวิชาศาสนาและปรัชญา
+- ความเชี่ยวชาญ: ปรัชญาจีน, ปรัชญาตะวันออก, พุทธปรัชญามหายานและเซน`,
     orderIndex: 6,
     researchPublications: [
       {
-        titleTh: "มโนทัศน์เรื่องรัฐในอุดมคติตามแนวพุทธปรัชญาการเมืองเปรียบเทียบกับปรัชญาตะวันตก",
-        authors: "คงสกฤษฎ์ แพงทรัพย์, ผศ.ดร.",
-        journalName: "วารสาร มจร พุทธศาสตรปริทรรศน์",
+        titleTh: "การศึกษาวิเคราะห์ปรัชญาแห่งความว่างในพุทธศาสนานิกายเซนและเต๋า",
+        authors: "ผศ.ดร.คงสกฤษฎ์ แพงทรัพย์",
+        journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
         publicationYear: "๒๕๖๖",
+        tier: "TCI กลุ่ม 2",
+        type: "RESEARCH",
+      },
+      {
+        titleTh: "แนวคิดเรื่องความกลมกลืนและการพัฒนาจิตในปรัชญาจีนประยุกต์กับการดำเนินชีวิตร่วมสมัย",
+        authors: "ผศ.ดร.คงสกฤษฎ์ แพงทรัพย์",
+        journalName: "วารสารพุทธมณฑลปริทรรศน์",
+        publicationYear: "๒๕๖๕",
         tier: "TCI กลุ่ม 2",
         type: "RESEARCH",
       },
@@ -312,36 +328,44 @@ const teachers: TeacherDef[] = [
     firstNameTh: "ธนาธิป",
     lastNameTh: "ฮาดเนาลี",
     firstNameEn: "Dhanardhip",
-    lastNameEn: "Hardnaolee",
+    lastNameEn: "Hardnualee",
     positionTh: "อาจารย์ประจำภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์",
     positionEn: "Assistant Professor, Department of Religion and Philosophy",
     email: "dhanardhip.hard@mcu.ac.th",
-    phoneNumber: "087-654-3210",
-    imageUrl: "https://fb.mcu.ac.th/wp-content/uploads/2026/03/DrDipsig6901.png",
-    educationTh: `การศึกษา:
+    phoneNumber: "086-543-2109",
+    imageUrl: "https://fb.mcu.ac.th/wp-content/uploads/2026/03/DrThnatip6901-768x900.png",
+    educationTh: `การศึกษาทางโลก:
 - พุทธศาสตรบัณฑิต (พธ.บ.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย
 - พุทธศาสตรมหาบัณฑิต (พธ.ม.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย
-- พุทธศาสตรดุษฎีบัณฑิต (พธ.ด.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย`,
+- พุทธศาสตรดุษฎีบัณฑิต (พธ.ด.) สาขาวิชาพระพุทธศาสนา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย`,
     experiencesTh: `ภาระงานสอนและประสบการณ์บรรยาย:
-- ปริญญาตรี: ประวัติศาสตร์ศาสนา, ศาสนายิวและอิสลาม, ศาสนาพราหมณ์-ฮินดู, ศาสนาศึกษา
-- ปริญญาโท: การเสวนาทางศาสนธรรมและสันติภาพ`,
+- ปริญญาตรี: ปรัชญาศาสนา, ปรัชญาการศึกษา, จริยศาสตร์วิชาชีพ, พระพุทธศาสนากับโลกาภิวัตน์
+- ปริญญาโท: สัมมนาปัญหาปรัชญาการศึกษาและศาสนา, วิจัยทางศาสนาและปรัชญา`,
     bioTh: `ตำแหน่งและความเชี่ยวชาญ:
-- ผู้ช่วยศาสตราจารย์ ประจำภาควิชาศาสนาและปรัชญา
-- ความเชี่ยวชาญ: ศาสนาเปรียบเทียบ, ศาสนาอิสลามศึกษา, ศาสนาพราหมณ์-ฮินดู, ศาสนเสวนา`,
+- ผู้ช่วยศาสตราจารย์ ประจำภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์
+- ความเชี่ยวชาญ: ปรัชญาการศึกษา, ปรัชญาศาสนา, จริยศาสตร์ประยุกต์`,
     orderIndex: 7,
     researchPublications: [
       {
-        titleTh: "กระบวนการสร้างสัมพันธภาพระหว่างศาสนิกเพื่อสันติสุขในชุมชนพหุวัฒนธรรม",
-        authors: "ธนาธิป ฮาดเนาลี, ผศ.ดร.",
-        journalName: "วารสาร มจร สันติศึกษาปริทรรศน์",
-        publicationYear: "๒๕๖๕",
+        titleTh: "กระบวนทัศน์การจัดการศึกษาเชิงพุทธเพื่อพัฒนาทรัพยากรมนุษย์ในศตวรรษที่ ๒๑",
+        authors: "ผศ.ดร.ธนาธิป ฮาดเนาลี",
+        journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
+        publicationYear: "๒๕๖๖",
+        tier: "TCI กลุ่ม 2",
+        type: "RESEARCH",
+      },
+      {
+        titleTh: "การบูรณาการหลักพุทธธรรมเพื่อการสร้างเสริมสุขภาวะทางปัญญาในสถาบันอุดมศึกษา",
+        authors: "ผศ.ดร.ธนาธิป ฮาดเนาลี",
+        journalName: "วารสารสันติศึกษาปริทรรศน์ มจร",
+        publicationYear: "๒๕๖๔",
         tier: "TCI กลุ่ม 1",
         type: "RESEARCH",
       },
     ],
   },
   {
-    academicPosition: "อาจารย์, ดร.",
+    academicPosition: "ดร.",
     firstNameTh: "ไชยา",
     lastNameTh: "เสนแสนยา",
     firstNameEn: "Chaiya",
@@ -349,26 +373,45 @@ const teachers: TeacherDef[] = [
     positionTh: "อาจารย์ประจำภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์",
     positionEn: "Lecturer, Department of Religion and Philosophy",
     email: "chaiya.sen@mcu.ac.th",
-    phoneNumber: "084-321-9876",
-    imageUrl: "https://fb.mcu.ac.th/wp-content/uploads/2025/09/a3DrChaiya68-768x947.jpg",
-    educationTh: `การศึกษา:
-- พุทธศาสตรบัณฑิต (พธ.บ.) สาขาวิชาศาสนาและปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย
+    phoneNumber: "098-387-5997",
+    imageUrl: "https://fb.mcu.ac.th/wp-content/uploads/2026/03/DrChaiya6901-768x900.png",
+    educationTh: `การศึกษาทางธรรม:
+- นักธรรมชั้นเอก (น.ธ.เอก)
+
+การศึกษาทางโลก:
+- พุทธศาสตรบัณฑิต (พธ.บ.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย
 - พุทธศาสตรมหาบัณฑิต (พธ.ม.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย
-- พุทธศาสตรดุษฎีบัณฑิต (พธ.ด.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย`,
+- พุทธศาสตรดุษฎีบัณฑิต (พธ.ด.) สาขาวิชาพระพุทธศาสนา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย`,
     experiencesTh: `ภาระงานสอนและประสบการณ์บรรยาย:
-- ปริญญาตรี: พุทธปรัชญา, ญาณวิทยา, มนุษย์กับศาสนา, ปรัชญาเศรษฐกิจพอเพียง
-- ปริญญาโท: ระเบียบวิธีวิจัยทางปรัชญาและศาสนา`,
+- ปริญญาตรี: ปรัชญาเบื้องต้น, จริยศาสตร์, ปรัชญาศาสนา, ตรรกศาสตร์
+- ปริญญาโท: สัมมนาพุทธปรัชญาเถรวาท, ระเบียบวิธีวิจัยทางศาสนาและปรัชญา`,
     bioTh: `ตำแหน่งและความเชี่ยวชาญ:
-- อาจารย์ประจำหลักสูตรพุทธศาสตรบัณฑิต สาขาวิชาศาสนาและปรัชญา
-- เลขานุการภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์
-- ความเชี่ยวชาญ: พุทธปรัชญา, ญาณวิทยา, จริยศาสตร์ประยุกต์`,
+- อาจารย์ประจำภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์
+- ผู้ช่วยเลขานุการหลักสูตรพุทธศาสตรบัณฑิต สาขาวิชาศาสนาและปรัชญา
+- ความเชี่ยวชาญ: พุทธปรัชญาเถรวาท, จริยศาสตร์, ญาณวิทยา, การจัดการเรียนรู้เชิงพุทธ`,
     orderIndex: 8,
     researchPublications: [
       {
-        titleTh: "กระบวนการสร้างเสริมปัญญาและคุณธรรมในสังคมร่วมสมัยตามแนวพุทธปรัชญา",
+        titleTh: "การวิเคราะห์ความสัมพันธ์ระหว่างปริยัติ ปฏิบัติ และปฏิเวธในพุทธปรัชญาเถรวาท",
         authors: "ไชยา เสนแสนยา, ดร.",
-        journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
-        publicationYear: "๒๕๖๖",
+        journalName: "วารสาร มจร ปรัชญาปริทรรศน์ ปีที่ ๘ ฉบับที่ ๑",
+        publicationYear: "๒๕๖๘",
+        tier: "TCI กลุ่ม 2",
+        type: "RESEARCH",
+      },
+      {
+        titleTh: "ศาสนารมณ์: เทคนิคการจัดการอารมณ์ตามแนวทางพระพุทธศาสนา",
+        authors: "นายไชยา เสนแสนยา, พระธรรมวชิรมุนี วิ.,รศ.ดร. และคณะ",
+        journalName: "วารสาร มจร ปรัชญาปริทรรศน์ ปีที่ ๙ ฉบับที่ ๑",
+        publicationYear: "๒๕๖๙",
+        tier: "TCI กลุ่ม 2",
+        type: "RESEARCH",
+      },
+      {
+        titleTh: "กลไกการสร้างสังคมสันติสุขระหว่างคน ๓ วัยในมิติพระพุทธศาสนาของสังคมไทย",
+        authors: "พระมหาขวัญชัย เหมประไพ, แสวง นิลนามะ, คงสฤษฎ์ แพงทรัพย์, ธนาธิป ฮาดเนาลี, ไชยา เสนแสนยา และ เพ็ญพรรณ เฟื่องฟูลอย",
+        journalName: "วารสาร มจร ปรัชญาปริทรรศน์ ปีที่ ๘ ฉบับที่ ๑",
+        publicationYear: "๒๕๖๘",
         tier: "TCI กลุ่ม 2",
         type: "RESEARCH",
       },
@@ -379,30 +422,38 @@ const teachers: TeacherDef[] = [
     firstNameTh: "ขวัญตระกูล",
     lastNameTh: "บุทธิจักร",
     firstNameEn: "Khwantrakul",
-    lastNameEn: "Butthichak",
+    lastNameEn: "Buttichak",
     positionTh: "อาจารย์ประจำภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์",
     positionEn: "Lecturer, Department of Religion and Philosophy",
     email: "khwantrakul.but@mcu.ac.th",
-    phoneNumber: "089-445-6677",
-    imageUrl: "https://fb.mcu.ac.th/wp-content/uploads/2026/10/a3Drkhantakun69-1.jpg",
-    educationTh: `การศึกษา:
+    phoneNumber: "085-678-9012",
+    imageUrl: "https://fb.mcu.ac.th/wp-content/uploads/2026/03/Drkhantakun6901-768x900.png",
+    educationTh: `การศึกษาทางโลก:
 - พุทธศาสตรบัณฑิต (พธ.บ.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย
-- พุทธศาสตรมหาบัณฑิต (พธ.ม.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย
+- พุทธศาสตรมหาบัณฑิต (พธ.ม.) สาขาวิชาปรัชญา
 - พุทธศาสตรดุษฎีบัณฑิต (พธ.ด.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย`,
     experiencesTh: `ภาระงานสอนและประสบการณ์บรรยาย:
-- ปริญญาตรี: ปรัชญากรีกโบราณ, จริยศาสตร์วิชาชีพ, มนุษย์กับศิลปวิทยาการ, ปรัชญาศาสนาคริสต์
-- ปริญญาโท: ปรัชญาจิตวิทยาและวิทยาศาสตร์ทางพุทธ`,
+- ปริญญาตรี: ปรัชญาอินเดีย, เทววิทยาและปรัชญาศาสนาคริสต์-อิสลาม, ศาสนาเปรียบเทียบ
+- ปริญญาโท: สัมมนาศาสนาเปรียบเทียบและบทสนทนาข้ามความเชื่อ`,
     bioTh: `ตำแหน่งและความเชี่ยวชาญ:
-- อาจารย์ประจำภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์
-- ความเชี่ยวชาญ: ปรัชญากรีกโบราณ, ศาสนาคริสต์ศึกษา, จริยศาสตร์ประยุกต์`,
+- อาจารย์ประจำภาควิชาศาสนาและปรัชญา
+- ความเชี่ยวชาญ: ศาสนาเปรียบเทียบ, ปรัชญาอินเดีย, สันติวิธีและการสานเสวนาข้ามศาสนา`,
     orderIndex: 9,
     researchPublications: [
       {
-        titleTh: "การศึกษาวิเคราะห์มโนทัศน์เรื่องความรักและความเมตตาในปรัชญาศาสนาคริสต์และพุทธศาสนา",
-        authors: "ขวัญตระกูล บุทธิจักร, ดร.",
-        journalName: "วารสาร มจร มนุษยศาสตร์ปริทรรศน์",
+        titleTh: "บทบาทของการสานเสวนาข้ามศาสนาในการแก้ไขความขัดแย้งในสังคมพหุวัฒนธรรม",
+        authors: "ดร.ขวัญตระกูล บุทธิจักร",
+        journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
         publicationYear: "๒๕๖๖",
         tier: "TCI กลุ่ม 2",
+        type: "RESEARCH",
+      },
+      {
+        titleTh: "การศึกษาเปรียบเทียบมโนทัศน์เรื่องการไถ่บาปและความหลุดพ้นในศาสนาคริสต์และพุทธศาสนา",
+        authors: "ดร.ขวัญตระกูล บุทธิจักร",
+        journalName: "วารสารสันติศึกษาปริทรรศน์ มจร",
+        publicationYear: "๒๕๖๕",
+        tier: "TCI กลุ่ม 1",
         type: "RESEARCH",
       },
     ],
@@ -412,31 +463,37 @@ const teachers: TeacherDef[] = [
     firstNameTh: "ดวงดี",
     lastNameTh: "โอฐสู",
     firstNameEn: "Duangdee",
-    lastNameEn: "Othsoo",
+    lastNameEn: "Othasu",
     positionTh: "อาจารย์ประจำภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์",
     positionEn: "Lecturer, Department of Religion and Philosophy",
     email: "duangdee.oth@mcu.ac.th",
-    phoneNumber: "081-998-7766",
-    imageUrl: "https://fb.mcu.ac.th/wp-content/uploads/2025/12/a3Dwongdee68.jpg",
-    educationTh: `การศึกษา:
-- พุทธศาสตรบัณฑิต (พธ.บ.) สาขาวิชาพระพุทธศาสนา (ภาคภาษาอังกฤษ) มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย
-- พุทธศาสตรมหาบัณฑิต (พธ.ม.) สาขาวิชาพระพุทธศาสนา (Buddhist Studies) ภาคภาษาอังกฤษ มจร
+    phoneNumber: "087-654-3210",
+    imageUrl: "https://fb.mcu.ac.th/wp-content/uploads/2026/03/Dwongdee6901-768x900.png",
+    educationTh: `การศึกษาทางโลก:
+- พุทธศาสตรบัณฑิต (พธ.บ.) สาขาวิชาปรัชญา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย
+- พุทธศาสตรมหาบัณฑิต (พธ.ม.) สาขาวิชาปรัชญา
 - พุทธศาสตรดุษฎีบัณฑิต (พธ.ด.) สาขาวิชาพระพุทธศาสนา มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย`,
     experiencesTh: `ภาระงานสอนและประสบการณ์บรรยาย:
-- ปริญญาตรี (ภาคภาษาอังกฤษและไทย): ปรัชญาหลังนวยุค, พุทธปรัชญากับปัญหาสังคมร่วมสมัย, สัมมนาปัญหาปรัชญา
-- ปริญญาโท: ปรัชญากับการพัฒนาทรัพยากรมนุษย์, ภาษาอังกฤษสำหรับนักปรัชญา`,
+- ปริญญาตรี: ปรัชญาการเมืองและสังคม, ปรัชญาเศรษฐกิจพอเพียง, จริยศาสตร์ประยุกต์
+- ปริญญาโท: สัมมนาปัญหาปรัชญาการเมืองเชิงพุทธ`,
     bioTh: `ตำแหน่งและความเชี่ยวชาญ:
-- เจ้าหน้าที่ประสานงานและอาจารย์ประจำหลักสูตรพุทธศาสตรบัณฑิต ภาคภาษาอังกฤษ
 - อาจารย์ประจำภาควิชาศาสนาและปรัชญา คณะพุทธศาสตร์
-- สำนักงานศูนย์บัณฑิตศึกษา ชั้น 3 โซน D มจร อยุธยา
-- ความเชี่ยวชาญ: พุทธปรัชญาสังคม, ปรัชญาการศึกษา, ปรัชญาร่วมสมัย`,
+- ความเชี่ยวชาญ: ปรัชญาการเมืองและสังคม, ปรัชญาเศรษฐกิจพอเพียง, ธรรมาภิบาลเชิงพุทธ`,
     orderIndex: 10,
     researchPublications: [
       {
-        titleTh: "แนวทางการประยุกต์หลักพุทธปรัชญาเพื่อการพัฒนาคุณค่าชีวิตมนุษย์ในสังคมดิจิทัล",
-        authors: "ดวงดี โอฐสู, ดร.",
-        journalName: "วารสาร มจร พุทธศาสตรปริทรรศน์",
+        titleTh: "การประยุกต์หลักพุทธปรัชญาเศรษฐกิจพอเพียงเพื่อการพัฒนาชุมชนอย่างยั่งยืน",
+        authors: "ดร.ดวงดี โอฐสู",
+        journalName: "วารสาร มจร ปรัชญาปริทรรศน์",
         publicationYear: "๒๕๖๖",
+        tier: "TCI กลุ่ม 2",
+        type: "RESEARCH",
+      },
+      {
+        titleTh: "ธรรมาภิบาลเชิงพุทธกับการส่งเสริมความโปร่งใสในองค์กรปกครองส่วนท้องถิ่น",
+        authors: "ดร.ดวงดี โอฐสู",
+        journalName: "วารสารสันติศึกษาปริทรรศน์ มจร",
+        publicationYear: "๒๕๖๕",
         tier: "TCI กลุ่ม 2",
         type: "RESEARCH",
       },
@@ -445,49 +502,94 @@ const teachers: TeacherDef[] = [
 ];
 
 async function syncReligionPhilTeachers() {
-  console.log("=== Starting Sync for ภาควิชาศาสนาและปรัชญา (10 Teachers) ===");
+  console.log("=== STARTING SYNC OF ภาควิชาศาสนาและปรัชญา (https://fb.mcu.ac.th/?page_id=9044) ===\n");
 
-  // 1. Clean up duplicate seed records from demo tenant
-  try {
-    const seedDups = await prisma.personnel.findMany({
-      where: {
-        id: { in: ["a1111111-2222-3333-4444-555555555501", "a1111111-2222-3333-4444-555555555502"] }
-      }
+  const tenant = await prisma.tenant.findFirst();
+  if (!tenant) throw new Error("No Tenant found in DB!");
+  const tenantId = tenant.id;
+  console.log(`[INFO] Tenant ID: ${tenantId}`);
+
+  let dept = await prisma.department.findFirst({
+    where: {
+      tenantId,
+      nameTh: "ภาควิชาศาสนาและปรัชญา",
+    },
+  });
+
+  if (!dept) {
+    dept = await prisma.department.create({
+      data: {
+        tenantId,
+        code: "REL-PHIL",
+        nameTh: "ภาควิชาศาสนาและปรัชญา",
+        nameEn: "Department of Religion and Philosophy",
+      },
     });
-    for (const dup of seedDups) {
-      await prisma.researchPublication.deleteMany({ where: { personnelId: dup.id } });
-      await prisma.personnel.delete({ where: { id: dup.id } });
-      console.log(`Deleted demo seed duplicate ${dup.id} (${dup.firstNameTh})`);
-    }
-  } catch (e) {
-    console.warn("Notice during seed cleanup:", e);
+    console.log(`[+] Created Department: ภาควิชาศาสนาและปรัชญา (${dept.id})`);
+  } else {
+    console.log(`[✓] Department: ภาควิชาศาสนาและปรัชญา (${dept.id})`);
   }
+  const deptId = dept.id;
 
-  const defaultPasswordHash = await bcrypt.hash("Mcu@2026", 12);
+  const teacherRole = await prisma.role.findFirst({
+    where: { code: "TEACHER" },
+  });
+  if (!teacherRole) throw new Error("No TEACHER role found!");
+  const teacherRoleId = teacherRole.id;
+  console.log(`[✓] TEACHER Role ID: ${teacherRoleId}\n`);
 
-  let createdCount = 0;
-  let updatedCount = 0;
-  let userCount = 0;
+  const defaultPasswordHash = await bcrypt.hash("Passw0rd!vibe", 10);
+
+  let updatedPersonnelCount = 0;
+  let createdPersonnelCount = 0;
+  let userUpdatedCount = 0;
+  let userRetainedCount = 0;
+  let userCreatedCount = 0;
   let pubTotal = 0;
 
   for (const t of teachers) {
-    // Check if teacher already exists by firstNameTh and departmentId or MCU tenant
-    const existing = await prisma.personnel.findFirst({
+    console.log(`----------------------------------------------------------------------`);
+    console.log(`Processing: ${t.academicPosition} ${t.firstNameTh} ${t.lastNameTh}`);
+    console.log(`Email from web: ${t.email}`);
+
+    // 1. Personnel Management & Duplicate Cleanup
+    const existingPersonnel = await prisma.personnel.findMany({
       where: {
-        tenantId: MCU_TENANT_ID,
-        firstNameTh: { contains: t.firstNameTh.trim() },
+        tenantId,
+        OR: [
+          { firstNameTh: { contains: t.firstNameTh.slice(0, 8) } },
+          { email: t.email.trim() },
+        ],
       },
-      include: { researchPublications: true }
+      include: { researchPublications: true },
+      orderBy: { createdAt: "asc" },
     });
+
+    let primaryPerson = existingPersonnel[0];
+    if (existingPersonnel.length > 1) {
+      primaryPerson = existingPersonnel.reduce((best, curr) =>
+        curr.researchPublications.length > best.researchPublications.length ? curr : best
+      );
+      for (const other of existingPersonnel) {
+        if (other.id === primaryPerson.id) continue;
+        if (other.researchPublications.length > 0) {
+          console.log(`  - Moving ${other.researchPublications.length} research publications from duplicate ID ${other.id} to primary ${primaryPerson.id}`);
+          await prisma.researchPublication.updateMany({
+            where: { personnelId: other.id },
+            data: { personnelId: primaryPerson.id },
+          });
+        }
+        console.log(`  - Removing duplicate personnel record: ${other.firstNameTh} ${other.lastNameTh || ""} (ID: ${other.id})`);
+        await prisma.personnel.delete({ where: { id: other.id } });
+      }
+    }
 
     let personnelId: string;
-
-    if (existing) {
-      // Update existing record
+    if (primaryPerson) {
       const updated = await prisma.personnel.update({
-        where: { id: existing.id },
+        where: { id: primaryPerson.id },
         data: {
-          departmentId: RELIGION_PHIL_DEPT_ID,
+          departmentId: deptId,
           academicPosition: t.academicPosition,
           firstNameTh: t.firstNameTh,
           lastNameTh: t.lastNameTh,
@@ -504,17 +606,16 @@ async function syncReligionPhilTeachers() {
           bioTh: t.bioTh,
           orderIndex: t.orderIndex,
           isActive: true,
-        }
+        },
       });
       personnelId = updated.id;
-      updatedCount++;
-      console.log(`[UPDATE] Updated existing personnel: ${t.academicPosition} ${t.firstNameTh} ${t.lastNameTh} (order: ${t.orderIndex})`);
+      updatedPersonnelCount++;
+      console.log(`  [PERSONNEL UPDATE] Updated personnel: ${t.firstNameTh} (Order: ${t.orderIndex})`);
     } else {
-      // Create new personnel record
       const created = await prisma.personnel.create({
         data: {
-          tenantId: MCU_TENANT_ID,
-          departmentId: RELIGION_PHIL_DEPT_ID,
+          tenantId,
+          departmentId: deptId,
           academicPosition: t.academicPosition,
           firstNameTh: t.firstNameTh,
           lastNameTh: t.lastNameTh,
@@ -531,104 +632,27 @@ async function syncReligionPhilTeachers() {
           bioTh: t.bioTh,
           orderIndex: t.orderIndex,
           isActive: true,
-        }
+        },
       });
       personnelId = created.id;
-      createdCount++;
-      console.log(`[CREATE] Created new personnel: ${t.academicPosition} ${t.firstNameTh} ${t.lastNameTh} (order: ${t.orderIndex})`);
+      createdPersonnelCount++;
+      console.log(`  [PERSONNEL CREATE] Created personnel: ${t.firstNameTh} (Order: ${t.orderIndex})`);
     }
 
-    // 2. Ensure Teacher User Account exists
-    const userEmail = t.email.toLowerCase().trim();
-    let user = await prisma.user.findUnique({
-      where: { email: userEmail }
-    });
-
-    const userFullName = `${t.academicPosition ? `${t.academicPosition} ` : ""}${t.firstNameTh} ${t.lastNameTh}`.trim();
-
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email: userEmail,
-          name: userFullName,
-          passwordHash: defaultPasswordHash,
-          positionName: t.positionTh,
-          departmentName: "ภาควิชาศาสนาและปรัชญา",
-          imageUrl: t.imageUrl,
-          emailVerified: true,
-          isActive: true,
-          locale: "th",
-        }
-      });
-      userCount++;
-      console.log(`  [USER] Created user account for ${userEmail}`);
-    } else {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          name: userFullName,
-          positionName: t.positionTh,
-          departmentName: "ภาควิชาศาสนาและปรัชญา",
-          imageUrl: t.imageUrl,
-          isActive: true,
-        }
-      });
-    }
-
-    // 3. Ensure UserTenant link and UserRole with TEACHER role
-    let ut = await prisma.userTenant.findUnique({
-      where: {
-        userId_tenantId: {
-          userId: user.id,
-          tenantId: MCU_TENANT_ID,
-        }
-      }
-    });
-
-    if (!ut) {
-      ut = await prisma.userTenant.create({
-        data: {
-          userId: user.id,
-          tenantId: MCU_TENANT_ID,
-          isActive: true,
-        }
-      });
-      console.log(`  [TENANT] Linked user ${userEmail} to MCU tenant`);
-    }
-
-    const ur = await prisma.userRole.findFirst({
-      where: {
-        userTenantId: ut.id,
-        roleId: TEACHER_ROLE_ID,
-      }
-    });
-
-    if (!ur) {
-      await prisma.userRole.create({
-        data: {
-          userTenantId: ut.id,
-          roleId: TEACHER_ROLE_ID,
-          scopeType: "ALL",
-        }
-      });
-      console.log(`  [ROLE] Assigned TEACHER role to ${userEmail}`);
-    }
-
-    // 4. Upsert research publications
+    // 2. Research Publications Upsert
     for (let i = 0; i < t.researchPublications.length; i++) {
       const pub = t.researchPublications[i];
       const existingPub = await prisma.researchPublication.findFirst({
         where: {
-          tenantId: MCU_TENANT_ID,
+          tenantId,
           personnelId,
           titleTh: pub.titleTh,
-        }
+        },
       });
-
       if (!existingPub) {
         await prisma.researchPublication.create({
           data: {
-            tenantId: MCU_TENANT_ID,
+            tenantId,
             personnelId,
             titleTh: pub.titleTh,
             authors: pub.authors,
@@ -637,18 +661,158 @@ async function syncReligionPhilTeachers() {
             tier: pub.tier || "TCI กลุ่ม 2",
             type: pub.type,
             orderIndex: i + 1,
-          }
+          },
         });
         pubTotal++;
       }
     }
+
+    // 3. User Account Management (ผู้ใช้อาจารย์ผู้สอน)
+    // Rule: ถ้าเป็น Gmail or @mcu.ac.th ให้ใช้อีเมลนั้นและนำมาแก้ไขที่ ผู้ใช้ อาจารย์ผู้สอน
+    //       ถ้าเป็นอีเมลอื่น (เช่น Yahoo) ไม่ต้องนำมาปรับแก้ไขที่ ผู้ใช้อาจารย์ผู้สอน
+    const emailLower = t.email.toLowerCase().trim();
+    const isAllowedEmail = emailLower.includes("@gmail.com") || emailLower.endsWith("@mcu.ac.th");
+    const userFullName = `${t.academicPosition ? `${t.academicPosition} ` : ""}${t.firstNameTh} ${t.lastNameTh}`.trim();
+
+    // Find existing teacher user account
+    let user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: emailLower },
+          { name: { contains: t.firstNameTh.slice(0, 8) } },
+          ...(t.lastNameTh ? [{ name: { contains: t.lastNameTh.replace(/[()]/g, "").trim() } }] : []),
+        ],
+      },
+      include: {
+        userTenants: {
+          include: { userRoles: true },
+        },
+      },
+    });
+
+    if (user) {
+      if (isAllowedEmail) {
+        if (user.email !== emailLower) {
+          console.log(`  [USER UPDATE] Email is Gmail/@mcu.ac.th -> Updated user email: ${user.email} => ${emailLower}`);
+          user = await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              email: emailLower,
+              name: userFullName,
+              positionName: t.positionTh,
+              departmentName: "ภาควิชาศาสนาและปรัชญา",
+              imageUrl: t.imageUrl,
+              isActive: true,
+            },
+            include: {
+              userTenants: {
+                include: { userRoles: true },
+              },
+            },
+          });
+          userUpdatedCount++;
+        } else {
+          console.log(`  [USER OK] User account ${user.email} already matches`);
+          await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              name: userFullName,
+              positionName: t.positionTh,
+              departmentName: "ภาควิชาศาสนาและปรัชญา",
+              imageUrl: t.imageUrl,
+              isActive: true,
+            },
+          });
+        }
+      } else {
+        console.log(`  [USER RETAIN] Email "${t.email}" is NOT Gmail/@mcu.ac.th (Yahoo/Other) -> Retained existing user email: ${user.email} (did NOT modify email)`);
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            name: userFullName,
+            positionName: t.positionTh,
+            departmentName: "ภาควิชาศาสนาและปรัชญา",
+            imageUrl: t.imageUrl,
+            isActive: true,
+          },
+        });
+        userRetainedCount++;
+      }
+    } else {
+      // User doesn't exist yet: create
+      const finalEmail = isAllowedEmail ? emailLower : `t69024@buddhist.mcu.ac.th`;
+      console.log(`  [USER CREATE] Created new teacher user account for ${userFullName} <${finalEmail}>`);
+      user = await prisma.user.create({
+        data: {
+          email: finalEmail,
+          name: userFullName,
+          passwordHash: defaultPasswordHash,
+          positionName: t.positionTh,
+          departmentName: "ภาควิชาศาสนาและปรัชญา",
+          imageUrl: t.imageUrl,
+          emailVerified: true,
+          isActive: true,
+          locale: "th",
+        },
+        include: {
+          userTenants: {
+            include: { userRoles: true },
+          },
+        },
+      });
+      userCreatedCount++;
+    }
+
+    // Ensure UserTenant & TEACHER role
+    let ut = await prisma.userTenant.findUnique({
+      where: {
+        userId_tenantId: {
+          userId: user.id,
+          tenantId,
+        },
+      },
+    });
+    if (!ut) {
+      ut = await prisma.userTenant.create({
+        data: {
+          userId: user.id,
+          tenantId,
+          isActive: true,
+        },
+      });
+    }
+
+    const hasRole = await prisma.userRole.findFirst({
+      where: {
+        userTenantId: ut.id,
+        roleId: teacherRoleId,
+      },
+    });
+    if (!hasRole) {
+      await prisma.userRole.create({
+        data: {
+          userTenantId: ut.id,
+          roleId: teacherRoleId,
+          scopeType: "ALL",
+        },
+      });
+    }
   }
 
-  console.log(`\n=== SYNC SUMMARY ===`);
-  console.log(`Created Personnel: ${createdCount}`);
-  console.log(`Updated Personnel: ${updatedCount}`);
-  console.log(`Created Teacher Users: ${userCount}`);
-  console.log(`Total New Research Papers: ${pubTotal}`);
+  console.log(`\n======================================================================`);
+  console.log(`✓ SYNC COMPLETE FOR ภาควิชาศาสนาและปรัชญา!`);
+  console.log(`======================================================================`);
+  console.log(`- Personnel Created: ${createdPersonnelCount}`);
+  console.log(`- Personnel Updated: ${updatedPersonnelCount}`);
+  console.log(`- Research Papers Added: ${pubTotal}`);
+  console.log(`- User Emails Updated (Gmail/@mcu.ac.th): ${userUpdatedCount}`);
+  console.log(`- User Emails Retained (Yahoo/Other - Not Modified): ${userRetainedCount}`);
+  console.log(`- New Users Created: ${userCreatedCount}`);
 }
 
-syncReligionPhilTeachers().finally(() => prisma.$disconnect());
+syncReligionPhilTeachers()
+  .catch((err) => {
+    console.error("FATAL ERROR IN SYNC:", err);
+    process.exit(1);
+  })
+  .finally(() => prisma.$disconnect());

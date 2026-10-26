@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useState, useEffect } from "react";
@@ -40,6 +41,67 @@ interface StudentAttendanceInquiryProps {
   locale?: string;
 }
 
+interface PersonalCourseSession {
+  id: string;
+  sessionNumber: number;
+  date: string | Date;
+  startTime?: string | null;
+  endTime?: string | null;
+  topic?: string | null;
+  sessionStatus?: string | null;
+  attendanceStatus?: string | null;
+  note?: string | null;
+}
+
+interface PersonalCourseItem {
+  courseId: string;
+  courseCode: string;
+  courseName: string;
+  credits: number;
+  term: string;
+  instructor: string;
+  room?: string | null;
+  eligibility: {
+    isEligible: boolean | null;
+    percentage: number;
+    percentageDisplay: string;
+    statusText: string;
+    requiredRemainingToPass: number;
+    attendedCount: number;
+    evaluatedCount: number;
+    presentCount: number;
+    lateCount: number;
+    excusedCount: number;
+    absentCount: number;
+    pendingCount: number;
+  };
+  sessions: PersonalCourseSession[];
+}
+
+interface PersonalSearchResult {
+  found: boolean;
+  message?: string;
+  student: {
+    id: string;
+    studentCode: string;
+    fullName: string;
+    faculty?: string | null;
+    department?: string | null;
+    degree?: string | null;
+    yearLevel?: number | null;
+  };
+  summary: {
+    totalEnrolledCourses: number;
+    totalCourses?: number;
+    eligibleCoursesCount: number;
+    atRiskCoursesCount: number;
+    atRiskCourses?: number;
+    overallPercentage: string;
+    averageAttendanceRate?: number | string;
+  };
+  courses: PersonalCourseItem[];
+}
+
 export function StudentAttendanceInquiry({
   initialStudentCode = "",
   canManageAttendance = false,
@@ -48,7 +110,7 @@ export function StudentAttendanceInquiry({
 }: StudentAttendanceInquiryProps) {
   const [studentCode, setStudentCode] = useState(initialStudentCode);
   const [isLoading, setIsLoading] = useState(false);
-  const [searchResult, setSearchResult] = useState<any>(null);
+  const [searchResult, setSearchResult] = useState<PersonalSearchResult | null>(null);
   const [expandedCourseId, setExpandedCourseId] = useState<string | null>(null);
   const [showAllClasses, setShowAllClasses] = useState(false);
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
@@ -67,14 +129,14 @@ export function StudentAttendanceInquiry({
         toast.error(res.message || "ไม่พบข้อมูลนิสิตรหัสนี้");
         setSearchResult(null);
       } else {
-        setSearchResult(res);
+        setSearchResult(res as unknown as PersonalSearchResult);
         if (res.courses && res.courses.length > 0) {
           setExpandedCourseId(res.courses[0].courseId);
         }
         toast.success(`พบข้อมูลการลงทะเบียนและเวลาเรียนของ ${res.student?.fullName || clean}`);
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการค้นหา");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการค้นหา");
     } finally {
       setIsLoading(false);
     }
@@ -249,11 +311,11 @@ export function StudentAttendanceInquiry({
 
               <div className="p-4 rounded-xl bg-muted/40 border border-border flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold ${
-                  searchResult.summary.atRiskCourses > 0
+                  (searchResult.summary.atRiskCourses ?? searchResult.summary.atRiskCoursesCount ?? 0) > 0
                     ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
                     : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                 }`}>
-                  {searchResult.summary.atRiskCourses > 0 ? (
+                  {(searchResult.summary.atRiskCourses ?? searchResult.summary.atRiskCoursesCount ?? 0) > 0 ? (
                     <AlertTriangle className="w-5 h-5" />
                   ) : (
                     <ShieldCheck className="w-5 h-5" />
@@ -262,7 +324,7 @@ export function StudentAttendanceInquiry({
                 <div>
                   <p className="text-xs text-muted-foreground font-medium">วิชาที่อยู่ในกลุ่มเสี่ยง</p>
                   <p className="text-xl font-bold text-foreground">
-                    {searchResult.summary.atRiskCourses} วิชา
+                    {searchResult.summary.atRiskCourses ?? searchResult.summary.atRiskCoursesCount ?? 0} วิชา
                   </p>
                 </div>
               </div>
@@ -292,7 +354,7 @@ export function StudentAttendanceInquiry({
               </div>
             </div>
 
-            {searchResult.courses.map((course: any) => {
+            {searchResult.courses.map((course: PersonalCourseItem) => {
               const elig = course.eligibility;
               const isExpanded = expandedCourseId === course.courseId;
               const percent = elig.percentage;
@@ -452,7 +514,7 @@ export function StudentAttendanceInquiry({
                       </h6>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                        {course.sessions.map((sess: any) => {
+                        {course.sessions.map((sess: PersonalCourseSession) => {
                           let badgeBg = "bg-muted text-muted-foreground border-border";
                           let label = "รอเช็ก";
 

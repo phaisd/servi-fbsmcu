@@ -1,10 +1,14 @@
 import { resolvePublicTenantId } from "@/features/news/server";
-import { getPublicMeetingRooms, getUpcomingBookings } from "@/features/meetings/server";
-import { parseBookingRemark } from "@/features/meetings";
+import { getPublicMeetingRooms, getPublicCalendarBookings } from "@/features/meetings/server";
 import { getLocale } from "@/shared/lib/i18n/server";
 import { getSessionContext } from "@/features/identity/server";
-import { Calendar, Users, MapPin, Clock, FileText, CheckCircle2, Tv } from "lucide-react";
+import { Calendar, Users, MapPin, FileText, Tv } from "lucide-react";
 import Link from "next/link";
+import {
+  MeetingsCalendarSchedule,
+  type SerializedRoom,
+  type SerializedBooking,
+} from "./_components/meetings-calendar-schedule";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +23,29 @@ export default async function PublicMeetingsPage() {
 
   const [rooms, bookings] = await Promise.all([
     getPublicMeetingRooms(tenantId),
-    getUpcomingBookings(tenantId),
+    getPublicCalendarBookings(tenantId),
   ]);
+
+  const serializedRooms: SerializedRoom[] = rooms.map((r) => ({
+    id: r.id,
+    name: r.name,
+    capacity: r.capacity,
+    equipment: r.equipment,
+    imageUrl: r.imageUrl,
+  }));
+
+  const serializedBookings: SerializedBooking[] = bookings.map((b) => ({
+    id: b.id,
+    roomId: b.roomId,
+    roomName: b.room.name,
+    roomCapacity: b.room.capacity,
+    title: b.title,
+    startTimeIso: b.startTime.toISOString(),
+    endTimeIso: b.endTime.toISOString(),
+    status: b.status,
+    remark: b.remark,
+    requesterNameFallback: b.requester.name,
+  }));
 
   return (
     <div className="space-y-10 max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -50,8 +75,15 @@ export default async function PublicMeetingsPage() {
         </Link>
       </div>
 
+      {/* Interactive Thai Buddhist & Holiday Calendar + Schedule Table (Dual View) */}
+      <MeetingsCalendarSchedule
+        locale={locale}
+        rooms={serializedRooms}
+        bookings={serializedBookings}
+      />
+
       {/* Available Rooms Grid */}
-      <div className="space-y-4">
+      <div className="space-y-4 pt-4">
         <div className="flex items-center justify-between border-b pb-2">
           <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
             <MapPin className="h-5 w-5 text-orange-600" />
@@ -123,75 +155,6 @@ export default async function PublicMeetingsPage() {
             );
           })}
         </div>
-      </div>
-
-      {/* Upcoming Approved Schedule */}
-      <div className="space-y-4 pt-6">
-        <div className="flex items-center justify-between border-b pb-2">
-          <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <Clock className="h-5 w-5 text-orange-600" />
-            <span>{locale === "th" ? "ตารางการใช้ห้องประชุมที่ได้รับอนุมัติแล้ว" : "Upcoming Approved Schedule"}</span>
-          </h2>
-          <span className="text-xs text-muted-foreground">กำลังจะมาถึง</span>
-        </div>
-
-        {bookings.length > 0 ? (
-          <div className="overflow-hidden rounded-2xl border bg-card shadow-xs">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-muted/60 border-b text-muted-foreground font-semibold">
-                  <tr>
-                    <th className="p-4">{locale === "th" ? "วันและเวลา" : "Date & Time"}</th>
-                    <th className="p-4">{locale === "th" ? "ห้องประชุม" : "Room"}</th>
-                    <th className="p-4">{locale === "th" ? "หัวข้อการประชุม / กิจกรรม" : "Topic"}</th>
-                    <th className="p-4">{locale === "th" ? "ผู้ขอใช้ / หน่วยงาน" : "Requester"}</th>
-                    <th className="p-4 text-center">{locale === "th" ? "สถานะ" : "Status"}</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {bookings.map((b) => {
-                    const meta = parseBookingRemark(b.remark);
-                    return (
-                      <tr key={b.id} className="hover:bg-muted/30 transition">
-                        <td className="p-4 font-mono">
-                          <div className="font-bold text-foreground">
-                            {new Intl.DateTimeFormat("th-TH", { dateStyle: "medium" }).format(new Date(b.startTime))}
-                          </div>
-                          <div className="text-[11px] text-muted-foreground">
-                            {new Intl.DateTimeFormat("th-TH", { timeStyle: "short" }).format(new Date(b.startTime))} - {new Intl.DateTimeFormat("th-TH", { timeStyle: "short" }).format(new Date(b.endTime))} น.
-                          </div>
-                        </td>
-                        <td className="p-4 font-semibold text-foreground">{b.room.name}</td>
-                        <td className="p-4">
-                          <div className="font-semibold text-foreground">{b.title}</div>
-                          {meta.purposeType && (
-                            <span className="inline-block mt-0.5 rounded-md bg-secondary px-2 py-0.5 text-[10px] text-secondary-foreground font-medium">
-                              เพื่อ: {meta.purposeType === "MEETING" ? "ประชุม" : meta.purposeType === "TRAINING" ? "อบรม" : meta.purposeType === "SEMINAR" ? "สัมมนา" : meta.purposeOther || "อื่นๆ"}
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-4 text-muted-foreground">
-                          <div className="font-medium text-foreground">{meta.requesterName || b.requester.name}</div>
-                          <div className="text-[11px] text-muted-foreground">{meta.requesterDepartment || "-"}</div>
-                        </td>
-                        <td className="p-4 text-center">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2.5 py-0.5 text-[11px] font-bold">
-                            <CheckCircle2 className="h-3 w-3" />
-                            <span>อนุมัติแล้ว</span>
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : (
-          <div className="py-12 text-center text-muted-foreground border rounded-2xl bg-muted/20">
-            {locale === "th" ? "ยังไม่มีรายการใช้ห้องประชุมที่ได้รับอนุมัติในเร็วๆ นี้" : "No upcoming approved bookings."}
-          </div>
-        )}
       </div>
     </div>
   );

@@ -16,9 +16,7 @@ import {
   Sparkles,
   Award,
   Building2,
-  FileText,
   ChevronRight,
-  ShieldCheck,
   CheckCircle2,
 } from "lucide-react";
 import {

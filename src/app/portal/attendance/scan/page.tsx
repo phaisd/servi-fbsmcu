@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import { useEffect, useState } from "react";
@@ -27,11 +28,40 @@ export default function StudentQrScanPage() {
   const stepParam = searchParams.get("step");
   const step = stepParam ? parseInt(stepParam, 10) : undefined;
 
-  const [sessionInfo, setSessionInfo] = useState<any>(null);
+  interface PublicSessionInfo {
+    id: string;
+    sessionNumber: number;
+    date: string | Date;
+    startTime?: string | null;
+    endTime?: string | null;
+    topic?: string | null;
+    room?: string | null;
+    course: {
+      courseCode: string;
+      courseName: string;
+      section?: string | null;
+      term?: string | null;
+      primaryTeacher?: { name?: string | null } | null;
+    };
+  }
+  interface CheckInSuccessResult {
+    success: boolean;
+    alreadyCheckedIn?: boolean;
+    studentName?: string;
+    studentCode?: string;
+    status?: string;
+    checkedInAt?: string | Date;
+    checkInTime?: string;
+    courseCode?: string;
+    courseName?: string;
+    sessionNumber?: number;
+  }
+
+  const [sessionInfo, setSessionInfo] = useState<PublicSessionInfo | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
   const [studentCode, setStudentCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [checkInResult, setCheckInResult] = useState<any>(null);
+  const [checkInResult, setCheckInResult] = useState<CheckInSuccessResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // ดึงข้อมูลวิชาและรหัสนิสิตที่เคยบันทึกไว้ใน Browser
@@ -86,7 +116,7 @@ export default function StudentQrScanPage() {
       });
 
       if (res.success) {
-        setCheckInResult(res);
+        setCheckInResult(res as CheckInSuccessResult);
         localStorage.setItem("mcu_student_code", studentCode.trim());
         toast.success(
           res.alreadyCheckedIn
@@ -94,8 +124,8 @@ export default function StudentQrScanPage() {
             : "เช็กชื่อเข้าเรียนสำเร็จเรียบร้อยแล้ว!"
         );
       }
-    } catch (err: any) {
-      const msg = err.message || "เกิดข้อผิดพลาดในการเช็กชื่อ";
+    } catch (err: unknown) {
+      const msg = (err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการเช็กชื่อ";
       setErrorMessage(msg);
       toast.error(msg);
     } finally {

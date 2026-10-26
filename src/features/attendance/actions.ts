@@ -98,8 +98,8 @@ export const deleteClassAction = deleteCourseAction;
 export async function enrollStudentAction(data: unknown) {
   const session = await requireSession();
   await requirePermission(ATTENDANCE_P.manage);
-  const raw: any = data;
-  const courseId = raw.courseId || raw.classId;
+  const raw = (data || {}) as Record<string, unknown>;
+  const courseId = (raw.courseId as string) || (raw.classId as string);
   const parsed = enrollStudentSchema.parse({ ...raw, courseId });
   await assertCourseAccess(session.tenantId, parsed.courseId, session.userId, session.isSuperAdmin);
   const result = await enrollStudentInCourse(session.tenantId, session.userId, parsed.courseId, parsed);
@@ -125,7 +125,10 @@ export async function batchRemoveStudentsAction(courseId: string, enrollmentIds?
   return result;
 }
 
-export async function batchEnrollStudentsAction(courseId: string, students: any[]) {
+export async function batchEnrollStudentsAction(
+  courseId: string,
+  students: Parameters<typeof batchEnrollStudents>[3]
+) {
   const session = await requireSession();
   await requirePermission(ATTENDANCE_P.manage);
   await assertCourseAccess(session.tenantId, courseId, session.userId, session.isSuperAdmin);
@@ -137,8 +140,8 @@ export async function batchEnrollStudentsAction(courseId: string, students: any[
 export async function createSessionAction(data: unknown) {
   const session = await requireSession();
   await requirePermission(ATTENDANCE_P.manage);
-  const raw: any = data;
-  const courseId = raw.courseId || raw.classId;
+  const raw = (data || {}) as Record<string, unknown>;
+  const courseId = (raw.courseId as string) || (raw.classId as string);
   const parsed = classSessionSchema.parse({ ...raw, courseId });
   await assertCourseAccess(session.tenantId, parsed.courseId, session.userId, session.isSuperAdmin);
   const result = await createClassSession(session.tenantId, session.userId, parsed);
@@ -520,7 +523,9 @@ export async function deleteStudentAction(studentId: string) {
   return result;
 }
 
-export async function batchImportStudentsAction(items: any[]) {
+export async function batchImportStudentsAction(
+  items: Parameters<typeof batchImportStudents>[2]
+) {
   const session = await requireSession();
   await requirePermission(ATTENDANCE_P.manage);
 

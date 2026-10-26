@@ -53,7 +53,6 @@ describe("Student Self-Enrollment Slip Parsing Logic", () => {
 
     const matchedToEnroll: string[] = [];
     const alreadyEnrolled: string[] = [];
-    const unmatchedCodes: string[] = [];
 
     availableFacultyCourses.forEach((c) => {
       const code = c.courseCode.trim();

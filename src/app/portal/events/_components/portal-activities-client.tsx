@@ -124,8 +124,8 @@ export function PortalActivitiesClient({ initialData, user, locale }: Props) {
     try {
       const res = await getStudentActivityTranscriptAction(user.code);
       setTranscriptData(res as StudentActivityTranscriptData);
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถโหลดระเบียนกิจกรรมได้");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "ไม่สามารถโหลดระเบียนกิจกรรมได้");
     } finally {
       setIsLoadingTranscript(false);
     }
@@ -148,7 +148,7 @@ export function PortalActivitiesClient({ initialData, user, locale }: Props) {
   myRegistrations.forEach((r) => registrationMap.set(r.event.id, r));
 
   const attendedCount = myRegistrations.filter((r) => r.status === "ATTENDED").length;
-  const pendingCount = myRegistrations.filter((r) => r.status === "REGISTERED").length;
+  const _pendingCount = myRegistrations.filter((r) => r.status === "REGISTERED").length;
 
   // Faculty Events
   const facultyEvents = completeEventsList.filter((ev) => {

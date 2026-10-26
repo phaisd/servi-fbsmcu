@@ -72,7 +72,7 @@ interface ClassItem {
   status: string;
   primaryTeacher?: { id: string; name: string; email: string } | null;
   instructor?: { name: string; email: string } | null;
-  teachers?: Array<{ user: { name: string; email: string }; isPrimary: boolean }>;
+  teachers?: Array<{ userId?: string; role?: string; user: { name: string; email: string }; isPrimary: boolean }>;
   _count?: {
     enrollments: number;
     sessions: number;
@@ -227,12 +227,12 @@ export function ClassesClient({
       const res = await createClassAction(payload);
       if (res.success && res.class) {
         toast.success("สร้างรายวิชาและกำหนด 16 คาบเรียนเรียบร้อยแล้ว");
-        setItems([res.class as any, ...items]);
+        setItems([res.class as unknown as ClassItem, ...items]);
         setIsCreateOpen(false);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการสร้างรายวิชา");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการสร้างรายวิชา");
     } finally {
       setIsSubmitting(false);
     }
@@ -251,8 +251,8 @@ export function ClassesClient({
         setArchiveTarget(null);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการปิดภาคการศึกษา");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการปิดภาคการศึกษา");
     } finally {
       setIsProcessingAction(false);
     }
@@ -271,8 +271,8 @@ export function ClassesClient({
         setRestoreTarget(null);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการเปิดใช้งาน");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการเปิดใช้งาน");
     } finally {
       setIsProcessingAction(false);
     }
@@ -367,8 +367,8 @@ export function ClassesClient({
         setEditTarget(null);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการแก้ไขรายวิชา");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการแก้ไขรายวิชา");
     } finally {
       setIsUpdating(false);
     }
@@ -385,24 +385,64 @@ export function ClassesClient({
         setDeleteTarget(null);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการลบรายวิชา");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการลบรายวิชา");
     } finally {
       setIsDeleting(false);
     }
   }
 
+  interface SyncTimetableCourseItem {
+    id?: string;
+    courseCode: string;
+    courseName: string;
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    room?: string | null;
+    instructor?: string | null;
+  }
+
+  interface SyncTimetableItem {
+    id: string;
+    titleTh: string;
+    academicYear: string;
+    semester: number;
+    yearLevel: number;
+    curriculumName?: string | null;
+    departmentName?: string | null;
+    room?: string | null;
+    termDates?: string | null;
+    courseCount?: number;
+    courses: SyncTimetableCourseItem[];
+  }
+
+  interface TeacherCredentialItem {
+    teacherName: string;
+    email: string;
+    initialPassword?: string;
+    courses: string[];
+    isNew?: boolean;
+  }
+
+  interface SyncExecutionResult {
+    success?: boolean;
+    importedCount?: number;
+    skippedCount?: number;
+    teacherCredentials: TeacherCredentialItem[];
+  }
+
   // Timetable Sync & Teacher Auto-Provisioning States
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [isLoadingTimetables, setIsLoadingTimetables] = useState(false);
-  const [timetables, setTimetables] = useState<any[]>([]);
+  const [timetables, setTimetables] = useState<SyncTimetableItem[]>([]);
   const [selectedTimetableId, setSelectedTimetableId] = useState("");
   const [selectedCourseCodes, setSelectedCourseCodes] = useState<string[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Handover Dialog States
   const [isHandoverModalOpen, setIsHandoverModalOpen] = useState(false);
-  const [syncResult, setSyncResult] = useState<any | null>(null);
+  const [syncResult, setSyncResult] = useState<SyncExecutionResult | null>(null);
   const [copiedAll, setCopiedAll] = useState(false);
   const [handoverViewMode, setHandoverViewMode] = useState<HandoverViewMode>("slips4");
   const [handoverSearch, setHandoverSearch] = useState("");
@@ -412,12 +452,12 @@ export function ClassesClient({
   const filteredTeacherCredentials = useMemo(() => {
     let list = syncResult?.teacherCredentials || [];
     if (singlePrintEmail) {
-      return list.filter((t: any) => t.email === singlePrintEmail);
+      return list.filter((t) => t.email === singlePrintEmail);
     }
     if (handoverSearch.trim()) {
       const q = handoverSearch.toLowerCase();
       list = list.filter(
-        (t: any) =>
+        (t) =>
           t.teacherName?.toLowerCase().includes(q) ||
           t.email?.toLowerCase().includes(q) ||
           t.courses?.some((c: string) => c.toLowerCase().includes(q))
@@ -432,15 +472,16 @@ export function ClassesClient({
     try {
       const res = await getAvailableTimetablesForSyncAction();
       if (res.success && res.timetables) {
-        setTimetables(res.timetables);
-        if (res.timetables.length > 0) {
-          const first = res.timetables[0];
+        const ttList = res.timetables as SyncTimetableItem[];
+        setTimetables(ttList);
+        if (ttList.length > 0) {
+          const first = ttList[0];
           setSelectedTimetableId(first.id);
-          setSelectedCourseCodes(first.courses.map((c: any) => c.courseCode));
+          setSelectedCourseCodes(first.courses.map((c) => c.courseCode));
         }
       }
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถดึงข้อมูลตารางเรียนได้");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "ไม่สามารถดึงข้อมูลตารางเรียนได้");
     } finally {
       setIsLoadingTimetables(false);
     }
@@ -450,7 +491,7 @@ export function ClassesClient({
     setSelectedTimetableId(timetableId);
     const found = timetables.find((t) => t.id === timetableId);
     if (found) {
-      setSelectedCourseCodes(found.courses.map((c: any) => c.courseCode));
+      setSelectedCourseCodes(found.courses.map((c) => c.courseCode));
     } else {
       setSelectedCourseCodes([]);
     }
@@ -464,7 +505,7 @@ export function ClassesClient({
     );
   }
 
-  function handleToggleAllCourses(courses: any[]) {
+  function handleToggleAllCourses(courses: SyncTimetableCourseItem[]) {
     if (selectedCourseCodes.length === courses.length) {
       setSelectedCourseCodes([]);
     } else {
@@ -491,13 +532,13 @@ export function ClassesClient({
 
       if (res.success) {
         toast.success(`นำเข้ารายวิชาสำเร็จ ${res.importedCount} วิชา!`);
-        setSyncResult(res);
+        setSyncResult(res as SyncExecutionResult);
         setIsSyncModalOpen(false);
         setIsHandoverModalOpen(true);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการนำเข้าตารางเรียน");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการนำเข้าตารางเรียน");
     } finally {
       setIsSyncing(false);
     }
@@ -514,7 +555,7 @@ export function ClassesClient({
       "",
     ];
 
-    syncResult.teacherCredentials.forEach((t: any, idx: number) => {
+    syncResult.teacherCredentials.forEach((t, idx: number) => {
       textLines.push(`${idx + 1}. อาจารย์: ${t.teacherName}`);
       textLines.push(`   อีเมลเข้าสู่ระบบ (Username): ${t.email}`);
       textLines.push(`   รหัสผ่านเริ่มต้น: ${t.initialPassword || "(มีบัญชีเดิมในระบบแล้ว)"}`);
@@ -530,7 +571,7 @@ export function ClassesClient({
     setTimeout(() => setCopiedAll(false), 3000);
   }
 
-  function handleCopySingleCredential(t: any) {
+  function handleCopySingleCredential(t: TeacherCredentialItem) {
     const lines = [
       "==================================================",
       "ใบส่งมอบบัญชีผู้ใช้งานระบบสารสนเทศอาจารย์ผู้สอน",
@@ -563,7 +604,7 @@ export function ClassesClient({
       "สถานะบัญชี",
       "เว็บไซต์เข้าสู่ระบบ",
     ];
-    const rows = syncResult.teacherCredentials.map((t: any, idx: number) => [
+    const rows = syncResult.teacherCredentials.map((t, idx: number) => [
       idx + 1,
       `"${(t.teacherName || "").replace(/"/g, '""')}"`,
       `"${(t.email || "").replace(/"/g, '""')}"`,
@@ -573,7 +614,7 @@ export function ClassesClient({
       `"http://localhost:3010/login"`,
     ]);
     const csvContent =
-      "\uFEFF" + [headers.join(","), ...rows.map((r: any) => r.join(","))].join("\n");
+      "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -833,7 +874,7 @@ export function ClassesClient({
         <div>
           <select
             value={selectedStatus}
-            onChange={(e) => setSelectedStatus(e.target.value as any)}
+            onChange={(e) => setSelectedStatus(e.target.value as "ACTIVE" | "ARCHIVED" | "ALL")}
             className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 text-slate-700 dark:text-slate-200 shadow-2xs"
           >
             <option value="ACTIVE">สถานะ: เปิดสอนอยู่ (Active)</option>
@@ -889,7 +930,7 @@ export function ClassesClient({
                           เทอม {item.term}
                         </StatusPill>
                       )}
-                      {item.teachers?.some((t: any) => t.userId === currentUserId && t.role === "GUEST_LECTURER") && (
+                      {item.teachers?.some((t: { userId?: string; role?: string }) => t.userId === currentUserId && t.role === "GUEST_LECTURER") && (
                         <span className="px-2 py-0.5 rounded-lg bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 font-bold text-2xs border border-purple-300">
                           ⭐ อาจารย์พิเศษ
                         </span>
@@ -1656,7 +1697,7 @@ export function ClassesClient({
                     </div>
 
                     <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-slate-800/60 max-h-80 overflow-y-auto">
-                      {cur.courses.map((c: any) => {
+                      {cur.courses.map((c: SyncTimetableCourseItem) => {
                         const isChecked = selectedCourseCodes.includes(c.courseCode);
                         return (
                           <div
@@ -1904,7 +1945,7 @@ export function ClassesClient({
             {handoverViewMode === "slips4" || handoverViewMode === "slips" ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 print:gap-4">
-                  {filteredTeacherCredentials.map((cred: any, _idx: number) => (
+                  {filteredTeacherCredentials.map((cred: TeacherCredentialItem, _idx: number) => (
                     <div
                       key={cred.email}
                       className="handover-slip-card border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-4 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs flex flex-col justify-between relative overflow-hidden"
@@ -2047,7 +2088,7 @@ export function ClassesClient({
               /* โหมดที่ 2: สลิปใบตัดแจก 6 ใบต่อหน้า A4 (ประหยัดกระดาษ 33%) */
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
-                  {filteredTeacherCredentials.map((cred: any, _idx: number) => (
+                  {filteredTeacherCredentials.map((cred: TeacherCredentialItem, _idx: number) => (
                     <div
                       key={cred.email}
                       className="handover-slip-card border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-3 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs flex flex-col justify-between relative overflow-hidden"
@@ -2186,7 +2227,7 @@ export function ClassesClient({
               /* โหมดที่ 3: สลิปใบตัดแจก 8 ใบต่อหน้า A4 (ประหยัดกระดาษ 50%) */
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {filteredTeacherCredentials.map((cred: any, _idx: number) => (
+                  {filteredTeacherCredentials.map((cred: TeacherCredentialItem, _idx: number) => (
                     <div
                       key={cred.email}
                       className="handover-slip-card border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-2.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs flex flex-col justify-between relative overflow-hidden"
@@ -2342,7 +2383,7 @@ export function ClassesClient({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 print:divide-slate-300">
-                      {filteredTeacherCredentials.map((cred: any, idx: number) => (
+                      {filteredTeacherCredentials.map((cred: TeacherCredentialItem, idx: number) => (
                         <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                           <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px]">
                             {idx + 1}
@@ -2360,7 +2401,7 @@ export function ClassesClient({
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    navigator.clipboard.writeText(cred.initialPassword);
+                                    navigator.clipboard.writeText(cred.initialPassword || "");
                                     toast.success(`คัดลอกรหัสผ่านของ ${cred.teacherName} แล้ว`);
                                   }}
                                   className="text-amber-600 dark:text-amber-400 hover:text-amber-800 ml-1 print:hidden"

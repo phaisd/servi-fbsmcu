@@ -1,6 +1,6 @@
 import { requirePermission, hasPermission } from "@/features/identity/server";
 import { PERSONNEL_P } from "@/features/personnel";
-import { getResearchPublications, getPersonnelList } from "@/features/personnel/server";
+import { getResearchPublications, getPersonnelList, getPersonnelPortalConfig } from "@/features/personnel/server";
 import { ResearchAdminClient } from "./_components/research-admin-client";
 
 interface PageProps {
@@ -10,8 +10,11 @@ interface PageProps {
 export default async function ResearchAdminPage({ searchParams }: PageProps) {
   const { author } = await searchParams;
   const ctx = await requirePermission(PERSONNEL_P.read);
-  const publications = await getResearchPublications(ctx.tenantId);
-  const personnel = await getPersonnelList(ctx.tenantId);
+  const [publications, personnel, portalConfig] = await Promise.all([
+    getResearchPublications(ctx.tenantId),
+    getPersonnelList(ctx.tenantId),
+    getPersonnelPortalConfig(ctx.tenantId),
+  ]);
 
   return (
     <ResearchAdminClient
@@ -19,6 +22,7 @@ export default async function ResearchAdminPage({ searchParams }: PageProps) {
       personnelList={personnel}
       canManage={hasPermission(ctx, PERSONNEL_P.manage)}
       initialAuthor={author || "ALL"}
+      initialPublicationYearsLimit={portalConfig.publicationYearsLimit}
     />
   );
 }

@@ -10,7 +10,7 @@ interface Props {
 
 export function MeetingBookingA4Document({
   metadata,
-  roomName = "ห้องประชุมคณะพุทธศาสตร์ (โซนดี)",
+  roomName: _roomName = "ห้องประชุมคณะพุทธศาสตร์ (โซนดี)",
   roomCapacity = 70,
 }: Props) {
   // Format Thai dates

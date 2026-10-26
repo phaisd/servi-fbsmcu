@@ -86,6 +86,7 @@ interface Props {
   locale: string;
   initialDept?: string;
   initialView?: string;
+  publicationYearsLimit?: number;
 }
 
 /** ฟังก์ชันแปลงเลขปีไทย (เช่น ๒๕๖๗, 2567) ให้อยู่ในรูปแบบตัวเลขสากล 4 หลัก เพื่อการจัดกลุ่มและกรองที่แม่นยำ */
@@ -103,6 +104,16 @@ export function normalizePublicationYear(raw?: string | null): string {
   return raw.trim() || "ไม่ระบุปี";
 }
 
+export function parseBeYearNumber(normalizedYear: string): number | null {
+  if (/^25\d{2}$/.test(normalizedYear)) {
+    return parseInt(normalizedYear, 10);
+  }
+  if (/^20\d{2}$/.test(normalizedYear)) {
+    return parseInt(normalizedYear, 10) + 543;
+  }
+  return null;
+}
+
 /** ฟังก์ชันแสดงข้อความป้ายกำกับปี พ.ศ. ที่สวยงาม */
 export function formatPublicationYearLabel(year: string, locale: string = "th"): string {
   if (year === "ไม่ระบุปี" || year === "OTHER") {
@@ -118,7 +129,13 @@ export function formatPublicationYearLabel(year: string, locale: string = "th"):
   return year;
 }
 
-export function PortalPersonnelClient({ items, locale, initialDept, initialView }: Props) {
+export function PortalPersonnelClient({
+  items,
+  locale,
+  initialDept,
+  initialView,
+  publicationYearsLimit = 5,
+}: Props) {
   // Navigation & View Mode
   const [viewMode, setViewMode] = useState<"directory" | "research">(
     initialView === "research" ? "research" : "directory"
@@ -153,43 +170,76 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
   const departments = useMemo(() => {
     const set = new Set(items.map((i) => i.department?.nameTh).filter(Boolean) as string[]);
     const list = Array.from(set);
+    const getDeptPriority = (d: string) => {
+      if (d.includes("พระพุทธศาสนา")) return 1;
+      if (d.includes("ศาสนา") || d.includes("ปรัชญา")) return 2;
+      if (d.includes("บาลี") || d.includes("สันสกฤต")) return 3;
+      return 4;
+    };
     list.sort((a, b) => {
-      if (a.includes("พระพุทธศาสนา")) return -1;
-      if (b.includes("พระพุทธศาสนา")) return 1;
-      if (a.includes("ศาสนา") || a.includes("ปรัชญา")) return -1;
-      if (b.includes("ศาสนา") || b.includes("ปรัชญา")) return 1;
-      return a.localeCompare(b);
+      const pA = getDeptPriority(a);
+      const pB = getDeptPriority(b);
+      if (pA !== pB) return pA - pB;
+      return a.localeCompare(b, "th");
     });
     return list;
   }, [items]);
 
-  // All combined publications across all teachers with author reference
-  const allFacultyPublications = useMemo(() => {
-    const list: Array<ResearchPub & { personnel: PersonnelItem; normalizedYear: string }> = [];
+  // All raw publications across all teachers with author reference
+  const allRawFacultyPublications = useMemo(() => {
+    const list: Array<ResearchPub & { personnel: PersonnelItem; normalizedYear: string; beYearNum: number | null }> = [];
     items.forEach((person) => {
       person.researchPublications?.forEach((pub) => {
+        const normalizedYear = normalizePublicationYear(pub.publicationYear);
         list.push({
           ...pub,
           personnel: person,
-          normalizedYear: normalizePublicationYear(pub.publicationYear),
+          normalizedYear,
+          beYearNum: parseBeYearNumber(normalizedYear),
         });
       });
     });
     return list;
   }, [items]);
 
-  // All unique publication years across the faculty
+  // Latest BE Year and cutoff year based on admin setting (publicationYearsLimit)
+  const { latestBeYear, minAllowedBeYear } = useMemo(() => {
+    const validNums = allRawFacultyPublications
+      .map((p) => p.beYearNum)
+      .filter((n): n is number => n !== null);
+    const latest = validNums.length > 0 ? Math.max(...validNums) : new Date().getFullYear() + 543;
+    const minYear =
+      publicationYearsLimit && publicationYearsLimit > 0
+        ? latest - publicationYearsLimit + 1
+        : null;
+    return { latestBeYear: latest, minAllowedBeYear: minYear };
+  }, [allRawFacultyPublications, publicationYearsLimit]);
+
+  // All combined publications filtered by configured year limit
+  const allFacultyPublications = useMemo(() => {
+    if (minAllowedBeYear === null) return allRawFacultyPublications;
+    return allRawFacultyPublications.filter(
+      (p) => p.beYearNum !== null && p.beYearNum >= minAllowedBeYear
+    );
+  }, [allRawFacultyPublications, minAllowedBeYear]);
+
+  // All unique publication years across the faculty (respecting year limit)
   const availableYears = useMemo(() => {
     const set = new Set<string>();
     allFacultyPublications.forEach((p) => {
       set.add(p.normalizedYear);
     });
+    if (minAllowedBeYear !== null) {
+      for (let y = latestBeYear; y >= minAllowedBeYear; y--) {
+        set.add(String(y));
+      }
+    }
     return Array.from(set).sort((a, b) => {
       if (a === "ไม่ระบุปี") return 1;
       if (b === "ไม่ระบุปี") return -1;
       return b.localeCompare(a); // latest year first
     });
-  }, [allFacultyPublications]);
+  }, [allFacultyPublications, minAllowedBeYear, latestBeYear]);
 
   // Statistics for Research Portfolio
   const researchStats = useMemo(() => {
@@ -220,9 +270,11 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
         const matchesSearch = !q || fullNameTh.includes(q) || fullNameEn.includes(q) || pos.includes(q);
         const matchesDept =
           selectedDept === "ALL" ||
-          (selectedDept === "สำนักงานคณบดีและผู้บริหาร"
-            ? !person.department || !person.department.nameTh
-            : person.department?.nameTh === selectedDept);
+          (selectedDept === "อาจารย์พิเศษและผู้ทรงคุณวุฒิ"
+            ? person.type === "SPECIAL"
+            : selectedDept === "สำนักงานคณบดีและผู้บริหาร"
+              ? person.type !== "SPECIAL" && (!person.department || !person.department.nameTh)
+              : person.type !== "SPECIAL" && person.department?.nameTh === selectedDept);
 
         return matchesSearch && matchesDept;
       })
@@ -236,7 +288,10 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
   // Group directory by department (ภาควิชาพระพุทธศาสนา is sorted to the very top!)
   const groupedPersonnel = useMemo(() => {
     const raw = filteredPersonnel.reduce((acc, item) => {
-      const dept = item.department?.nameTh || "สำนักงานคณบดีและผู้บริหาร";
+      const dept =
+        item.type === "SPECIAL"
+          ? "อาจารย์พิเศษและผู้ทรงคุณวุฒิ"
+          : item.department?.nameTh || "สำนักงานคณบดีและผู้บริหาร";
       if (!acc[dept]) acc[dept] = [];
       acc[dept].push(item);
       return acc;
@@ -251,29 +306,52 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
       });
     });
 
-    // เรียงลำดับ: ภาควิชาพระพุทธศาสนา ขึ้นก่อนเสมอ -> ภาควิชาศาสนาและปรัชญา -> สำนักงานคณบดี
+    const getDeptPriority = (d: string) => {
+      if (d.includes("พระพุทธศาสนา")) return 1;
+      if (d.includes("ศาสนา") || d.includes("ปรัชญา")) return 2;
+      if (d.includes("บาลี") || d.includes("สันสกฤต")) return 3;
+      if (d.includes("สำนักงานคณบดี")) return 4;
+      if (d.includes("อาจารย์พิเศษ")) return 5;
+      return 6;
+    };
+
+    // เรียงลำดับ: ภาควิชาพระพุทธศาสนา ขึ้นก่อนเสมอ -> ภาควิชาศาสนาและปรัชญา -> ภาควิชาบาลีและสันสกฤต -> สำนักงานคณบดี -> อาจารย์พิเศษ
     const sorted = Object.entries(raw).sort(([a], [b]) => {
-      if (a.includes("พระพุทธศาสนา")) return -1;
-      if (b.includes("พระพุทธศาสนา")) return 1;
-      if (a.includes("ศาสนา") || a.includes("ปรัชญา")) return -1;
-      if (b.includes("ศาสนา") || b.includes("ปรัชญา")) return 1;
-      return a.localeCompare(b);
+      const pA = getDeptPriority(a);
+      const pB = getDeptPriority(b);
+      if (pA !== pB) return pA - pB;
+      return a.localeCompare(b, "th");
     });
 
     return Object.fromEntries(sorted);
   }, [filteredPersonnel]);
 
-  // Counts by department
+  // Counts by department (exclude "พระพุทธศาสนา" from philosophyCount so it doesn't double-count "ศาสนา")
   const buddhismCount = useMemo(() => {
-    return items.filter((p) => p.department?.nameTh?.includes("พระพุทธศาสนา")).length;
+    return items.filter((p) => p.type !== "SPECIAL" && p.department?.nameTh?.includes("พระพุทธศาสนา")).length;
   }, [items]);
 
   const philosophyCount = useMemo(() => {
-    return items.filter((p) => p.department?.nameTh?.includes("ปรัชญา") || p.department?.nameTh?.includes("ศาสนา")).length;
+    return items.filter(
+      (p) =>
+        p.type !== "SPECIAL" &&
+        !p.department?.nameTh?.includes("พระพุทธศาสนา") &&
+        (p.department?.nameTh?.includes("ปรัชญา") || p.department?.nameTh?.includes("ศาสนา"))
+    ).length;
+  }, [items]);
+
+  const paliSanskritCount = useMemo(() => {
+    return items.filter(
+      (p) => p.type !== "SPECIAL" && (p.department?.nameTh?.includes("บาลี") || p.department?.nameTh?.includes("สันสกฤต"))
+    ).length;
   }, [items]);
 
   const execCount = useMemo(() => {
-    return items.filter((p) => !p.department || !p.department.nameTh).length;
+    return items.filter((p) => p.type !== "SPECIAL" && (!p.department || !p.department.nameTh)).length;
+  }, [items]);
+
+  const specialCount = useMemo(() => {
+    return items.filter((p) => p.type === "SPECIAL").length;
   }, [items]);
 
   // Filter Research Publications in "Research by Year" view
@@ -330,14 +408,18 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
     if (!selectedPerson?.researchPublications) return [];
     const set = new Set<string>();
     selectedPerson.researchPublications.forEach((p) => {
-      set.add(normalizePublicationYear(p.publicationYear));
+      const normY = normalizePublicationYear(p.publicationYear);
+      const yNum = parseBeYearNumber(normY);
+      if (minAllowedBeYear === null || (yNum !== null && yNum >= minAllowedBeYear)) {
+        set.add(normY);
+      }
     });
     return Array.from(set).sort((a, b) => {
       if (a === "ไม่ระบุปี") return 1;
       if (b === "ไม่ระบุปี") return -1;
       return b.localeCompare(a);
     });
-  }, [selectedPerson]);
+  }, [selectedPerson, minAllowedBeYear]);
 
   // Grouped publications for the selected person inside Modal
   const selectedPersonGroupedByYear = useMemo(() => {
@@ -346,6 +428,10 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
 
     const filtered = selectedPerson.researchPublications.filter((pub) => {
       const normY = normalizePublicationYear(pub.publicationYear);
+      const yNum = parseBeYearNumber(normY);
+      if (minAllowedBeYear !== null && (yNum === null || yNum < minAllowedBeYear)) {
+        return false;
+      }
       const matchesYear = modalYearFilter === "ALL" || normY === modalYearFilter;
       const matchesSearch =
         !q ||
@@ -373,7 +459,7 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
       label: formatPublicationYearLabel(k, locale),
       publications: map.get(k)!,
     }));
-  }, [selectedPerson, modalYearFilter, modalPubSearch, locale]);
+  }, [selectedPerson, modalYearFilter, modalPubSearch, locale, minAllowedBeYear]);
 
   const openDetail = (person: PersonnelItem, initialTab: "research" | "education" = "research", targetYear: string = "ALL") => {
     setSelectedPerson(person);
@@ -422,6 +508,14 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
               {allFacultyPublications.length} เรื่อง
             </span>
           </button>
+
+          <Link
+            href="/portal/executives"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-all"
+          >
+            <Award className="w-4 h-4 text-amber-500" />
+            <span>{locale === "th" ? "ทำเนียบผู้บริหาร" : "Executive Board"}</span>
+          </Link>
         </div>
 
         <div className="flex items-center gap-3 px-3 text-xs text-muted-foreground">
@@ -463,7 +557,15 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
                   <option value="ALL">🏛️ ทุกภาควิชา / สังกัดทั้งหมด ({items.length} ท่าน)</option>
                   <option value="ภาควิชาพระพุทธศาสนา">🪷 ภาควิชาพระพุทธศาสนา ({buddhismCount} ท่าน)</option>
                   <option value="ภาควิชาศาสนาและปรัชญา">📜 ภาควิชาศาสนาและปรัชญา ({philosophyCount} ท่าน)</option>
-                  <option value="สำนักงานคณบดีและผู้บริหาร">🏢 สำนักงานคณบดีและผู้บริหาร ({execCount} ท่าน)</option>
+                  {paliSanskritCount > 0 && (
+                    <option value="ภาควิชาบาลีและสันสกฤต">📖 ภาควิชาบาลีและสันสกฤต ({paliSanskritCount} ท่าน)</option>
+                  )}
+                  {execCount > 0 && (
+                    <option value="สำนักงานคณบดีและผู้บริหาร">🏢 สำนักงานคณบดีและผู้บริหาร ({execCount} ท่าน)</option>
+                  )}
+                  {specialCount > 0 && (
+                    <option value="อาจารย์พิเศษและผู้ทรงคุณวุฒิ">🎓 อาจารย์พิเศษและผู้ทรงคุณวุฒิ ({specialCount} ท่าน)</option>
+                  )}
                 </select>
               </div>
             </div>
@@ -524,22 +626,105 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
                   </span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedDept("สำนักงานคณบดีและผู้บริหาร")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-                    selectedDept === "สำนักงานคณบดีและผู้บริหาร"
-                      ? "bg-primary text-primary-foreground shadow-xs ring-2 ring-primary/30"
-                      : "bg-muted/80 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  <span>🏢 สำนักงานคณบดีและผู้บริหาร</span>
-                  <span className="px-1.5 py-0.2 rounded-full bg-muted-foreground/15 text-[10px]">
-                    {execCount} ท่าน
-                  </span>
-                </button>
+                {paliSanskritCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDept("ภาควิชาบาลีและสันสกฤต")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                      selectedDept === "ภาควิชาบาลีและสันสกฤต"
+                        ? "bg-primary text-primary-foreground shadow-xs ring-2 ring-primary/30"
+                        : "bg-muted/80 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <span>📖 ภาควิชาบาลีและสันสกฤต</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-muted-foreground/15 text-[10px]">
+                      {paliSanskritCount} ท่าน
+                    </span>
+                  </button>
+                )}
+
+                {execCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDept("สำนักงานคณบดีและผู้บริหาร")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                      selectedDept === "สำนักงานคณบดีและผู้บริหาร"
+                        ? "bg-primary text-primary-foreground shadow-xs ring-2 ring-primary/30"
+                        : "bg-muted/80 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <span>🏢 สำนักงานคณบดีและผู้บริหาร</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-muted-foreground/15 text-[10px]">
+                      {execCount} ท่าน
+                    </span>
+                  </button>
+                )}
+
+                {specialCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDept("อาจารย์พิเศษและผู้ทรงคุณวุฒิ")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                      selectedDept === "อาจารย์พิเศษและผู้ทรงคุณวุฒิ"
+                        ? "bg-primary text-primary-foreground shadow-xs ring-2 ring-primary/30"
+                        : "bg-muted/80 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <span>🎓 อาจารย์พิเศษและผู้ทรงคุณวุฒิ</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-muted-foreground/15 text-[10px]">
+                      {specialCount} ท่าน
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
+
+            {/* Quick Research Year Strip ("เลือกดูผลงาน") right on the Directory view */}
+            {availableYears.length > 0 && (
+              <div className="pt-2 border-t border-border/50 flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 shrink-0">
+                  <Calendar className="w-3.5 h-3.5 text-amber-500" />
+                  <span>
+                    เลือกดูผลงาน
+                    {minAllowedBeYear !== null
+                      ? ` (${publicationYearsLimit} ปี • พ.ศ. ${latestBeYear}–${minAllowedBeYear})`
+                      : " (แยกตามปี พ.ศ.)"}
+                    :
+                  </span>
+                </span>
+
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 w-full scrollbar-thin">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedResearchYear("ALL");
+                      setViewMode("research");
+                    }}
+                    className="px-2.5 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20 hover:bg-amber-500/20"
+                  >
+                    ทุกปี ({allFacultyPublications.length})
+                  </button>
+                  {availableYears.map((yearKey) => {
+                    const count = allFacultyPublications.filter((p) => p.normalizedYear === yearKey).length;
+                    const label = formatPublicationYearLabel(yearKey, locale);
+                    return (
+                      <button
+                        key={yearKey}
+                        type="button"
+                        onClick={() => {
+                          setSelectedResearchYear(yearKey);
+                          setViewMode("research");
+                        }}
+                        className="px-2.5 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer bg-muted/70 text-muted-foreground hover:bg-primary hover:text-primary-foreground flex items-center gap-1"
+                      >
+                        <span>{label}</span>
+                        <span className="text-[10px] opacity-80">({count})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Personnel Grid by Department */}
@@ -600,7 +785,7 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
                             <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 pointer-events-none">
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-background/90 backdrop-blur-md text-foreground text-[11px] font-semibold shadow-xs">
                                 <Briefcase className="h-3 w-3 text-primary" />
-                                {person.type === "EXECUTIVE" ? "ผู้บริหาร" : person.type === "ACADEMIC" ? "อาจารย์ประจำ" : "สายสนับสนุน"}
+                                {person.type === "EXECUTIVE" ? "ผู้บริหาร" : person.type === "ACADEMIC" ? "อาจารย์ประจำ" : person.type === "SPECIAL" ? "อาจารย์พิเศษ" : "สายสนับสนุน"}
                               </span>
 
                               {pubCount > 0 && (
@@ -777,10 +962,15 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
 
           {/* Interactive Year Selector Bar (แยกปีให้เห็นเด่นชัดตามที่ผู้ใช้ร้องขอ) */}
           <div className="p-4 rounded-2xl bg-card border shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Calendar className="w-4 h-4 text-primary" />
                 <h3 className="text-sm font-bold text-foreground">เลือกดูผลงานวิจัยจำแนกตามปี พ.ศ.</h3>
+                {minAllowedBeYear !== null && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/20 text-[11px] font-bold">
+                    แสดงย้อนหลัง {publicationYearsLimit} ปี (พ.ศ. {latestBeYear} – {minAllowedBeYear})
+                  </span>
+                )}
               </div>
               <span className="text-xs text-muted-foreground">
                 แสดงผลงาน {filteredResearchPublications.length} จากทั้งหมด {allFacultyPublications.length} เรื่อง
@@ -1090,7 +1280,7 @@ export function PortalPersonnelClient({ items, locale, initialDept, initialView 
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-primary/10 text-primary">
-                        {selectedPerson.type === "EXECUTIVE" ? "ผู้บริหาร" : selectedPerson.type === "ACADEMIC" ? "อาจารย์ประจำ" : "สายสนับสนุน"}
+                        {selectedPerson.type === "EXECUTIVE" ? "ผู้บริหาร" : selectedPerson.type === "ACADEMIC" ? "อาจารย์ประจำ" : selectedPerson.type === "SPECIAL" ? "อาจารย์พิเศษ" : "สายสนับสนุน"}
                       </span>
                       {selectedPerson.academicPosition && (
                         <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400">

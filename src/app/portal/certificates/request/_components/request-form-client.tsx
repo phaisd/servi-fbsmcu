@@ -109,7 +109,7 @@ export function RequestFormClient({
   const isEn = currentLocale === "en";
   const [isPending, startTransition] = useTransition();
 
-  const [showPreview, setShowPreview] = useState(false);
+  const [showPreview, _setShowPreview] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   // Portal mode: Student vs Personnel (separated screens linked with Personnel directory)

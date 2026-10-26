@@ -177,7 +177,7 @@ export function ActivityRosterDocument({ event, attendees, onClose }: Props) {
 
             <select
               value={filterRole}
-              onChange={(e) => setFilterRole(e.target.value as any)}
+              onChange={(e) => setFilterRole(e.target.value as "ALL" | "STUDENT" | "EXECUTIVE" | "TEACHER")}
               className="bg-white border border-slate-200 rounded-md px-2 py-1 text-xs"
             >
               <option value="ALL">กลุ่มผู้เข้าร่วม: ทั้งหมด</option>

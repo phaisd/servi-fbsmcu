@@ -44,9 +44,13 @@ async function processTenant(tenant: { id: string; code: string; nameTh: string 
     where: { tenantId },
   });
 
-  const slotMap = new Map<string, any>();
+  interface SlotEntry {
+    courseCode?: string;
+    instructor?: string;
+  }
+  const slotMap = new Map<string, SlotEntry>();
   for (const tt of timetables) {
-    const slots = Array.isArray(tt.scheduleData) ? (tt.scheduleData as any[]) : [];
+    const slots = Array.isArray(tt.scheduleData) ? (tt.scheduleData as SlotEntry[]) : [];
     for (const s of slots) {
       if (s.courseCode && s.instructor && !slotMap.has(s.courseCode.trim())) {
         slotMap.set(s.courseCode.trim(), s);
@@ -78,7 +82,7 @@ async function processTenant(tenant: { id: string; code: string; nameTh: string 
   }
 
   const defaultPasswordHash = await bcrypt.hash("Passw0rd!vibe", 10);
-  const teacherAccountMap = new Map<string, any>();
+  const teacherAccountMap = new Map<string, { id: string; name: string | null; email: string }>();
 
   let updatedCourseCount = 0;
   let newTeacherCount = 0;
@@ -88,10 +92,10 @@ async function processTenant(tenant: { id: string; code: string; nameTh: string 
     if (!slot || !slot.instructor) continue;
 
     const instructors = parseInstructorsFromSlot(slot.instructor);
-    const teacherUsers: Array<{ user: any; isPrimary: boolean }> = [];
+    const teacherUsers: Array<{ user: { id: string; name: string | null; email: string }; isPrimary: boolean }> = [];
 
     for (const inst of instructors) {
-      let teacherUser = teacherAccountMap.get(inst.name);
+      let teacherUser: { id: string; name: string | null; email: string } | null | undefined = teacherAccountMap.get(inst.name);
 
       if (!teacherUser) {
         teacherUser = await db.user.findFirst({

@@ -20,7 +20,7 @@ function getAcademicPositionEn(th?: string | null): string {
   return "Lecturer";
 }
 
-function cleanInstructorName(raw: string): string[] {
+function _cleanInstructorName(raw: string): string[] {
   // Split on *, /, comma or &
   return raw
     .split(/[*\/&,]/)
@@ -52,7 +52,7 @@ async function main() {
   for (const person of personnelList) {
     const fTh = person.firstNameTh.trim();
     const lTh = person.lastNameTh?.trim() || "";
-    const fEn = person.firstNameEn?.trim() || "";
+    const _fEn = person.firstNameEn?.trim() || "";
 
     // 1. Find matching courses in CurriculumTimetable
     const matchedTimetableCourses: Array<{
@@ -74,7 +74,17 @@ async function main() {
     for (const tt of timetables) {
       const yearThai = tt.academicYear === "2569" ? "๒๕๖๙" : tt.academicYear === "2568" ? "๒๕๖๘" : tt.academicYear;
       const semesterStr = String(tt.semester || "2");
-      const slots = Array.isArray(tt.scheduleData) ? (tt.scheduleData as any[]) : [];
+      interface RawSlotItem {
+        instructor?: string;
+        courseCode?: string;
+        courseName?: string;
+        credits?: number | string;
+        dayOfWeek?: string;
+        startTime?: string;
+        endTime?: string;
+        room?: string;
+      }
+      const slots = Array.isArray(tt.scheduleData) ? (tt.scheduleData as RawSlotItem[]) : [];
 
       for (const slot of slots) {
         if (!slot.instructor) continue;

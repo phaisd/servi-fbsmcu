@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -63,22 +64,19 @@ export function ProjectorClient({ initialData }: ProjectorClientProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [checkinUrl, setCheckinUrl] = useState<string>("");
   const [qrMode, setQrMode] = useState<"CHECKIN" | "EVALUATION">("CHECKIN");
   const [isStandeeModalOpen, setIsStandeeModalOpen] = useState(false);
 
   const event = data.event;
   const stats = data.stats;
   const recentCheckIns = data.recentCheckIns;
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const targetPath = qrMode === "CHECKIN" ? "checkin" : "evaluate";
+  const checkinUrl = `${origin}/portal/events/${event.id}/${targetPath}`;
 
   // ตั้งค่า URL และสร้างภาพ QR Code ตามโหมด (เช็คชื่อ หรือ ทำแบบประเมิน)
   useEffect(() => {
-    const origin = window.location.origin;
-    const targetPath = qrMode === "CHECKIN" ? "checkin" : "evaluate";
-    const url = `${origin}/portal/events/${event.id}/${targetPath}`;
-    setCheckinUrl(url);
-
-    QRCode.toDataURL(url, {
+    QRCode.toDataURL(checkinUrl, {
       width: 450,
       margin: 2,
       color: {
@@ -93,7 +91,7 @@ export function ProjectorClient({ initialData }: ProjectorClientProps) {
       .catch((err) => {
         console.error("Failed to generate QR code", err);
       });
-  }, [event.id, qrMode]);
+  }, [checkinUrl, qrMode]);
 
   // นาฬิกาบอกเวลาสดแบบเรียลไทม์
   useEffect(() => {
@@ -121,7 +119,7 @@ export function ProjectorClient({ initialData }: ProjectorClientProps) {
       if (showToast) {
         toast.success("อัปเดตสถิติล่าสุดแล้ว");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error refreshing projector stats:", err);
     } finally {
       setIsRefreshing(false);

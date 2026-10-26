@@ -160,7 +160,11 @@ export async function uploadPersonnelImageAction(formData: FormData) {
   return { url, fileName: file.name, fileSize: file.size };
 }
 
-export async function syncTeacherCoursesFromTimetablesAction(teacherName: string, personnelId?: string) {
+export async function syncTeacherCoursesFromTimetablesAction(
+  teacherName: string,
+  personnelId?: string,
+  englishName?: { firstNameEn?: string | null; lastNameEn?: string | null }
+) {
   const session = await requireSession();
   await requirePermission(PERSONNEL_P.manage);
 
@@ -168,17 +172,21 @@ export async function syncTeacherCoursesFromTimetablesAction(teacherName: string
 
   let firstNameTh = teacherName.trim();
   let lastNameTh: string | null = null;
+  let firstNameEn: string | null = englishName?.firstNameEn || null;
+  let lastNameEn: string | null = englishName?.lastNameEn || null;
   let academicPosition: string | null = null;
   let email: string | null = null;
 
   if (personnelId) {
     const person = await prisma.personnel.findUnique({
       where: { id: personnelId },
-      select: { firstNameTh: true, lastNameTh: true, academicPosition: true, email: true },
+      select: { firstNameTh: true, lastNameTh: true, firstNameEn: true, lastNameEn: true, academicPosition: true, email: true },
     });
     if (person) {
       firstNameTh = person.firstNameTh;
       lastNameTh = person.lastNameTh;
+      firstNameEn = firstNameEn || person.firstNameEn;
+      lastNameEn = lastNameEn || person.lastNameEn;
       academicPosition = person.academicPosition;
       email = person.email;
     }
@@ -193,6 +201,8 @@ export async function syncTeacherCoursesFromTimetablesAction(teacherName: string
   return findTeacherCoursesFromTimetables(tenantId, {
     firstNameTh,
     lastNameTh,
+    firstNameEn,
+    lastNameEn,
     academicPosition,
     email,
   });
@@ -230,4 +240,52 @@ export async function updateMyTitlePlacementAction(personnelId: string, titlePla
   revalidatePath(`/portal/personnel/${personnelId}`);
 
   return { success: true, titlePlacement };
+}
+
+import {
+  updatePersonnelPortalConfig,
+  assignExecutiveSlot,
+  stepDownExecutive,
+  type PersonnelPortalConfig,
+} from "./_internal/services";
+import { personnelPortalConfigSchema } from "./_internal/validations";
+export type { PersonnelPortalConfig };
+
+export async function updatePersonnelPortalConfigAction(data: { publicationYearsLimit: number }) {
+  const session = await requireSession();
+  await requirePermission(PERSONNEL_P.manage);
+  const parsed = personnelPortalConfigSchema.parse(data);
+  const result = await updatePersonnelPortalConfig(session.tenantId, session.userId, parsed);
+  revalidatePath("/personnel");
+  revalidatePath("/personnel/research");
+  revalidatePath("/portal/personnel");
+  revalidatePath("/portal/executives");
+  return result;
+}
+
+export async function assignExecutiveSlotAction(input: {
+  slotKey: string;
+  newPersonnelId: string | null;
+  previousPersonnelId?: string | null;
+  demotePrevious?: boolean;
+}) {
+  const session = await requireSession();
+  await requirePermission(PERSONNEL_P.manage);
+  const result = await assignExecutiveSlot(session.tenantId, session.userId, input);
+  revalidatePath("/personnel");
+  revalidatePath("/portal/personnel");
+  revalidatePath("/portal/executives");
+  revalidatePath("/portal/departments/buddhism");
+  return result;
+}
+
+export async function stepDownExecutiveAction(personnelId: string) {
+  const session = await requireSession();
+  await requirePermission(PERSONNEL_P.manage);
+  const result = await stepDownExecutive(session.tenantId, session.userId, personnelId);
+  revalidatePath("/personnel");
+  revalidatePath("/portal/personnel");
+  revalidatePath("/portal/executives");
+  revalidatePath("/portal/departments/buddhism");
+  return result;
 }

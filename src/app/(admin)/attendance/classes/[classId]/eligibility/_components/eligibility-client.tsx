@@ -41,8 +41,37 @@ import {
 import type { StudentAttendanceSummary } from "@/features/attendance/server";
 
 
+interface EligibilityClassObj {
+  id: string;
+  courseCode: string;
+  courseName: string;
+  courseNameEn?: string | null;
+  credits?: number | null;
+  section?: string | null;
+  term: string;
+  academicYear?: string | null;
+  semester?: number | null;
+  room?: string | null;
+  dayOfWeek?: number | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  targetSessions?: number | null;
+  calculationRules?: {
+    minPercent?: number;
+    lateCountsAsFull?: boolean;
+    excuseDeductsDenominator?: boolean;
+  } | unknown;
+  primaryTeacher?: { name?: string | null } | null;
+  instructor?: { name?: string | null } | null;
+  teachers?: Array<{
+    isPrimary?: boolean;
+    role?: string;
+    user?: { name?: string | null } | null;
+  }>;
+}
+
 interface EligibilityReportClientProps {
-  classObj: any;
+  classObj: EligibilityClassObj;
   summaries: StudentAttendanceSummary[];
   stats: {
     totalStudents: number;
@@ -66,7 +95,7 @@ export function EligibilityReportClient({
   // At-Risk Warning States
   const [isWarningModalOpen, setIsWarningModalOpen] = useState(false);
   const [isSendingWarning, setIsSendingWarning] = useState(false);
-  const [warningSentSuccess, setWarningSentSuccess] = useState(false);
+  const [_warningSentSuccess, setWarningSentSuccess] = useState(false);
 
   // MCU Official Form States
   const [isMcuFormOpen, setIsMcuFormOpen] = useState(false);
@@ -77,7 +106,11 @@ export function EligibilityReportClient({
   // Calculation Rules States
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
   const [isSavingRules, setIsSavingRules] = useState(false);
-  const initialRules = (classObj.calculationRules as any) || {
+  const initialRules = (classObj.calculationRules as {
+    minPercent?: number;
+    lateCountsAsFull?: boolean;
+    excuseDeductsDenominator?: boolean;
+  } | null) || {
     minPercent: 80,
     lateCountsAsFull: true,
     excuseDeductsDenominator: false,
@@ -128,8 +161,8 @@ export function EligibilityReportClient({
         toast.success(`ส่งหนังสือแจ้งเตือนสิทธิ์สอบแก่นิสิต ${res.warnedCount} รูป/คน เรียบร้อยแล้ว`);
         setWarningSentSuccess(true);
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการส่งการแจ้งเตือน");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการส่งการแจ้งเตือน");
     } finally {
       setIsSendingWarning(false);
     }
@@ -217,7 +250,7 @@ export function EligibilityReportClient({
       const matrix = res.matrix || [];
 
       const sessionHeaders = sessions.map(
-        (s: any) =>
+        (s: { sessionNumber: number; date: string | Date }) =>
           `"คาบที่ ${s.sessionNumber} (${new Date(s.date).toLocaleDateString("th-TH", {
             day: "numeric",
             month: "short",
@@ -248,8 +281,25 @@ export function EligibilityReportClient({
         PENDING: "รอ",
       };
 
-      const rows = matrix.map((row: any, idx: number) => {
-        const sessionCells = sessions.map((s: any) => {
+      interface MatrixRowItem {
+        studentCode: string;
+        studentName: string;
+        yearLevel?: number | null;
+        department?: string | null;
+        sessionRecords: Record<number, string>;
+        totals: {
+          present: number;
+          late: number;
+          excused: number;
+          absent: number;
+          pending: number;
+          percentage: number;
+          statusText: string;
+        };
+      }
+
+      const rows = (matrix as MatrixRowItem[]).map((row, idx: number) => {
+        const sessionCells = sessions.map((s: { sessionNumber: number }) => {
           const st = row.sessionRecords[s.sessionNumber];
           return `"${statusThaiMap[st] || "-"}"`;
         });
@@ -290,8 +340,8 @@ export function EligibilityReportClient({
       link.click();
       document.body.removeChild(link);
       toast.success("ส่งออกสมุดบันทึกเวลาเรียน Matrix (16 คาบ) เรียบร้อยแล้ว");
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการส่งออก Matrix");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการส่งออก Matrix");
     } finally {
       setIsExportingMatrix(false);
     }
@@ -308,8 +358,8 @@ export function EligibilityReportClient({
         setIsRulesModalOpen(false);
         window.location.reload();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการบันทึกเกณฑ์");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการบันทึกเกณฑ์");
     } finally {
       setIsSavingRules(false);
     }

@@ -17,7 +17,7 @@ const basePersonnelSchema = z.object({
   academicPosition: z.string().optional().nullable(),
   academicPositionEn: z.string().optional().nullable(),
   titlePlacement: z.enum(["PREFIX", "SUFFIX"]).optional().nullable(),
-  type: z.enum(["EXECUTIVE", "ACADEMIC", "SUPPORT"]),
+  type: z.enum(["EXECUTIVE", "ACADEMIC", "SUPPORT", "SPECIAL"]),
   imageUrl: z.string().optional().or(z.literal("")).nullable(),
   email: z.string().email().optional().or(z.literal("")).nullable(),
   phoneNumber: z.string().optional().nullable(),
@@ -63,3 +63,9 @@ export const updatePersonnelSchema = basePersonnelSchema.partial().extend({
     .transform((val) => (val === undefined ? undefined : (val ? val.trim() : ""))),
 });
 export const updateResearchPublicationSchema = researchPublicationSchema.partial();
+
+export const personnelPortalConfigSchema = z.object({
+  publicationYearsLimit: z.number().int().min(0).max(50).default(5),
+});
+
+export type PersonnelPortalConfigInput = z.infer<typeof personnelPortalConfigSchema>;

@@ -13,10 +13,12 @@ export default async function EventProjectorPage({ params }: PageProps) {
   const { eventId } = await params;
   const tenantId = await resolvePublicTenantId();
 
+  let data;
   try {
-    const data = await getEventProjectorData(tenantId, eventId);
-    return <ProjectorClient initialData={data} />;
+    data = await getEventProjectorData(tenantId, eventId);
   } catch {
     notFound();
   }
+
+  return <ProjectorClient initialData={data} />;
 }

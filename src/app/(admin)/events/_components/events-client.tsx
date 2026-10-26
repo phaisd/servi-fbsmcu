@@ -202,11 +202,11 @@ export function EventsClient({ initialItems }: Props) {
       if (res.success && res.event) {
         toast.success("สร้างกิจกรรมใหม่เรียบร้อยแล้ว");
         setIsNewModalOpen(false);
-        setItems([res.event as any, ...items]);
+        setItems([res.event as unknown as (typeof items)[number], ...items]);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการสร้างกิจกรรม");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการสร้างกิจกรรม");
     } finally {
       setIsSubmitting(false);
     }
@@ -227,8 +227,8 @@ export function EventsClient({ initialItems }: Props) {
         setItems(items.map((it) => (it.id === editTarget.id ? { ...it, ...res.event } : it)));
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "เกิดข้อผิดพลาดในการแก้ไขกิจกรรม");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการแก้ไขกิจกรรม");
     } finally {
       setIsUpdating(false);
     }
@@ -245,8 +245,8 @@ export function EventsClient({ initialItems }: Props) {
         setDeleteTarget(null);
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถลบกิจกรรมได้");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "ไม่สามารถลบกิจกรรมได้");
     } finally {
       setIsDeleting(false);
     }
@@ -262,8 +262,8 @@ export function EventsClient({ initialItems }: Props) {
         );
         router.refresh();
       }
-    } catch (err: any) {
-      toast.error(err.message || "ไม่สามารถสร้างกิจกรรมได้");
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "ไม่สามารถสร้างกิจกรรมได้");
     } finally {
       setIsSyncing(false);
     }

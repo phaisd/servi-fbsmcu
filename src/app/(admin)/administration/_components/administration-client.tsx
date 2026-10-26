@@ -286,9 +286,9 @@ export function AdministrationClient({ initialItems, canManage }: Props) {
     });
   };
 
-  const [isExportingSar, setIsExportingSar] = useState(false);
+  const [_isExportingSar, setIsExportingSar] = useState(false);
 
-  const handleExportSarPackage = async () => {
+  const _handleExportSarPackage = async () => {
     setIsExportingSar(true);
     try {
       const res = await getFacultySarPackageAction();

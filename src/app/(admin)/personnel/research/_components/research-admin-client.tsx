@@ -13,6 +13,7 @@ import {
   Search,
   Users,
   Building,
+  Sparkles,
 } from "lucide-react";
 import {
   LiyonCard,
@@ -29,6 +30,7 @@ import {
   createResearchPublicationAction,
   updateResearchPublicationAction,
   deleteResearchPublicationAction,
+  updatePersonnelPortalConfigAction,
 } from "@/features/personnel/actions";
 
 interface PersonnelOption {
@@ -68,15 +70,44 @@ interface Props {
   personnelList: PersonnelOption[];
   canManage: boolean;
   initialAuthor?: string;
+  initialPublicationYearsLimit?: number;
 }
 
-export function ResearchAdminClient({ initialPublications, personnelList, canManage, initialAuthor }: Props) {
+export function ResearchAdminClient({
+  initialPublications,
+  personnelList,
+  canManage,
+  initialAuthor,
+  initialPublicationYearsLimit = 5,
+}: Props) {
   const router = useRouter();
   const [items, setItems] = useState<PublicationItem[]>(initialPublications);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [authorFilter, setAuthorFilter] = useState(initialAuthor || "ALL");
   const [isPending, startTransition] = useTransition();
+  const [pubYearsLimit, setPubYearsLimit] = useState<number>(initialPublicationYearsLimit);
+  const [isSavingPortalConfig, setIsSavingPortalConfig] = useState(false);
+
+  const handleSavePortalYearsLimit = async (nextLimit: number) => {
+    const clean = Math.max(0, Math.min(50, Math.floor(Number(nextLimit) || 0)));
+    setPubYearsLimit(clean);
+    try {
+      setIsSavingPortalConfig(true);
+      await updatePersonnelPortalConfigAction({ publicationYearsLimit: clean });
+      if (clean === 0) {
+        toast.success("บันทึกตั้งค่า: แสดงผลงานวิจัยทุกปี พ.ศ. ทั้งหมดบนหน้า Portal เรียบร้อยแล้ว");
+      } else {
+        const minYr = 2569 - clean + 1;
+        toast.success(`บันทึกตั้งค่า: แสดงผลงานวิจัยย้อนหลัง ${clean} ปี (พ.ศ. 2569 ถึง พ.ศ. ${minYr}) เรียบร้อยแล้ว`);
+      }
+      router.refresh();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการบันทึกตั้งค่า");
+    } finally {
+      setIsSavingPortalConfig(false);
+    }
+  };
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -243,6 +274,80 @@ export function ResearchAdminClient({ initialPublications, personnelList, canMan
           <span>จัดการภาควิชา</span>
         </Link>
       </div>
+
+      {/* Portal Publication Years Limit Setting Bar */}
+      {canManage && (
+        <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+              <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>ตั้งค่าจำนวนปีที่แสดงในส่วน &ldquo;เลือกดูผลงาน&rdquo; หน้าเว็บไซต์ (Portal)</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {pubYearsLimit > 0 ? (
+                <>
+                  กำลังแสดงผลย้อนหลัง <strong className="text-primary">{pubYearsLimit} ปี</strong>:{" "}
+                  <strong className="text-foreground">
+                    ตั้งแต่ พ.ศ. 2569 ถึงปี พ.ศ. {2569 - pubYearsLimit + 1}
+                  </strong>{" "}
+                  (เช่น 5 = พ.ศ. 2569 ถึง 2565, 7 = พ.ศ. 2569 ถึง 2563)
+                </>
+              ) : (
+                <>
+                  กำลังแสดงผล <strong className="text-primary">ทุกปี พ.ศ. ทั้งหมด (ไม่จำกัดจำนวนปี)</strong>
+                </>
+              )}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              { label: "3 ปี (ถึง 2567)", val: 3 },
+              { label: "5 ปี (ถึง 2565)", val: 5 },
+              { label: "7 ปี (ถึง 2563)", val: 7 },
+              { label: "10 ปี (ถึง 2560)", val: 10 },
+              { label: "ทุกปี (ทั้งหมด)", val: 0 },
+            ].map((opt) => (
+              <button
+                key={opt.val}
+                type="button"
+                disabled={isSavingPortalConfig}
+                onClick={() => handleSavePortalYearsLimit(opt.val)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                  pubYearsLimit === opt.val
+                    ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                    : "bg-background text-muted-foreground hover:bg-muted border-border"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+
+            <div className="flex items-center gap-1.5 pl-2 border-l border-border">
+              <span className="text-xs text-muted-foreground">กำหนดเอง:</span>
+              <input
+                type="number"
+                min={0}
+                max={50}
+                value={pubYearsLimit}
+                onChange={(e) => setPubYearsLimit(Math.max(0, parseInt(e.target.value || "0", 10)))}
+                className="w-16 px-2 py-1 text-xs font-bold text-center rounded-md border border-input bg-background"
+                aria-label="จำนวนปีที่แสดงผลงานวิจัย"
+              />
+              <span className="text-xs text-muted-foreground">ปี</span>
+              <Button
+                type="button"
+                size="sm"
+                disabled={isSavingPortalConfig}
+                onClick={() => handleSavePortalYearsLimit(pubYearsLimit)}
+                className="h-7 px-3 text-xs cursor-pointer"
+              >
+                บันทึก
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toolbar */}
       <LiyonCard>

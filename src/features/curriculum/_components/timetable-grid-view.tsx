@@ -11,6 +11,13 @@ import {
   BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DEFAULT_TIMETABLE_PERIODS,
+  type TimetablePeriodConfig,
+} from "../_internal/validations";
+
+export type { TimetablePeriodConfig };
+export { DEFAULT_TIMETABLE_PERIODS };
 
 export interface TimetableSlot {
   id: string;
@@ -22,6 +29,8 @@ export interface TimetableSlot {
   instructor: string;
   room?: string | null;
   periodLabel?: string | null;
+  credits?: number | null;
+  notes?: string | null;
 }
 
 export interface TimetableData {
@@ -35,7 +44,7 @@ export interface TimetableData {
   termDates?: string | null;
   description?: string | null;
   notes?: string | null;
-  scheduleData: TimetableSlot[] | any;
+  scheduleData: TimetableSlot[] | unknown;
   curriculum?: {
     id: string;
     nameTh: string;
@@ -52,6 +61,7 @@ export interface TimetableData {
 
 interface TimetableGridViewProps {
   timetable: TimetableData;
+  periods?: TimetablePeriodConfig[];
   locale?: string;
   showHeaderActions?: boolean;
 }
@@ -69,23 +79,77 @@ const ALL_DAYS = [
   { num: 3, th: "พุธ", en: "Wed.", fullTh: "วันพุธ", fullEn: "Wednesday", color: "border-l-emerald-400" },
   { num: 4, th: "พฤหัสบดี", en: "Thu.", fullTh: "วันพฤหัสบดี", fullEn: "Thursday", color: "border-l-orange-400" },
   { num: 5, th: "ศุกร์", en: "Fri.", fullTh: "วันศุกร์", fullEn: "Friday", color: "border-l-blue-400" },
+  { num: 6, th: "เสาร์", en: "Sat.", fullTh: "วันเสาร์", fullEn: "Saturday", color: "border-l-purple-400" },
+  { num: 7, th: "อาทิตย์", en: "Sun.", fullTh: "วันอาทิตย์", fullEn: "Sunday", color: "border-l-rose-400" },
 ];
+
+type ColorScheme = "sky" | "emerald" | "purple" | "amber";
+
+const CLASS_PERIOD_COLORS: ColorScheme[] = ["sky", "emerald", "purple", "amber"];
+
+// Helper to convert time string (e.g. "9", "9.00", "09:00", "10.4", "10.40") into minutes
+export function parseTimeToMinutes(tStr: string, defaultMinutes = 0): number {
+  if (!tStr) return defaultMinutes;
+  const clean = tStr.trim().replace(":", ".");
+  const parts = clean.split(".");
+  const hours = parseInt(parts[0], 10);
+  if (Number.isNaN(hours)) return defaultMinutes;
+  let mins = 0;
+  if (parts.length > 1) {
+    const minPart = parts[1].replace(/\D/g, "");
+    if (minPart.length === 1) {
+      mins = parseInt(minPart, 10) * 10;
+    } else if (minPart.length >= 2) {
+      mins = parseInt(minPart.substring(0, 2), 10) || 0;
+    }
+  }
+  return hours * 60 + mins;
+}
 
 export function TimetableGridView({
   timetable,
+  periods,
   locale = "th",
   showHeaderActions = true,
 }: TimetableGridViewProps) {
-  const isEn = locale === "en" || Boolean(timetable.titleEn && !timetable.titleTh.includes("พุทธศาสตร"));
+  const slots: TimetableSlot[] = React.useMemo(
+    () =>
+      Array.isArray(timetable.scheduleData)
+        ? (timetable.scheduleData as TimetableSlot[])
+        : [],
+    [timetable.scheduleData]
+  );
 
-  const slots: TimetableSlot[] = Array.isArray(timetable.scheduleData)
-    ? (timetable.scheduleData as TimetableSlot[])
-    : [];
+  // Sort configured periods or fallback to default MCU Buddhist Studies periods
+  const sortedPeriods = React.useMemo(() => {
+    const list =
+      Array.isArray(periods) && periods.length > 0
+        ? periods
+        : DEFAULT_TIMETABLE_PERIODS;
+    return [...list].sort((a, b) => a.orderIndex - b.orderIndex);
+  }, [periods]);
 
-  // ซ่อนแถววันศุกร์หากไม่มีวิชาเรียนในวันศุกร์ (ตารางเรียนปกติเรียนวันจันทร์-พฤหัสบดี)
+  // Precompute class period color scheme per column index
+  const columnColorScheme = React.useMemo(() => {
+    const map = new Map<number, ColorScheme>();
+    let classIdx = 0;
+    sortedPeriods.forEach((p, idx) => {
+      if (p.type === "CLASS") {
+        map.set(idx, CLASS_PERIOD_COLORS[classIdx % CLASS_PERIOD_COLORS.length]);
+        classIdx++;
+      } else {
+        map.set(idx, "amber");
+      }
+    });
+    return map;
+  }, [sortedPeriods]);
+
+  // ซ่อนแถววันศุกร์/เสาร์/อาทิตย์หากไม่มีวิชาเรียนในวันนั้น (ตารางเรียนปกติแสดงวันจันทร์-พฤหัสบดี)
   const activeDays = React.useMemo(() => {
-    const hasFriday = slots.some((s) => s.dayOfWeek === 5);
-    return hasFriday ? ALL_DAYS : ALL_DAYS.filter((d) => d.num !== 5);
+    return ALL_DAYS.filter((d) => {
+      if (d.num <= 4) return true;
+      return slots.some((s) => s.dayOfWeek === d.num);
+    });
   }, [slots]);
 
   const handlePrint = () => {
@@ -95,92 +159,136 @@ export function TimetableGridView({
   const getSlotsForDay = (dayNum: number) => {
     return slots
       .filter((s) => s.dayOfWeek === dayNum)
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+      .sort(
+        (a, b) =>
+          parseTimeToMinutes(a.startTime) - parseTimeToMinutes(b.startTime)
+      );
   };
 
-  // Helper to convert time string (e.g. "9", "9.00", "09:00", "10.4", "10.40") into minutes
-  const parseTimeToMinutes = (tStr: string, defaultMinutes = 0): number => {
-    if (!tStr) return defaultMinutes;
-    const clean = tStr.trim().replace(":", ".");
-    const parts = clean.split(".");
-    const hours = parseInt(parts[0], 10) || 0;
-    let mins = 0;
-    if (parts.length > 1) {
-      const minPart = parts[1];
-      // If "10.4" -> 40 mins, "10.04" -> 4 mins, "10.40" -> 40 mins
-      if (minPart.length === 1) {
-        mins = parseInt(minPart, 10) * 10;
-      } else {
-        mins = parseInt(minPart.substring(0, 2), 10) || 0;
-      }
-    }
-    return hours * 60 + mins;
-  };
+  // Match a course slot to its start and end column indices in `sortedPeriods`
+  const matchSlotColumns = React.useCallback(
+    (slot: TimetableSlot): { startCol: number; endCol: number } => {
+      const sStart = parseTimeToMinutes(slot.startTime, 9 * 60);
+      const sEnd = parseTimeToMinutes(slot.endTime, sStart + 150);
 
-  // Period time definitions in minutes from 00:00
-  // Morning: P1=09:00-09:50, P2=09:50-10:40, P3=10:40-11:30
-  // Afternoon 1: P4=12:30-13:20 (or 13:00-13:50), P5=13:20-14:10 (or 13:50-14:40), P6=14:10-15:00/15:30
-  // Afternoon 2: P7=15:10/15:30-16:00/16:20, P8=16:00/16:20-17:00
-  const getSlotPeriodRange = (startTime: string, endTime: string) => {
-    const startM = parseTimeToMinutes(startTime, 9 * 60);
-    const endM = parseTimeToMinutes(endTime, startM + 150);
+      const classCols: {
+        colIdx: number;
+        pStart: number;
+        pEnd: number;
+        overlap: number;
+      }[] = [];
 
-    // Morning check (< 12:00)
-    if (startM < 12 * 60) {
-      // P1: ~09:00 (540m)
-      // P2: ~09:50 (590m)
-      // P3: ~10:40 (640m) - 11:30 (690m)
-      let startP = 1;
-      if (startM >= 570) {
-        startP = 2; // ~09:50
-      }
-      if (startM >= 620) {
-        startP = 3; // ~10:40
+      sortedPeriods.forEach((p, colIdx) => {
+        if (p.type !== "CLASS") return;
+        const pStart = parseTimeToMinutes(p.startTime, 9 * 60);
+        const pEnd = parseTimeToMinutes(p.endTime, pStart + 120);
+        const overlap = Math.max(0, Math.min(sEnd, pEnd) - Math.max(sStart, pStart));
+        classCols.push({ colIdx, pStart, pEnd, overlap });
+      });
+
+      if (classCols.length === 0) {
+        return { startCol: 0, endCol: 0 };
       }
 
-      let endP = 3;
-      if (endM <= 600) {
-        endP = 1; // ends by 10:00 -> P1 only
-      } else if (endM <= 655) {
-        endP = 2; // ends by 10:55 -> P2 (e.g. 10.40)
-      } else {
-        endP = 3; // ends ~11:30 -> P3
+      // Significant overlap (>= 35 minutes) avoids false 20-min overlap between 13.00-15.30 and 15.10-17.00
+      const significant = classCols.filter((c) => c.overlap >= 35);
+
+      if (significant.length > 0) {
+        const startCol = significant[0].colIdx;
+        let endCol = startCol;
+        // Only span contiguous CLASS columns (do not span across a BREAK column)
+        for (let i = 1; i < significant.length; i++) {
+          const nextCol = significant[i].colIdx;
+          let hasBreakBetween = false;
+          for (let k = endCol + 1; k < nextCol; k++) {
+            if (sortedPeriods[k]?.type === "BREAK") {
+              hasBreakBetween = true;
+              break;
+            }
+          }
+          if (!hasBreakBetween && nextCol === endCol + 1) {
+            endCol = nextCol;
+          } else {
+            break;
+          }
+        }
+        return { startCol, endCol };
       }
 
-      if (endP < startP) endP = startP;
-      return { section: "morning" as const, startP, endP, span: endP - startP + 1 };
-    }
+      // Fallback 1: pick the CLASS column with largest positive overlap
+      const bestOverlap = [...classCols].sort((a, b) => b.overlap - a.overlap)[0];
+      if (bestOverlap && bestOverlap.overlap > 0) {
+        return { startCol: bestOverlap.colIdx, endCol: bestOverlap.colIdx };
+      }
 
-    // Afternoon 1 check (12:00 <= start < 15:00)
-    if (startM < 15 * 60) {
-      // P4: ~12:30/13:00 (750-780m)
-      // P5: ~13:20/13:50 (800-830m)
-      // P6: ~14:10/14:40 (850-880m) - 15:10/15:30 (910-930m)
-      let startP = 4;
-      if (startM >= 800) startP = 5;
-      if (startM >= 850) startP = 6;
+      // Fallback 2: pick the CLASS column whose start time is closest to slot's startTime
+      const closest = [...classCols].sort(
+        (a, b) => Math.abs(a.pStart - sStart) - Math.abs(b.pStart - sStart)
+      )[0];
+      return { startCol: closest.colIdx, endCol: closest.colIdx };
+    },
+    [sortedPeriods]
+  );
 
-      let endP = 6;
-      if (endM <= 820) endP = 4; // ~13:20 or ~13:40
-      else if (endM <= 875) endP = 5; // ~14:10 or ~14:30
-      else endP = 6;
+  // Helper renderer for a course box
+  const renderCourseCard = (slot: TimetableSlot, colorScheme: ColorScheme) => {
+    const colorClasses = {
+      sky: "bg-sky-50 dark:bg-sky-950/40 border-sky-300 dark:border-sky-800 text-sky-950 dark:text-sky-100 hover:border-sky-400",
+      emerald:
+        "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-950 dark:text-emerald-100 hover:border-emerald-400",
+      purple:
+        "bg-purple-50 dark:bg-purple-950/40 border-purple-300 dark:border-purple-800 text-purple-950 dark:text-purple-100 hover:border-purple-400",
+      amber:
+        "bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-950 dark:text-amber-100 hover:border-amber-400",
+    }[colorScheme];
 
-      if (endP < startP) endP = startP;
-      return { section: "afternoon1" as const, startP, endP, span: endP - startP + 1 };
-    }
+    const badgeBg = {
+      sky: "bg-sky-600 text-white",
+      emerald: "bg-emerald-600 text-white",
+      purple: "bg-purple-600 text-white",
+      amber: "bg-amber-600 text-white",
+    }[colorScheme];
 
-    // Afternoon 2 check (start >= 15:00)
-    // P7: ~15:10/15:30 (910-930m)
-    // P8: ~16:00/16:20 (960-980m) - 17:00 (1020m)
-    let startP = 7;
-    if (startM >= 960) startP = 8;
+    return (
+      <div
+        key={slot.id}
+        className={`h-full min-h-[105px] p-2.5 rounded-xl border flex flex-col justify-between transition-all shadow-2xs timetable-course-box timetable-course-box-${colorScheme} ${colorClasses}`}
+      >
+        <div>
+          <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5">
+            <span
+              className={`font-mono text-[11px] font-bold px-2 py-0.5 rounded-md timetable-course-badge timetable-course-badge-${colorScheme} ${badgeBg}`}
+            >
+              {slot.courseCode}
+            </span>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 font-mono timetable-time-badge">
+              {slot.startTime} - {slot.endTime} น.
+            </span>
+          </div>
+          <h4
+            className={`font-bold text-xs leading-snug line-clamp-2 timetable-course-title-${colorScheme}`}
+          >
+            {slot.courseName}
+          </h4>
+        </div>
 
-    let endP = 8;
-    if (endM <= 975) endP = 7; // ends ~16:00/16:15
-    else endP = 8;
-
-    if (endP < startP) endP = startP;
-    return { section: "afternoon2" as const, startP, endP, span: endP - startP + 1 };
+        <div className="pt-1.5 mt-1 border-t border-black/10 dark:border-white/10 space-y-0.5 text-[11px]">
+          {slot.instructor && (
+            <p
+              className="text-muted-foreground leading-snug line-clamp-2 sm:line-clamp-3 break-words"
+              title={slot.instructor}
+            >
+              👤 {slot.instructor}
+            </p>
+          )}
+          {slot.room && (
+            <p className="font-semibold text-amber-700 dark:text-amber-300 text-[10px] line-clamp-1">
+              📍 ห้อง {slot.room}
+            </p>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -212,7 +320,9 @@ export function TimetableGridView({
             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-muted text-muted-foreground text-xs font-medium">
               <GraduationCap className="w-3.5 h-3.5" />
               <span>
-                {locale === "th" ? `ชั้นปีที่ ${timetable.yearLevel}` : `Year ${timetable.yearLevel}`}
+                {locale === "th"
+                  ? `ชั้นปีที่ ${timetable.yearLevel}`
+                  : `Year ${timetable.yearLevel}`}
               </span>
             </span>
             {timetable.curriculum?.degree && (
@@ -220,8 +330,10 @@ export function TimetableGridView({
                 <BookOpen className="w-3.5 h-3.5" />
                 <span>
                   {locale === "th"
-                    ? DEGREE_LABELS[timetable.curriculum.degree]?.th || timetable.curriculum.degree
-                    : DEGREE_LABELS[timetable.curriculum.degree]?.en || timetable.curriculum.degree}
+                    ? DEGREE_LABELS[timetable.curriculum.degree]?.th ||
+                      timetable.curriculum.degree
+                    : DEGREE_LABELS[timetable.curriculum.degree]?.en ||
+                      timetable.curriculum.degree}
                 </span>
               </span>
             )}
@@ -257,7 +369,8 @@ export function TimetableGridView({
             </div>
             <div>
               <p className="text-xs print:text-[11px] font-semibold text-muted-foreground print:text-black uppercase tracking-wider">
-                {timetable.department?.nameTh || "คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย"}
+                {timetable.department?.nameTh ||
+                  "คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย"}
               </p>
               <p className="text-xs print:text-[10px] text-muted-foreground print:text-neutral-700 font-sans">
                 {timetable.department?.nameEn ||
@@ -293,13 +406,12 @@ export function TimetableGridView({
         </div>
       </div>
 
-      {/* ── DESKTOP WEEKLY TIMETABLE TABLE (Exact Layout of University Document) ── */}
+      {/* ── DESKTOP WEEKLY TIMETABLE TABLE (Dynamic Periods & Times) ── */}
       <div className="hidden md:block print:block overflow-x-auto print:overflow-visible rounded-xl print:rounded-lg border border-border print:border-black/30 shadow-2xs print:shadow-none">
         <table className="w-full border-collapse text-left text-xs min-w-[900px] print:min-w-full print:w-full">
           <thead>
-            {/* Top Header Row: Macro Periods */}
             <tr className="bg-muted text-foreground font-semibold border-b border-border divide-x divide-border">
-              <th rowSpan={2} className="p-3 w-28 text-center bg-muted/90 align-middle">
+              <th className="p-3 w-28 text-center bg-muted/90 align-middle">
                 <div className="font-bold text-sm">
                   {locale === "th" ? "วัน / คาบ" : "Day / Period"}
                 </div>
@@ -308,185 +420,163 @@ export function TimetableGridView({
                 </div>
               </th>
 
-              {/* ช่วงเช้า (3 คาบ: คาบ 1 - 3) */}
-              <th colSpan={3} className="p-2 text-center bg-sky-500/10 text-sky-950 dark:text-sky-200 print-text-sky">
-                <div className="font-bold flex items-center justify-center gap-1.5 text-xs">
-                  <span>{locale === "th" ? "ช่วงเช้า (3 คาบ)" : "Morning (3 Periods)"}</span>
-                </div>
-                <div className="text-[11px] text-muted-foreground font-medium print:text-neutral-700">
-                  09.00 - 11.30 น.
-                </div>
-              </th>
+              {sortedPeriods.map((period, idx) => {
+                if (period.type === "BREAK") {
+                  return (
+                    <th
+                      key={period.id || idx}
+                      className="p-2 text-center w-28 bg-amber-500/10 text-amber-900 dark:text-amber-200 border-x border-border align-middle print-text-amber"
+                    >
+                      <div className="font-bold text-xs">
+                        {locale === "th"
+                          ? period.labelTh
+                          : period.labelEn || period.labelTh}
+                      </div>
+                      {(period.subLabelTh || period.subLabelEn) && (
+                        <div className="text-[10px] text-amber-800/80 dark:text-amber-300/80 font-medium mt-0.5">
+                          {locale === "th"
+                            ? period.subLabelTh
+                            : period.subLabelEn || period.subLabelTh}
+                        </div>
+                      )}
+                      <div className="text-[10px] text-muted-foreground font-mono font-normal mt-0.5 print:text-neutral-700">
+                        {period.startTime} - {period.endTime} น.
+                      </div>
+                    </th>
+                  );
+                }
 
-              {/* พักฉันเพล / รับประทานอาหารกลางวัน */}
-              <th
-                rowSpan={2}
-                className="p-2 text-center w-24 bg-amber-500/10 text-amber-900 dark:text-amber-200 border-x border-border align-middle print-text-amber"
-              >
-                <div className="font-bold text-[11px]">
-                  {locale === "th" ? "พักฉันเพล" : "Lunch Break"}
-                </div>
-                <div className="text-[10px] text-muted-foreground font-normal mt-0.5 print:text-neutral-700">
-                  11.30 - 12.30 / 13.00 น.
-                </div>
-              </th>
+                const scheme = columnColorScheme.get(idx) || "sky";
+                const headerTheme = {
+                  sky: "bg-sky-500/10 text-sky-950 dark:text-sky-200 print-text-sky",
+                  emerald:
+                    "bg-emerald-500/10 text-emerald-950 dark:text-emerald-200 print-text-emerald",
+                  purple:
+                    "bg-purple-500/10 text-purple-950 dark:text-purple-200 print-text-purple",
+                  amber:
+                    "bg-amber-500/10 text-amber-950 dark:text-amber-200 print-text-amber",
+                }[scheme];
 
-              {/* ช่วงบ่าย (1) (3 คาบ: คาบ 4 - 6) */}
-              <th colSpan={3} className="p-2 text-center bg-emerald-500/10 text-emerald-950 dark:text-emerald-200 print-text-emerald">
-                <div className="font-bold flex items-center justify-center gap-1.5 text-xs">
-                  <span>{locale === "th" ? "ช่วงบ่าย 1 (3 คาบ)" : "Afternoon 1 (3 Periods)"}</span>
-                </div>
-                <div className="text-[11px] text-muted-foreground font-medium print:text-neutral-700">
-                  12.30 / 13.00 - 15.10 / 15.30 น.
-                </div>
-              </th>
-
-              {/* ช่วงบ่าย (2) (2 คาบ: คาบ 7 - 8) */}
-              <th colSpan={2} className="p-2 text-center bg-purple-500/10 text-purple-950 dark:text-purple-200 print-text-purple">
-                <div className="font-bold flex items-center justify-center gap-1.5 text-xs">
-                  <span>{locale === "th" ? "ช่วงบ่าย 2 (2 คาบ)" : "Afternoon 2 (2 Periods)"}</span>
-                </div>
-                <div className="text-[11px] text-muted-foreground font-medium print:text-neutral-700">
-                  15.10 / 15.30 - 17.00 น.
-                </div>
-              </th>
-            </tr>
-
-            {/* Sub Header Row: Individual Periods (1 to 8) */}
-            <tr className="bg-muted/60 text-foreground font-medium border-b border-border divide-x divide-border text-[11px]">
-              {/* คาบ 1 */}
-              <th className="p-1.5 text-center w-[11%]">
-                <div className="font-bold text-foreground">คาบ 1</div>
-                <div className="text-[10px] text-muted-foreground font-mono">09.00-09.50</div>
-              </th>
-              {/* คาบ 2 */}
-              <th className="p-1.5 text-center w-[11%]">
-                <div className="font-bold text-foreground">คาบ 2</div>
-                <div className="text-[10px] text-muted-foreground font-mono">09.50-10.40</div>
-              </th>
-              {/* คาบ 3 */}
-              <th className="p-1.5 text-center w-[11%]">
-                <div className="font-bold text-foreground">คาบ 3</div>
-                <div className="text-[10px] text-muted-foreground font-mono">10.40-11.30</div>
-              </th>
-
-              {/* คาบ 4 */}
-              <th className="p-1.5 text-center w-[11%]">
-                <div className="font-bold text-foreground">คาบ 4</div>
-                <div className="text-[10px] text-muted-foreground font-mono">12.30/13.00</div>
-              </th>
-              {/* คาบ 5 */}
-              <th className="p-1.5 text-center w-[11%]">
-                <div className="font-bold text-foreground">คาบ 5</div>
-                <div className="text-[10px] text-muted-foreground font-mono">13.20/13.50</div>
-              </th>
-              {/* คาบ 6 */}
-              <th className="p-1.5 text-center w-[11%]">
-                <div className="font-bold text-foreground">คาบ 6</div>
-                <div className="text-[10px] text-muted-foreground font-mono">14.10/14.40</div>
-              </th>
-
-              {/* คาบ 7 */}
-              <th className="p-1.5 text-center w-[11%]">
-                <div className="font-bold text-foreground">คาบ 7</div>
-                <div className="text-[10px] text-muted-foreground font-mono">15.10/15.30</div>
-              </th>
-              {/* คาบ 8 */}
-              <th className="p-1.5 text-center w-[11%]">
-                <div className="font-bold text-foreground">คาบ 8</div>
-                <div className="text-[10px] text-muted-foreground font-mono">16.00-17.00</div>
-              </th>
+                return (
+                  <th
+                    key={period.id || idx}
+                    className={`p-2.5 text-center align-middle ${headerTheme}`}
+                  >
+                    {(period.subLabelTh || period.subLabelEn) && (
+                      <div className="text-[10px] opacity-80 font-semibold mb-0.5">
+                        {locale === "th"
+                          ? period.subLabelTh
+                          : period.subLabelEn || period.subLabelTh}
+                      </div>
+                    )}
+                    <div className="font-bold text-xs flex items-center justify-center gap-1">
+                      <span>
+                        {locale === "th"
+                          ? period.labelTh
+                          : period.labelEn || period.labelTh}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground font-mono font-medium mt-0.5 print:text-neutral-700">
+                      {period.startTime} - {period.endTime} น.
+                    </div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
 
           <tbody className="divide-y divide-border">
             {activeDays.map((day) => {
               const daySlots = getSlotsForDay(day.num);
+              const placements = daySlots.map((slot) => ({
+                slot,
+                ...matchSlotColumns(slot),
+              }));
 
-              // Helper: calculate period bounds for a slot
-              // Morning:
-              //   If slot starts ~09.00 and ends ~11.30 -> span 3 (p1, p2, p3)
-              //   If slot starts ~09.00 and ends ~10.40 -> span 2 (p1, p2)
-              //   If slot starts ~09.50 and ends ~11.30 -> span 2 (p2, p3)
-              // Afternoon 1:
-              //   If slot starts ~12.30/13.00 and ends ~15.10/15.30 -> span 3 (p4, p5, p6)
-              //   If slot starts ~12.30 and ends ~14.10 -> span 2 (p4, p5)
-              //   If slot starts ~14.10 and ends ~15.50 -> span 2 (p6, p7)
-              // Afternoon 2:
-              //   If slot starts ~15.10/15.30 and ends ~17.00 -> span 2 (p7, p8)
-              //   If slot starts ~15.10 and ends ~16.00 -> span 1 (p7)
+              const cells: React.ReactNode[] = [];
+              let colIdx = 0;
 
-              const morningSlots = daySlots.filter((s) => {
-                const hour = parseFloat(s.startTime.replace(":", "."));
-                return hour < 12.0;
-              });
+              while (colIdx < sortedPeriods.length) {
+                const period = sortedPeriods[colIdx];
 
-              const afternoon1Slots = daySlots.filter((s) => {
-                const hour = parseFloat(s.startTime.replace(":", "."));
-                return hour >= 12.0 && hour < 15.0;
-              });
-
-              const afternoon2Slots = daySlots.filter((s) => {
-                const hour = parseFloat(s.startTime.replace(":", "."));
-                return hour >= 15.0;
-              });
-
-              // Helper renderer for a course box
-              const renderCourseCard = (
-                slot: TimetableSlot,
-                colorScheme: "sky" | "emerald" | "purple" | "amber"
-              ) => {
-                const colorClasses = {
-                  sky: "bg-sky-50 dark:bg-sky-950/40 border-sky-300 dark:border-sky-800 text-sky-950 dark:text-sky-100 hover:border-sky-400",
-                  emerald: "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-950 dark:text-emerald-100 hover:border-emerald-400",
-                  purple: "bg-purple-50 dark:bg-purple-950/40 border-purple-300 dark:border-purple-800 text-purple-950 dark:text-purple-100 hover:border-purple-400",
-                  amber: "bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-950 dark:text-amber-100 hover:border-amber-400",
-                }[colorScheme];
-
-                const badgeBg = {
-                  sky: "bg-sky-600 text-white",
-                  emerald: "bg-emerald-600 text-white",
-                  purple: "bg-purple-600 text-white",
-                  amber: "bg-amber-600 text-white",
-                }[colorScheme];
-
-                return (
-                  <div
-                    key={slot.id}
-                    className={`h-full min-h-[105px] p-2.5 rounded-xl border flex flex-col justify-between transition-all shadow-2xs timetable-course-box timetable-course-box-${colorScheme} ${colorClasses}`}
-                  >
-                    <div>
-                      <div className="flex flex-wrap items-center justify-between gap-1 mb-1.5">
-                        <span className={`font-mono text-[11px] font-bold px-2 py-0.5 rounded-md timetable-course-badge timetable-course-badge-${colorScheme} ${badgeBg}`}>
-                          {slot.courseCode}
+                if (period.type === "BREAK") {
+                  cells.push(
+                    <td
+                      key={`break-${period.id || colIdx}`}
+                      className="p-2 text-center align-middle bg-amber-500/10 text-amber-900 dark:text-amber-200 text-[11px] font-semibold border-x border-border"
+                    >
+                      <div className="py-2 flex flex-col items-center justify-center gap-1">
+                        <span>
+                          {locale === "th"
+                            ? period.labelTh
+                            : period.labelEn || period.labelTh}
                         </span>
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-black/10 dark:bg-white/10 font-mono timetable-time-badge">
-                          {slot.startTime} - {slot.endTime} น.
+                        <span className="text-[10px] text-muted-foreground font-mono font-normal">
+                          {period.startTime}-{period.endTime}
                         </span>
                       </div>
-                      <h4 className={`font-bold text-xs leading-snug line-clamp-2 timetable-course-title-${colorScheme}`}>
-                        {slot.courseName}
-                      </h4>
-                    </div>
+                    </td>
+                  );
+                  colIdx++;
+                  continue;
+                }
 
-                    <div className="pt-1.5 mt-1 border-t border-black/10 dark:border-white/10 space-y-0.5 text-[11px]">
-                      {slot.instructor && (
-                        <p
-                          className="text-muted-foreground leading-snug line-clamp-2 sm:line-clamp-3 break-words"
-                          title={slot.instructor}
-                        >
-                          👤 {slot.instructor}
-                        </p>
-                      )}
-                      {slot.room && (
-                        <p className="font-semibold text-amber-700 dark:text-amber-300 text-[10px] line-clamp-1">
-                          📍 ห้อง {slot.room}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                // Find slots starting in this CLASS column
+                const startingHere = placements.filter(
+                  (pl) => pl.startCol === colIdx
                 );
-              };
+
+                if (startingHere.length > 0) {
+                  // Determine max span without crossing a BREAK or another slot's startCol
+                  const desiredEndCol = Math.max(
+                    ...startingHere.map((pl) => pl.endCol)
+                  );
+                  let actualEndCol = colIdx;
+
+                  for (let nextCol = colIdx + 1; nextCol <= desiredEndCol; nextCol++) {
+                    if (sortedPeriods[nextCol]?.type === "BREAK") break;
+                    const hasOtherSlotStarting = placements.some(
+                      (pl) => pl.startCol === nextCol
+                    );
+                    if (hasOtherSlotStarting) break;
+                    actualEndCol = nextCol;
+                  }
+
+                  const span = actualEndCol - colIdx + 1;
+                  const scheme = columnColorScheme.get(colIdx) || "sky";
+                  const cellBg = {
+                    sky: "bg-sky-500/5",
+                    emerald: "bg-emerald-500/5",
+                    purple: "bg-purple-500/5",
+                    amber: "bg-amber-500/5",
+                  }[scheme];
+
+                  cells.push(
+                    <td
+                      key={`class-${day.num}-${colIdx}`}
+                      colSpan={span}
+                      className={`p-2 align-top ${cellBg}`}
+                    >
+                      <div className="space-y-2 h-full">
+                        {startingHere.map((pl) =>
+                          renderCourseCard(pl.slot, scheme)
+                        )}
+                      </div>
+                    </td>
+                  );
+                  colIdx += span;
+                } else {
+                  cells.push(
+                    <td
+                      key={`empty-${day.num}-${colIdx}`}
+                      className="p-2 text-center text-muted-foreground/30 align-middle"
+                    >
+                      -
+                    </td>
+                  );
+                  colIdx++;
+                }
+              }
 
               return (
                 <tr
@@ -494,7 +584,9 @@ export function TimetableGridView({
                   className="divide-x divide-border hover:bg-muted/20 transition-colors"
                 >
                   {/* Day Column */}
-                  <td className={`p-3 font-bold text-center border-l-4 ${day.color} bg-muted/40 align-middle`}>
+                  <td
+                    className={`p-3 font-bold text-center border-l-4 ${day.color} bg-muted/40 align-middle`}
+                  >
                     <div className="text-sm font-bold text-foreground">
                       {locale === "th" ? day.th : day.en}
                     </div>
@@ -503,138 +595,7 @@ export function TimetableGridView({
                     </div>
                   </td>
 
-                  {/* Morning Section (3 Columns: P1, P2, P3) */}
-                  {(() => {
-                    // Build grid for P1, P2, P3
-                    const morningCells: React.ReactNode[] = [];
-                    let p = 1;
-                    while (p <= 3) {
-                      const matched = morningSlots.find((s) => {
-                        const range = getSlotPeriodRange(s.startTime, s.endTime);
-                        return range.startP === p;
-                      });
-
-                      if (matched) {
-                        const range = getSlotPeriodRange(matched.startTime, matched.endTime);
-                        const span = Math.min(range.span, 3 - p + 1);
-                        morningCells.push(
-                          <td
-                            key={matched.id}
-                            colSpan={span}
-                            className="p-2 align-top bg-sky-500/5"
-                          >
-                            {renderCourseCard(matched, "sky")}
-                          </td>
-                        );
-                        p += span;
-                      } else {
-                        // Check if p is inside an ongoing span from previous slot
-                        const inside = morningSlots.some((s) => {
-                          const range = getSlotPeriodRange(s.startTime, s.endTime);
-                          return range.startP < p && range.endP >= p;
-                        });
-                        if (!inside) {
-                          morningCells.push(
-                            <td key={`empty-p-${p}`} className="p-2 text-center text-muted-foreground/30 align-middle">
-                              -
-                            </td>
-                          );
-                        }
-                        p++;
-                      }
-                    }
-                    return morningCells;
-                  })()}
-
-                  {/* Lunch Break Column */}
-                  <td className="p-2 text-center align-middle bg-amber-500/10 text-amber-900 dark:text-amber-200 text-[11px] font-semibold border-x border-border">
-                    <div className="py-2 flex flex-col items-center justify-center gap-1">
-                      <span>{locale === "th" ? "พักฉันเพล" : "Lunch"}</span>
-                      <span className="text-[10px] text-muted-foreground font-normal">11.30-12.30</span>
-                    </div>
-                  </td>
-
-                  {/* Afternoon 1 Section (3 Columns: P4, P5, P6) */}
-                  {(() => {
-                    const afternoon1Cells: React.ReactNode[] = [];
-                    let p = 4;
-                    while (p <= 6) {
-                      const matched = afternoon1Slots.find((s) => {
-                        const range = getSlotPeriodRange(s.startTime, s.endTime);
-                        return range.startP === p;
-                      });
-
-                      if (matched) {
-                        const range = getSlotPeriodRange(matched.startTime, matched.endTime);
-                        const span = Math.min(range.span, 6 - p + 1);
-                        afternoon1Cells.push(
-                          <td
-                            key={matched.id}
-                            colSpan={span}
-                            className="p-2 align-top bg-emerald-500/5"
-                          >
-                            {renderCourseCard(matched, "emerald")}
-                          </td>
-                        );
-                        p += span;
-                      } else {
-                        const inside = afternoon1Slots.some((s) => {
-                          const range = getSlotPeriodRange(s.startTime, s.endTime);
-                          return range.startP < p && range.endP >= p;
-                        });
-                        if (!inside) {
-                          afternoon1Cells.push(
-                            <td key={`empty-p-${p}`} className="p-2 text-center text-muted-foreground/30 align-middle">
-                              -
-                            </td>
-                          );
-                        }
-                        p++;
-                      }
-                    }
-                    return afternoon1Cells;
-                  })()}
-
-                  {/* Afternoon 2 Section (2 Columns: P7, P8) */}
-                  {(() => {
-                    const afternoon2Cells: React.ReactNode[] = [];
-                    let p = 7;
-                    while (p <= 8) {
-                      const matched = afternoon2Slots.find((s) => {
-                        const range = getSlotPeriodRange(s.startTime, s.endTime);
-                        return range.startP === p;
-                      });
-
-                      if (matched) {
-                        const range = getSlotPeriodRange(matched.startTime, matched.endTime);
-                        const span = Math.min(range.span, 8 - p + 1);
-                        afternoon2Cells.push(
-                          <td
-                            key={matched.id}
-                            colSpan={span}
-                            className="p-2 align-top bg-purple-500/5"
-                          >
-                            {renderCourseCard(matched, "purple")}
-                          </td>
-                        );
-                        p += span;
-                      } else {
-                        const inside = afternoon2Slots.some((s) => {
-                          const range = getSlotPeriodRange(s.startTime, s.endTime);
-                          return range.startP < p && range.endP >= p;
-                        });
-                        if (!inside) {
-                          afternoon2Cells.push(
-                            <td key={`empty-p-${p}`} className="p-2 text-center text-muted-foreground/30 align-middle">
-                              -
-                            </td>
-                          );
-                        }
-                        p++;
-                      }
-                    }
-                    return afternoon2Cells;
-                  })()}
+                  {cells}
                 </tr>
               );
             })}
@@ -664,14 +625,23 @@ export function TimetableGridView({
 
               <div className="space-y-2.5 pt-1">
                 {daySlots.map((s) => {
-                  const hour = parseFloat(s.startTime.replace(":", "."));
-                  const isMorning = hour < 12.0;
-                  const isAfternoon1 = hour >= 12.0 && hour < 15.0;
-                  const periodTag = isMorning
-                    ? { label: "ช่วงเช้า (คาบ 1-3)", color: "bg-sky-500/10 text-sky-800 dark:text-sky-300 border-sky-300/40" }
-                    : isAfternoon1
-                    ? { label: "ช่วงบ่าย 1 (คาบ 4-6)", color: "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-300/40" }
-                    : { label: "ช่วงบ่าย 2 (คาบ 7-8)", color: "bg-purple-500/10 text-purple-800 dark:text-purple-300 border-purple-300/40" };
+                  const { startCol } = matchSlotColumns(s);
+                  const matchedPeriod = sortedPeriods[startCol];
+                  const scheme = columnColorScheme.get(startCol) || "sky";
+                  const tagColor = {
+                    sky: "bg-sky-500/10 text-sky-800 dark:text-sky-300 border-sky-300/40",
+                    emerald:
+                      "bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border-emerald-300/40",
+                    purple:
+                      "bg-purple-500/10 text-purple-800 dark:text-purple-300 border-purple-300/40",
+                    amber:
+                      "bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-300/40",
+                  }[scheme];
+                  const periodLabelText = matchedPeriod
+                    ? locale === "th"
+                      ? matchedPeriod.labelTh
+                      : matchedPeriod.labelEn || matchedPeriod.labelTh
+                    : s.periodLabel || "";
 
                   return (
                     <div
@@ -683,9 +653,13 @@ export function TimetableGridView({
                           <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-primary/10 text-primary">
                             {s.courseCode}
                           </span>
-                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${periodTag.color}`}>
-                            {periodTag.label}
-                          </span>
+                          {periodLabelText && (
+                            <span
+                              className={`text-[10px] font-semibold px-2 py-0.5 rounded-md border ${tagColor}`}
+                            >
+                              {periodLabelText}
+                            </span>
+                          )}
                         </div>
                         <span className="text-xs text-muted-foreground font-semibold flex items-center gap-1">
                           <Clock className="w-3 h-3" />

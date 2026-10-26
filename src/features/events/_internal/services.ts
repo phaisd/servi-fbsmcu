@@ -2,6 +2,7 @@ import "server-only";
 import { prisma as db } from "@/shared/lib/infra/prisma";
 import { writeAudit } from "@/features/identity/server";
 import { RegistrationStatus } from "@/generated/prisma";
+import type { Prisma } from "@/generated/prisma";
 
 export async function getEvents(tenantId: string) {
   const events = await db.event.findMany({
@@ -134,7 +135,11 @@ export async function updateEvent(
     isActive: boolean;
   }>
 ) {
-  const updateData: any = { ...data };
+  const updateData: Prisma.EventUpdateInput = {
+    ...data,
+    startDate: data.startDate ? new Date(data.startDate) : undefined,
+    endDate: data.endDate ? new Date(data.endDate) : undefined,
+  };
   if (data.startDate) updateData.startDate = new Date(data.startDate);
   if (data.endDate) updateData.endDate = new Date(data.endDate);
 
@@ -193,7 +198,7 @@ export async function updateRegistrationStatus(
   const before = await db.eventRegistration.findUnique({ where: { id, tenantId } });
   if (!before) throw new Error("Not found");
 
-  const updateData: any = { status };
+  const updateData: Prisma.EventRegistrationUpdateInput = { status };
   if (remarks !== undefined) updateData.remarks = remarks;
   if (status === "ATTENDED" && !before.attendedAt) {
     updateData.attendedAt = new Date();
@@ -310,7 +315,7 @@ export async function getUserActivities(tenantId: string, userIdentifier: { emai
  * ซิงค์หรือสร้างข้อมูลกิจกรรมพิธีเปิดภาคการศึกษา (Opening Ceremony 2026)
  * พร้อมลงทะเบียนนิสิตทุกชั้นปีและอาจารย์ผู้สอนตามเอกสารทางการ
  */
-export async function seedOpeningCeremonyEvent(tenantId: string, actorId: string) {
+export async function seedOpeningCeremonyEvent(tenantId: string, _actorId: string) {
   // 1. ตรวจสอบหรือสร้าง Event
   let event = await db.event.findFirst({
     where: {
@@ -608,7 +613,7 @@ export async function batchAddStudentsToEvent(
   const event = await db.event.findUnique({ where: { id: eventId, tenantId } });
   if (!event) throw new Error("ไม่พบกิจกรรมนี้");
 
-  const andConditions: any[] = [
+  const andConditions: Prisma.StudentWhereInput[] = [
     { tenantId },
     { isActive: true },
     {

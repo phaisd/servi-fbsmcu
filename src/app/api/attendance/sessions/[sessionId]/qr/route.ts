@@ -48,9 +48,9 @@ export async function GET(
       ...tokenData,
       scanned: scannedData,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
-      { success: false, error: error.message || "INTERNAL_SERVER_ERROR" },
+      { success: false, error: (error instanceof Error ? error.message : String(error)) || "INTERNAL_SERVER_ERROR" },
       { status: 500 }
     );
   }

@@ -1,5 +1,5 @@
 import { resolvePublicTenantId } from "@/features/news/server";
-import { getPublicPersonnelList } from "@/features/personnel/server";
+import { getPublicPersonnelList, getPersonnelPortalConfig } from "@/features/personnel/server";
 import { getLocale } from "@/shared/lib/i18n/server";
 import { Users } from "lucide-react";
 import { PortalPersonnelClient } from "./_components/portal-personnel-client";
@@ -10,7 +10,10 @@ export default async function PublicPersonnelPage(props: {
   const searchParams = props.searchParams ? await props.searchParams : undefined;
   const locale = await getLocale();
   const tenantId = await resolvePublicTenantId();
-  const items = await getPublicPersonnelList(tenantId);
+  const [items, portalConfig] = await Promise.all([
+    getPublicPersonnelList(tenantId),
+    getPersonnelPortalConfig(tenantId),
+  ]);
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -34,6 +37,7 @@ export default async function PublicPersonnelPage(props: {
         locale={locale}
         initialDept={searchParams?.dept}
         initialView={searchParams?.view}
+        publicationYearsLimit={portalConfig.publicationYearsLimit}
       />
     </div>
   );

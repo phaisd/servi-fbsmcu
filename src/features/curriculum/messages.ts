@@ -5,6 +5,9 @@ export const MESSAGES: Dictionary = {
   "curriculum.title": { th: "จัดการหลักสูตร", en: "Manage Curriculums" },
   "curriculum.subtitle": { th: "จัดการข้อมูลหลักสูตรการศึกษาและกำหนดภาควิชาที่สังกัด", en: "Manage academic programs and affiliated departments" },
   
+  "curriculum.courses_title": { th: "ทะเบียนรายวิชา (Course Catalog)", en: "Course Catalog" },
+  "curriculum.courses_subtitle": { th: "ทะเบียนข้อมูลรายวิชาที่เปิดสอนสำหรับจัดตารางเรียนและการลงทะเบียนเรียน", en: "Master registry of courses offered for class scheduling and enrollments" },
+
   "curriculum.departments_title": { th: "ภาควิชา / สาขาวิชา / ส่วนงาน", en: "Departments & Divisions" },
   "curriculum.departments_subtitle": { th: "บริหารจัดการโครงสร้างภาควิชา สาขาวิชา หรือหน่วยงาน เพื่อจัดเก็บหลักสูตรและบุคลากร", en: "Manage organizational departments and programs for curriculums and personnel" },
 
@@ -23,6 +26,8 @@ export const MESSAGES: Dictionary = {
 
   "curriculum.timetables_title": { th: "ตารางเรียน / ตารางสอน", en: "Class Timetables" },
   "curriculum.timetables_subtitle": { th: "จัดการตารางเรียนตารางสอนแยกตามหลักสูตร สาขาวิชา และชั้นปี", en: "Manage class schedules by curriculum, program, and year level" },
+  "curriculum.timetable_periods_title": { th: "ตั้งค่าคาบเรียนและเวลา", en: "Timetable Periods & Times" },
+  "curriculum.timetable_periods_subtitle": { th: "กำหนดโครงสร้างคาบเรียน เวลาเริ่ม-สิ้นสุด และช่วงเวลาพักสำหรับตารางเรียน", en: "Configure class periods, start/end times, and break slots for timetables" },
   "curriculum.calendar_title": { th: "ปฏิทินการศึกษา", en: "Academic Calendar" },
   "curriculum.calendar_subtitle": { th: "ปฏิทินการศึกษาระดับปริญญาตรีและกำหนดการสำคัญสำหรับอาจารย์และนิสิต", en: "Academic calendar for degree programs and key instructional milestones" },
 };

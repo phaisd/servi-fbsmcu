@@ -55,9 +55,9 @@ export function AuditLogsClient({ initialData }: Props) {
           fromDate: fromDate || undefined,
           toDate: toDate || undefined,
         });
-        setData(res as any);
-      } catch (err: any) {
-        toast.error(err.message || "เกิดข้อผิดพลาดในการโหลดข้อมูลประวัติระบบ");
+        setData(res as AuditLogsInitialData);
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการโหลดข้อมูลประวัติระบบ");
       }
     });
   };
@@ -76,9 +76,9 @@ export function AuditLogsClient({ initialData }: Props) {
     startTransition(async () => {
       try {
         const res = await getAuditLogsAction({ page: 1, pageSize: data.pagination.pageSize });
-        setData(res as any);
-      } catch (err: any) {
-        toast.error(err.message || "เกิดข้อผิดพลาด");
+        setData(res as AuditLogsInitialData);
+      } catch (err: unknown) {
+        toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาด");
       }
     });
   };
@@ -637,8 +637,8 @@ export function AuditLogsClient({ initialData }: Props) {
                   </div>
 
                   {(() => {
-                    const before = selectedLog.before && typeof selectedLog.before === "object" ? (selectedLog.before as Record<string, any>) : {};
-                    const after = selectedLog.after && typeof selectedLog.after === "object" ? (selectedLog.after as Record<string, any>) : {};
+                    const before = selectedLog.before && typeof selectedLog.before === "object" ? (selectedLog.before as Record<string, unknown>) : {};
+                    const after = selectedLog.after && typeof selectedLog.after === "object" ? (selectedLog.after as Record<string, unknown>) : {};
                     const allKeys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)]));
 
                     if (allKeys.length === 0) {
@@ -665,7 +665,7 @@ export function AuditLogsClient({ initialData }: Props) {
                               const aVal = after[key];
                               const isDiff = JSON.stringify(bVal) !== JSON.stringify(aVal);
 
-                              const formatVal = (val: any) => {
+                              const formatVal = (val: unknown) => {
                                 if (val === undefined) return <span className="text-muted-foreground/60 italic">(ไม่มีข้อมูล)</span>;
                                 if (val === null) return <span className="text-muted-foreground/60 italic">null</span>;
                                 if (typeof val === "boolean") return val ? "true" : "false";

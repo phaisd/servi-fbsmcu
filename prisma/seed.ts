@@ -348,7 +348,7 @@ async function main() {
       { studentCode: "660101005", firstName: "กัญญา", lastName: "เมตตาจิต", title: "นางสาว", yearLevel: 3, department: "สาขาวิชาบาลีพุทธศาสตร์" },
     ];
 
-    const seededStudents: any[] = [];
+    const seededStudents: Array<{ id: string; studentCode: string; title: string | null; firstName: string; lastName: string }> = [];
     for (const s of sampleStudentsData) {
       const student = await prisma.student.upsert({
         where: { tenantId_studentCode: { tenantId: core.tenantId, studentCode: s.studentCode } },
@@ -409,7 +409,7 @@ async function main() {
     });
 
     // Enroll Students in Course
-    const enrollments: any[] = [];
+    const enrollments: Array<{ id: string; studentId: string }> = [];
     for (const s of seededStudents) {
       const enr = await prisma.courseEnrollment.upsert({
         where: { courseId_studentId: { courseId: course.id, studentId: s.id } },

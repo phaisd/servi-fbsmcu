@@ -48,6 +48,7 @@ interface PersonnelItem {
 interface Props {
   rooms: MeetingRoom[];
   initialRoomId?: string;
+  initialDate?: string;
   personnelList: PersonnelItem[];
   currentUser?: {
     id: string;
@@ -60,6 +61,7 @@ interface Props {
 export function MeetingBookingFormClient({
   rooms,
   initialRoomId,
+  initialDate,
   personnelList,
   currentUser,
   formSettings,
@@ -90,6 +92,10 @@ export function MeetingBookingFormClient({
   // Form state matching the official PDF form (บังคับเงื่อนไขเว้นอย่างน้อย 1 วันทำการ ไม่รวมวันหยุดเสาร์-อาทิตย์)
   const earliestAllowedDate = getEarliestBookingDate(new Date(), 1);
   const earliestAllowedIso = formatDateToIsoDate(earliestAllowedDate);
+  const resolvedInitialDate =
+    initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate) && initialDate >= earliestAllowedIso
+      ? initialDate
+      : earliestAllowedIso;
   const earliestAllowedThaiStr = earliestAllowedDate.toLocaleDateString("th-TH", {
     weekday: "long",
     year: "numeric",
@@ -122,9 +128,9 @@ export function MeetingBookingFormClient({
     purposeType: formSettings?.purposes?.[0]?.id || "MEETING",
     purposeOther: "",
     topic: "",
-    startDate: earliestAllowedIso,
+    startDate: resolvedInitialDate,
     startTimeStr: "09:00",
-    endDate: earliestAllowedIso,
+    endDate: resolvedInitialDate,
     endTimeStr: "16:30",
     attendeeCount: 30,
     equipments: {

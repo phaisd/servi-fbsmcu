@@ -1,7 +1,7 @@
 import "server-only";
 import { prisma as db } from "@/shared/lib/infra/prisma";
 import { writeAudit } from "@/features/identity/server";
-import { CertificateRequestStatus } from "@/generated/prisma";
+import { CertificateRequestStatus, type Prisma } from "@/generated/prisma";
 import {
   CERTIFICATE_PURPOSES,
   parseCertificateNote,
@@ -692,8 +692,8 @@ export async function createCertificateRequest(
   if (data.metadata?.studentCode) {
     try {
       await syncCertificateStudentToDirectory(tenantId, data.metadata);
-    } catch (e) {
-      console.warn("Failed to sync student to directory on create:", e);
+    } catch {
+      // ignore non-critical directory sync failure
     }
   }
 
@@ -761,8 +761,8 @@ export async function updateCertificateRequest(
   if (mergedMeta?.studentCode) {
     try {
       await syncCertificateStudentToDirectory(tenantId, mergedMeta);
-    } catch (e) {
-      console.warn("Failed to sync student to directory on update:", e);
+    } catch {
+      // ignore non-critical directory sync failure
     }
   }
 
@@ -869,8 +869,8 @@ export async function bulkImportCertificateRequests(
     if (rec.studentCode) {
       try {
         await syncCertificateStudentToDirectory(tenantId, rec);
-      } catch (e) {
-        console.warn("Failed to sync imported student to directory:", e);
+      } catch {
+        // ignore non-critical directory sync failure
       }
     }
   }
@@ -1108,14 +1108,14 @@ export async function syncCertificatePersonnelToDirectory(
     where: {
       tenantId,
       OR: [
-        meta.email ? { email: { equals: meta.email.trim(), mode: "insensitive" } } : undefined,
+        ...(meta.email ? [{ email: { equals: meta.email.trim(), mode: "insensitive" as const } }] : []),
         {
           AND: [
-            { firstNameTh: { contains: firstNameTh.replace(/^(พระครู|พระมหา|พระ|ดร\.|ผศ\.|รศ\.)/g, "").trim(), mode: "insensitive" } },
-            { lastNameTh: { contains: lastNameTh.trim(), mode: "insensitive" } },
+            { firstNameTh: { contains: firstNameTh.replace(/^(พระครู|พระมหา|พระ|ดร\.|ผศ\.|รศ\.)/g, "").trim(), mode: "insensitive" as const } },
+            { lastNameTh: { contains: lastNameTh.trim(), mode: "insensitive" as const } },
           ],
         },
-      ].filter(Boolean) as any,
+      ] satisfies Prisma.PersonnelWhereInput[],
     },
   });
 
@@ -1247,8 +1247,8 @@ export async function syncAllCertificatesToStudentDirectory(
     try {
       await syncCertificateStudentToDirectory(tenantId, meta);
       syncedCount++;
-    } catch (e) {
-      console.warn("Failed to sync record:", meta.studentCode, e);
+    } catch {
+      // ignore non-critical directory sync failure
     }
   }
 

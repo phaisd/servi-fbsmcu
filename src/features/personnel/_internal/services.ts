@@ -379,7 +379,7 @@ export interface ImportPersonnelItem {
   academicPosition?: string | null;
   academicPositionEn?: string | null;
   titlePlacement?: "PREFIX" | "SUFFIX" | string | null;
-  type?: "EXECUTIVE" | "ACADEMIC" | "SUPPORT";
+  type?: "EXECUTIVE" | "ACADEMIC" | "SUPPORT" | "SPECIAL";
   departmentId?: string | null;
   departmentName?: string | null;
   email?: string | null;
@@ -556,4 +556,225 @@ export async function importPersonnelBatch(
   });
 
   return { createdCount, updatedCount, totalResearchCount };
+}
+
+
+// ==========================================
+// Personnel Portal Configuration (Tenant.settings.personnelConfig)
+// ==========================================
+
+export interface PersonnelPortalConfig {
+  publicationYearsLimit: number;
+}
+
+export async function getPersonnelPortalConfig(tenantId: string): Promise<PersonnelPortalConfig> {
+  const t = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: { settings: true },
+  });
+  const settingsObj = (t?.settings as Record<string, unknown>) ?? {};
+  const rawConfig = settingsObj.personnelConfig as Record<string, unknown> | undefined;
+  if (rawConfig && typeof rawConfig.publicationYearsLimit === "number") {
+    return {
+      publicationYearsLimit: Math.max(0, Math.floor(rawConfig.publicationYearsLimit)),
+    };
+  }
+
+  const mcuTenant = await db.tenant.findFirst({
+    where: { code: "MCU", isActive: true },
+    select: { settings: true },
+  });
+  const mcuSettings = (mcuTenant?.settings as Record<string, unknown>) ?? {};
+  const mcuConfig = mcuSettings.personnelConfig as Record<string, unknown> | undefined;
+  if (mcuConfig && typeof mcuConfig.publicationYearsLimit === "number") {
+    return {
+      publicationYearsLimit: Math.max(0, Math.floor(mcuConfig.publicationYearsLimit)),
+    };
+  }
+
+  return { publicationYearsLimit: 5 };
+}
+
+export async function updatePersonnelPortalConfig(
+  tenantId: string,
+  actorId: string,
+  data: PersonnelPortalConfig
+): Promise<PersonnelPortalConfig> {
+  const cleanLimit = Math.max(0, Math.min(50, Math.floor(Number(data.publicationYearsLimit) || 0)));
+  const config: PersonnelPortalConfig = { publicationYearsLimit: cleanLimit };
+
+  const t = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: { settings: true },
+  });
+  const currentSettings = (t?.settings as Record<string, unknown>) ?? {};
+  await db.tenant.update({
+    where: { id: tenantId },
+    data: {
+      settings: {
+        ...currentSettings,
+        personnelConfig: config,
+      } as object,
+    },
+  });
+
+  const mcuTenant = await db.tenant.findFirst({
+    where: { code: "MCU", isActive: true },
+    select: { id: true, settings: true },
+  });
+  if (mcuTenant && mcuTenant.id !== tenantId) {
+    const mcuSettings = (mcuTenant.settings as Record<string, unknown>) ?? {};
+    await db.tenant.update({
+      where: { id: mcuTenant.id },
+      data: {
+        settings: {
+          ...mcuSettings,
+          personnelConfig: config,
+        } as object,
+      },
+    });
+  }
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "personnel.portal_config.update",
+    entity: "Tenant",
+    entityId: tenantId,
+    after: config,
+  });
+
+  return config;
+}
+
+// ==========================================
+// Executive Role Handover & Assignment
+// ==========================================
+
+import {
+  FACULTY_EXECUTIVE_SLOTS,
+  computeStepDownUpdates,
+  computeAppointExecutiveUpdates,
+} from "../executive-roles";
+
+export async function assignExecutiveSlot(
+  tenantId: string,
+  actorId: string,
+  input: {
+    slotKey: string;
+    newPersonnelId: string | null;
+    previousPersonnelId?: string | null;
+    demotePrevious?: boolean;
+  }
+) {
+  const slot = FACULTY_EXECUTIVE_SLOTS.find((s) => s.slotKey === input.slotKey);
+  if (!slot) {
+    throw new Error("ไม่พบตำแหน่งบริหารที่ระบุ");
+  }
+
+  let steppedDownPerson = null;
+  let appointedPerson = null;
+
+  if (
+    input.previousPersonnelId &&
+    input.previousPersonnelId !== input.newPersonnelId &&
+    input.demotePrevious !== false
+  ) {
+    const prev = await db.personnel.findFirst({
+      where: { id: input.previousPersonnelId },
+      include: { department: true },
+    });
+    if (prev) {
+      const stepDownData = computeStepDownUpdates(prev, slot);
+      steppedDownPerson = await db.personnel.update({
+        where: { id: prev.id },
+        data: {
+          positionTh: stepDownData.positionTh,
+          positionEn: stepDownData.positionEn,
+          type: stepDownData.type,
+          orderIndex: stepDownData.orderIndex,
+        },
+        include: { department: true, researchPublications: true },
+      });
+    }
+  }
+
+  if (input.newPersonnelId) {
+    const next = await db.personnel.findFirst({
+      where: { id: input.newPersonnelId },
+      include: { department: true },
+    });
+    if (!next) {
+      throw new Error("ไม่พบข้อมูลบุคลากรที่ต้องการแต่งตั้ง");
+    }
+    const appointData = computeAppointExecutiveUpdates(next, slot);
+    appointedPerson = await db.personnel.update({
+      where: { id: next.id },
+      data: {
+        positionTh: appointData.positionTh,
+        positionEn: appointData.positionEn,
+        type: appointData.type,
+        orderIndex: appointData.orderIndex,
+      },
+      include: { department: true, researchPublications: true },
+    });
+  }
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "personnel.executive_slot.assign",
+    entity: "Personnel",
+    entityId: input.newPersonnelId || input.previousPersonnelId || input.slotKey,
+    after: {
+      slotKey: input.slotKey,
+      slotTitleTh: slot.titleTh,
+      previousPersonnelId: input.previousPersonnelId || null,
+      newPersonnelId: input.newPersonnelId || null,
+    },
+  });
+
+  return {
+    slotKey: input.slotKey,
+    steppedDownPerson,
+    appointedPerson,
+  };
+}
+
+export async function stepDownExecutive(
+  tenantId: string,
+  actorId: string,
+  personnelId: string
+) {
+  const person = await db.personnel.findFirst({
+    where: { id: personnelId },
+    include: { department: true },
+  });
+  if (!person) {
+    throw new Error("ไม่พบข้อมูลบุคลากร");
+  }
+
+  const stepDownData = computeStepDownUpdates(person, null);
+  const updated = await db.personnel.update({
+    where: { id: person.id },
+    data: {
+      positionTh: stepDownData.positionTh,
+      positionEn: stepDownData.positionEn,
+      type: stepDownData.type,
+      orderIndex: stepDownData.orderIndex,
+    },
+    include: { department: true, researchPublications: true },
+  });
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "personnel.executive.step_down",
+    entity: "Personnel",
+    entityId: person.id,
+    before: { positionTh: person.positionTh, type: person.type },
+    after: { positionTh: updated.positionTh, type: updated.type },
+  });
+
+  return updated;
 }

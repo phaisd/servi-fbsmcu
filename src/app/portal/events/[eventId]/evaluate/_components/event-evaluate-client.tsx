@@ -53,9 +53,9 @@ const RATING_LEVELS = [
 ];
 
 export function EventEvaluateClient({ event, config }: EventEvaluateClientProps) {
-  const router = useRouter();
+  const _router = useRouter();
   const searchParams = useSearchParams();
-  const queryCode = searchParams.get("code") || "";
+  const _queryCode = searchParams.get("code") || "";
 
   const [ratings, setRatings] = useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {
@@ -78,7 +78,7 @@ export function EventEvaluateClient({ event, config }: EventEvaluateClientProps)
   });
   const [feedback, setFeedback] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<any | null>(null);
+  const [result, setResult] = useState<Awaited<ReturnType<typeof submitEventEvaluationAction>> | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleRatingChange = (key: string, value: number) => {
@@ -118,10 +118,11 @@ export function EventEvaluateClient({ event, config }: EventEvaluateClientProps)
         setResult(res);
         toast.success("บันทึกการส่งแบบประเมินความพึงพอใจเรียบร้อยแล้ว!");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Evaluation submission error:", err);
-      setErrorMsg(err.message || "เกิดข้อผิดพลาดในการส่งแบบประเมิน");
-      toast.error(err.message || "เกิดข้อผิดพลาดในการส่งแบบประเมิน");
+      const msg = (err instanceof Error ? err.message : String(err)) || "เกิดข้อผิดพลาดในการส่งแบบประเมิน";
+      setErrorMsg(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -134,6 +135,7 @@ export function EventEvaluateClient({ event, config }: EventEvaluateClientProps)
         {/* Header มจร */}
         <div className="text-center space-y-3">
           <div className="inline-flex items-center justify-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/uploads/mcu-official-seal.png"
               alt="ตราสัญลักษณ์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย"

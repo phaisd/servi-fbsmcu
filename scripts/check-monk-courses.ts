@@ -13,11 +13,35 @@ async function main() {
 
   console.log(`Total timetables across all years: ${allTts.length}`);
 
-  const hits2569_2: any[] = [];
-  const hitsOther: any[] = [];
+  interface HitItem {
+    year: string;
+    sem: number;
+    ttTitle: string;
+    curriculum: string;
+    curriculumDegree?: string;
+    yearLevel: number | null;
+    courseCode?: string;
+    courseName?: string;
+    instructor?: string;
+    dayOfWeek?: string | number;
+    time: string;
+    room?: string | null;
+  }
+  interface RawSlot {
+    courseCode?: string;
+    courseName?: string;
+    instructor?: string;
+    dayOfWeek?: string | number;
+    startTime?: string;
+    endTime?: string;
+    room?: string;
+  }
+
+  const hits2569_2: HitItem[] = [];
+  const hitsOther: HitItem[] = [];
 
   for (const tt of allTts) {
-    const slots = (tt.scheduleData as any[]) || [];
+    const slots = (tt.scheduleData as RawSlot[]) || [];
     for (const s of slots) {
       const inst = String(s.instructor || "");
       if (
@@ -86,7 +110,7 @@ async function main() {
   console.log("\n=== ตรวจสอบคำค้นอื่นๆ (เช่น 'กิตฺติญาโณ', 'สมเกียรติ', 'ญาณวชิรเวที') ===");
   const allInstructors = new Set<string>();
   for (const tt of allTts) {
-    const slots = (tt.scheduleData as any[]) || [];
+    const slots = (tt.scheduleData as RawSlot[]) || [];
     for (const s of slots) {
       if (s.instructor) allInstructors.add(String(s.instructor));
     }

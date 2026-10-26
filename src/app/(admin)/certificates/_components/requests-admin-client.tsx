@@ -114,6 +114,7 @@ export function RequestsAdminClient({
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [templateFilter, setTemplateFilter] = useState<string>("ALL");
+  const [yearFilter, setYearFilter] = useState<string>("ALL");
   const [toast, setToast] = useState<string | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
 
@@ -213,10 +214,31 @@ export function RequestsAdminClient({
   };
 
 
+  const getItemYearBuddh = (item: SerializedItem): number => {
+    if (item.metadata?.issueDateTh) {
+      const match = item.metadata.issueDateTh.match(/(25\d\d|20\d\d)/);
+      if (match) {
+        const yr = parseInt(match[1], 10);
+        return yr < 2500 ? yr + 543 : yr;
+      }
+    }
+    const d = new Date(item.createdAt);
+    const yr = isNaN(d.getTime()) ? 2026 : d.getFullYear();
+    return yr < 2500 ? yr + 543 : yr;
+  };
+
+  const availableYears = useMemo(() => {
+    const set = new Set<number>();
+    initialItems.forEach((i) => set.add(getItemYearBuddh(i)));
+    set.add(2569);
+    return Array.from(set).sort((a, b) => b - a);
+  }, [initialItems]);
+
   const filteredItems = useMemo(() => {
     return initialItems.filter((item) => {
       const m = item.metadata;
       const tpl = m.docTemplate || "THAI_CERT";
+      if (yearFilter !== "ALL" && String(getItemYearBuddh(item)) !== yearFilter) return false;
 
       if (statusFilter !== "ALL" && item.status !== statusFilter) return false;
       if (templateFilter !== "ALL" && tpl !== templateFilter) return false;
@@ -242,7 +264,7 @@ export function RequestsAdminClient({
 
       return true;
     });
-  }, [initialItems, statusFilter, templateFilter, searchQuery]);
+  }, [initialItems, yearFilter, statusFilter, templateFilter, searchQuery]);
 
   const stats = useMemo(() => {
     const total = initialItems.length;
@@ -379,8 +401,11 @@ export function RequestsAdminClient({
 
   // Export CSV matching original Excel structure with Signer & Officer fields
   const handleExportExcelCsv = () => {
+    const yearSuffix = yearFilter === "ALL" ? "AllYears" : `BE${yearFilter}`;
     const headers = [
-      "Created At",
+      "No. (ลำดับที่)",
+      "Issue Date (วันที่ออกหนังสือ)",
+      "Created At (วันที่ยื่นคำขอ)",
       "Email Address",
       "Student ID",
       "Full Name",
@@ -414,11 +439,17 @@ export function RequestsAdminClient({
       return `"${s}"`;
     };
 
-    const rows = filteredItems.map((item) => {
+    const rows = filteredItems.map((item, idx) => {
       const m = item.metadata;
       const { signerName, signerTitle, officerName, officerPosition } = getCertificateSignerAndOfficer(m);
+      const issueDate =
+        m.issueDateTh ||
+        m.issueDateEn ||
+        (item.status === "APPROVED" ? new Date(item.createdAt).toLocaleDateString("th-TH") : "-");
 
       return [
+        idx + 1,
+        issueDate,
         item.createdAt,
         m.email || item.userEmail,
         m.studentCode,
@@ -456,16 +487,18 @@ export function RequestsAdminClient({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `mcu_certificates_requests_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `mcu_certificates_requests_${yearSuffix}_${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    notify(`ส่งออกไฟล์ CSV จำนวน ${filteredItems.length} รายการเรียบร้อยแล้ว`);
+    notify(`ส่งออกไฟล์ CSV (${yearSuffix}) จำนวน ${filteredItems.length} รายการเรียบร้อยแล้ว`);
   };
 
   // Export Excel (.xls HTML table format)
   const handleExportExcelXml = () => {
+    const yearLabelTh = yearFilter === "ALL" ? "ทุกปีการศึกษา / ปีปฏิทิน" : `ประจำปี พ.ศ. ${yearFilter}`;
     const headers = [
       "ลำดับ",
+      "วันที่ออกหนังสือ",
       "วันที่ยื่นคำขอ",
       "รหัสนิสิต",
       "ชื่อ-สกุล",
@@ -504,8 +537,14 @@ export function RequestsAdminClient({
             ? "ไม่อนุมัติ"
             : "ยกเลิก";
 
+        const issueDate =
+          m.issueDateTh ||
+          m.issueDateEn ||
+          (item.status === "APPROVED" ? new Date(item.createdAt).toLocaleDateString("th-TH") : "-");
+
         return `<tr>
           <td style="text-align:center;">${idx + 1}</td>
+          <td style="text-align:center; font-weight:bold; color:#047857;">${escapeXml(issueDate)}</td>
           <td style="text-align:center;">${escapeXml(new Date(item.createdAt).toLocaleDateString("th-TH"))}</td>
           <td style="text-align:center; font-family:monospace;">${escapeXml(m.studentCode)}</td>
           <td><b>${escapeXml(m.fullName || item.userName)}</b></td>
@@ -539,7 +578,10 @@ export function RequestsAdminClient({
         </style>
       </head>
       <body>
-        <div class="title-banner">รายงานคำร้องขอหนังสือรับรอง คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย</div>
+        <div class="title-banner">สมุดทะเบียนคุมการออกหนังสือรับรองนิสิต คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย (${yearLabelTh})</div>
+        <div style="font-size:12px; color:#475569; margin-bottom:12px;">
+          ${yearFilter !== "ALL" ? `เริ่มนับลำดับที่ 1 ใหม่ประจำปี พ.ศ. ${yearFilter} • ` : ""}พิมพ์เมื่อ: ${new Date().toLocaleDateString("th-TH")} ${new Date().toLocaleTimeString("th-TH")} • จำนวนทั้งหมด ${filteredItems.length} รายการ
+        </div>
         <table border="1">
           <thead>
             <tr>${headers.map((h) => `<th>${escapeXml(h)}</th>`).join("")}</tr>
@@ -861,6 +903,60 @@ export function RequestsAdminClient({
         </div>
       </div>
 
+      {/* Year Filter Tabs (นับ 1 ใหม่ประจำปี) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3.5 shadow-2xs">
+        <div className="flex items-center gap-2 overflow-x-auto text-xs pb-1 sm:pb-0">
+          <span className="text-xs font-bold text-indigo-950 shrink-0 flex items-center gap-1.5 mr-1">
+            <Clock className="w-4 h-4 text-indigo-600" />
+            <span>เลือกปี พ.ศ. (เริ่มนับ 1 ใหม่ประจำปี):</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setYearFilter("ALL")}
+            className={`px-3 py-1.5 rounded-xl font-bold transition shrink-0 ${
+              yearFilter === "ALL"
+                ? "bg-indigo-600 text-white shadow-xs"
+                : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200"
+            }`}
+          >
+            ทุกปีทั้งหมด ({initialItems.length})
+          </button>
+          {availableYears.map((yr) => {
+            const count = initialItems.filter((i) => getItemYearBuddh(i) === yr).length;
+            const isCurrent = yr === 2569;
+            return (
+              <button
+                key={yr}
+                type="button"
+                onClick={() => setYearFilter(String(yr))}
+                className={`px-3 py-1.5 rounded-xl font-bold transition shrink-0 flex items-center gap-1.5 ${
+                  yearFilter === String(yr)
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200"
+                }`}
+              >
+                <span>ปี พ.ศ. {yr}</span>
+                {isCurrent && (
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-amber-400 text-amber-950 font-extrabold">
+                    ปีล่าสุด
+                  </span>
+                )}
+                <span className="text-[10px] opacity-75">({count})</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {yearFilter !== "ALL" && (
+          <div className="text-[11px] font-semibold text-indigo-700 shrink-0 flex items-center gap-1">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>
+              กำลังแสดงข้อมูลปี พ.ศ. {yearFilter} (ลำดับที่ 1 - {filteredItems.length})
+            </span>
+          </div>
+        )}
+      </div>
+
       {/* Filter & Search Bar */}
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs lg:flex-row lg:items-center lg:justify-between">
         <div className="relative flex-1">
@@ -906,6 +1002,7 @@ export function RequestsAdminClient({
           <table className="w-full text-left text-xs">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                <th className="px-3 py-3.5 w-12 text-center">ลำดับ</th>
                 <th className="px-4 py-3.5">รหัสนิสิต / ชื่อ-ฉายา</th>
                 <th className="px-4 py-3.5">สัญชาติ / Passport & วีซ่า</th>
                 <th className="px-4 py-3.5">ระดับ / สาขาวิชา / ชั้นปี</th>
@@ -916,14 +1013,23 @@ export function RequestsAdminClient({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredItems.map((item) => {
+              {filteredItems.map((item, idx) => {
                 const m = item.metadata;
                 const tpl = (m.docTemplate || "THAI_CERT") as CertificateTemplateType;
                 const tplInfo = TEMPLATE_LABELS[tpl] || TEMPLATE_LABELS.THAI_CERT;
                 const fontSize = m.fontSizePt || (tpl === "ENG_CERT" ? 12.5 : 16);
+                const issueDate =
+                  m.issueDateTh ||
+                  m.issueDateEn ||
+                  (item.status === "APPROVED" ? new Date(item.createdAt).toLocaleDateString("th-TH") : "-");
 
                 return (
                   <tr key={item.id} className="transition hover:bg-slate-50/80">
+                    {/* Running Index */}
+                    <td className="px-3 py-3.5 align-top text-center font-bold text-slate-500 font-mono">
+                      {idx + 1}
+                    </td>
+
                     {/* Student Code & Name */}
                     <td className="px-4 py-3.5 align-top">
                       <div className="flex items-center gap-1.5">
@@ -937,11 +1043,10 @@ export function RequestsAdminClient({
                       <div className="mt-1 font-bold text-slate-900">
                         {m.fullName || item.userName}
                       </div>
-                      {m.docNo && (
-                        <div className="mt-0.5 text-[11px] text-slate-500">
-                          เลขที่: <span className="font-medium text-slate-700">{m.docNo}</span>
-                        </div>
-                      )}
+                      <div className="mt-0.5 text-[11px] text-slate-500">
+                        {m.docNo && <span>เลขที่: <span className="font-medium text-slate-700">{m.docNo}</span> • </span>}
+                        <span>ออกเมื่อ: <span className="font-semibold text-indigo-700">{issueDate}</span></span>
+                      </div>
                     </td>
 
                     {/* Nationality & Passport */}

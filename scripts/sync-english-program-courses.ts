@@ -636,7 +636,12 @@ async function main() {
       }
 
       // 3. หานิสิตหลักสูตรภาษาอังกฤษที่ตรงตามเงื่อนไข (ปี + สาขาวิชา)
-      const studentFilter: any = {
+      const studentFilter: {
+        tenantId: string;
+        yearLevel: number;
+        curriculumName: { contains: string };
+        major?: string;
+      } = {
         tenantId: tenant.id,
         yearLevel: cDef.yearLevel,
         curriculumName: { contains: "ภาษาอังกฤษ" },

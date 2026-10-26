@@ -20,8 +20,8 @@ export default async function CourseTeachersPage({ params }: PageProps) {
   let access;
   try {
     access = await assertCourseAccess(ctx.tenantId, classId, ctx.userId, ctx.isSuperAdmin);
-  } catch (err: any) {
-    if (err.message?.includes("NOT_FOUND")) notFound();
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes("NOT_FOUND")) notFound();
     throw err;
   }
 

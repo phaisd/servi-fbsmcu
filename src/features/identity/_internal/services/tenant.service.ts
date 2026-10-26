@@ -70,8 +70,9 @@ async function readTenantSettings(tenantId: string, db: Db): Promise<TenantSetti
   }) ?? {};
   const p = settingsObj.palette;
   const rawFontSize = settingsObj.fontSize as string;
-  const fontSize = (["small", "normal", "medium", "large", "xlarge"] as const).includes(rawFontSize as any)
-    ? (rawFontSize as "small" | "normal" | "medium" | "large" | "xlarge")
+  const validFontSizes = ["small", "normal", "medium", "large", "xlarge"] as const;
+  const fontSize = validFontSizes.includes(rawFontSize as (typeof validFontSizes)[number])
+    ? (rawFontSize as (typeof validFontSizes)[number])
     : "normal";
   const rawHero = (settingsObj.hero as Partial<HeroSettings>) ?? {};
   const hero: HeroSettings = {

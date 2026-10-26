@@ -26,4 +26,13 @@ export {
   updateAcademicCalendarEvent,
   deleteAcademicCalendarEvent,
   deleteAcademicCalendar,
+  getMasterCourses,
+  getMasterCourseById,
+  createMasterCourse,
+  updateMasterCourse,
+  deleteMasterCourse,
+  toggleMasterCourseActive,
+  syncMasterCoursesFromTimetables,
+  getTimetablePeriods,
+  updateTimetablePeriods,
 } from "./_internal/services";

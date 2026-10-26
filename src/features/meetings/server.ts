@@ -9,6 +9,7 @@ export {
   deleteMeetingRoom,
   getBookings,
   getUpcomingBookings,
+  getPublicCalendarBookings,
   createBooking,
   createOfficialBooking,
   reviewOfficialBooking,

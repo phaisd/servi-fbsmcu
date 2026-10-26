@@ -17,7 +17,7 @@ export default async function VerifyCertificatePage(props: {
 
   return (
     <VerifyCertificateClient
-      initialData={verified as any}
+      initialData={verified as Parameters<typeof VerifyCertificateClient>[0]["initialData"]}
       searchCode={decodedId}
     />
   );

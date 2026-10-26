@@ -72,6 +72,7 @@ export function CertificateDocument({ event, recipient }: CertificateDocumentPro
         <div className="text-center relative z-10 space-y-2 pt-2">
           {/* ตราสัญลักษณ์ทางการ มจร */}
           <div className="inline-flex items-center justify-center mx-auto">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/uploads/mcu-official-seal.png"
               alt="ตราสัญลักษณ์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย"

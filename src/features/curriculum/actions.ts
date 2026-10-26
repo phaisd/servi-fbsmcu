@@ -21,6 +21,12 @@ import {
   createAcademicCalendarEvent,
   updateAcademicCalendarEvent,
   deleteAcademicCalendarEvent,
+  createMasterCourse,
+  updateMasterCourse,
+  deleteMasterCourse,
+  toggleMasterCourseActive,
+  syncMasterCoursesFromTimetables,
+  updateTimetablePeriods,
 } from "./_internal/services";
 import {
   curriculumSchema,
@@ -29,6 +35,10 @@ import {
   updateDepartmentSchema,
   timetableSchema,
   updateTimetableSchema,
+  masterCourseSchema,
+  updateMasterCourseSchema,
+  timetablePeriodsArraySchema,
+  DEFAULT_TIMETABLE_PERIODS,
 } from "./_internal/validations";
 
 // ── Curriculum Actions ──
@@ -216,7 +226,18 @@ export async function createAcademicCalendarAction(data: {
   return { success: true, calendar: res };
 }
 
-export async function updateAcademicCalendarAction(id: string, data: any) {
+export async function updateAcademicCalendarAction(
+  id: string,
+  data: Partial<{
+    title: string;
+    titleTh?: string | null;
+    authority?: string | null;
+    announcedDate?: string | null;
+    signatory?: string | null;
+    description?: string | null;
+    isActive?: boolean;
+  }>
+) {
   const session = await requireSession();
   await requirePermission(CURRICULUM_P.manage);
   const res = await updateAcademicCalendar(session.tenantId, session.userId, id, data);
@@ -256,7 +277,22 @@ export async function createAcademicCalendarEventAction(data: {
   return { success: true, event: res };
 }
 
-export async function updateAcademicCalendarEventAction(id: string, data: any) {
+export async function updateAcademicCalendarEventAction(
+  id: string,
+  data: Partial<{
+    semester: number;
+    semesterLabel: string;
+    titleEn: string;
+    titleTh?: string | null;
+    startDate: string;
+    endDate: string;
+    dateDisplayEn: string;
+    dateDisplayTh?: string | null;
+    eventType?: string;
+    description?: string | null;
+    orderIndex?: number;
+  }>
+) {
   const session = await requireSession();
   await requirePermission(CURRICULUM_P.manage);
   const res = await updateAcademicCalendarEvent(session.tenantId, session.userId, id, data);
@@ -276,3 +312,79 @@ export async function deleteAcademicCalendarEventAction(id: string) {
 
 
 
+
+
+// ── Master Course Actions (Course Catalog) ──
+
+export async function createMasterCourseAction(data: unknown) {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const parsed = masterCourseSchema.parse(data);
+  const res = await createMasterCourse(session.tenantId, session.userId, parsed);
+  revalidatePath("/curriculum/courses");
+  return { success: true, course: res };
+}
+
+export async function updateMasterCourseAction(id: string, data: unknown) {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const parsed = updateMasterCourseSchema.parse(data);
+  const res = await updateMasterCourse(session.tenantId, session.userId, id, parsed);
+  revalidatePath("/curriculum/courses");
+  return { success: true, course: res };
+}
+
+export async function deleteMasterCourseAction(id: string) {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const res = await deleteMasterCourse(session.tenantId, session.userId, id);
+  revalidatePath("/curriculum/courses");
+  return { success: true, course: res };
+}
+
+export async function toggleMasterCourseActiveAction(id: string) {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const res = await toggleMasterCourseActive(session.tenantId, session.userId, id);
+  revalidatePath("/curriculum/courses");
+  return { success: true, course: res };
+}
+
+export async function syncMasterCoursesAction() {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const res = await syncMasterCoursesFromTimetables(session.tenantId, session.userId);
+  revalidatePath("/curriculum/courses");
+  return { success: true, ...res };
+}
+
+// ── Timetable Periods Configuration Actions ──
+
+export async function updateTimetablePeriodsAction(periods: unknown) {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const parsed = timetablePeriodsArraySchema.parse(periods);
+  const res = await updateTimetablePeriods(session.tenantId, session.userId, parsed);
+  revalidatePath("/curriculum/timetables");
+  revalidatePath("/curriculum/timetables/periods");
+  revalidatePath("/curriculum/timetables/batch");
+  revalidatePath("/portal/timetables");
+  revalidatePath("/timetables");
+  return { success: true, periods: res };
+}
+
+export async function resetTimetablePeriodsAction() {
+  const session = await requireSession();
+  await requirePermission(CURRICULUM_P.manage);
+  const res = await updateTimetablePeriods(
+    session.tenantId,
+    session.userId,
+    DEFAULT_TIMETABLE_PERIODS
+  );
+  revalidatePath("/curriculum/timetables");
+  revalidatePath("/curriculum/timetables/periods");
+  revalidatePath("/curriculum/timetables/batch");
+  revalidatePath("/portal/timetables");
+  revalidatePath("/timetables");
+  return { success: true, periods: res };
+}
