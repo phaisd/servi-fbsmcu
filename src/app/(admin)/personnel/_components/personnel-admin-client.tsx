@@ -30,6 +30,7 @@ import {
   Camera,
   CheckCircle2,
   Award,
+  MapPin,
 } from "lucide-react";
 import { ExecutiveRoleManagerDialog } from "./executive-role-manager-dialog";
 import { useT } from "@/shared/lib/i18n/client";
@@ -142,6 +143,8 @@ export function PersonnelAdminClient({
   const [formEmail, setFormEmail] = useState("");
   const [formPhoneNumber, setFormPhoneNumber] = useState("");
   const [formContactInfo, setFormContactInfo] = useState("");
+  const [formOfficeLocation, setFormOfficeLocation] = useState("");
+  const [formGoogleScholarUrl, setFormGoogleScholarUrl] = useState("");
   const [formImageUrl, setFormImageUrl] = useState("");
   const [formEducationTh, setFormEducationTh] = useState("");
   const [formExperiencesTh, setFormExperiencesTh] = useState("");
@@ -460,6 +463,8 @@ export function PersonnelAdminClient({
     setFormEmail("");
     setFormPhoneNumber("");
     setFormContactInfo("");
+    setFormOfficeLocation("");
+    setFormGoogleScholarUrl("");
     setFormImageUrl("");
     setFormEducationTh("");
     setFormExperiencesTh("");
@@ -493,6 +498,8 @@ export function PersonnelAdminClient({
     setFormEmail(item.email || "");
     setFormPhoneNumber(item.phoneNumber || "");
     setFormContactInfo(item.contactInfo || "");
+    setFormOfficeLocation(item.officeLocation || "");
+    setFormGoogleScholarUrl(item.googleScholarUrl || "");
     setFormImageUrl(item.imageUrl || "");
     setFormEducationTh(item.educationTh || "");
     const parsedTeaching = parseTeachingExperiences(item.experiencesTh, {
@@ -552,6 +559,8 @@ export function PersonnelAdminClient({
         email: formEmail.trim() || null,
         phoneNumber: formPhoneNumber.trim() || null,
         contactInfo: formContactInfo.trim() || null,
+        officeLocation: formOfficeLocation.trim() || null,
+        googleScholarUrl: formGoogleScholarUrl.trim() || null,
         imageUrl: formImageUrl.trim() || null,
         educationTh: formEducationTh.trim() || null,
         experiencesTh: editingTeachingCourses.length > 0 ? JSON.stringify(editingTeachingCourses) : (formExperiencesTh.trim() || null),
@@ -819,6 +828,8 @@ export function PersonnelAdminClient({
       "อีเมล",
       "เบอร์โทรศัพท์",
       "ข้อมูลติดต่อเพิ่มเติม",
+      "สถานที่ทำงาน",
+      "Google Scholar",
       "ประวัติการศึกษา",
       "ประสบการณ์สอน/ภาระงาน",
       "ประวัติย่อ/ความเชี่ยวชาญ",
@@ -848,6 +859,8 @@ export function PersonnelAdminClient({
       escapeCell(p.email || ""),
       escapeCell(p.phoneNumber || ""),
       escapeCell(p.contactInfo || ""),
+      escapeCell(p.officeLocation || ""),
+      escapeCell(p.googleScholarUrl || ""),
       escapeCell(p.educationTh || ""),
       escapeCell(p.experiencesTh || ""),
       escapeCell(p.bioTh || ""),
@@ -886,6 +899,8 @@ export function PersonnelAdminClient({
       email: p.email,
       phoneNumber: p.phoneNumber,
       contactInfo: p.contactInfo,
+      officeLocation: p.officeLocation,
+      googleScholarUrl: p.googleScholarUrl,
       imageUrl: p.imageUrl,
       educationTh: p.educationTh,
       experiencesTh: p.experiencesTh,
@@ -941,6 +956,8 @@ export function PersonnelAdminClient({
       "อีเมล",
       "เบอร์โทรศัพท์",
       "ข้อมูลติดต่อเพิ่มเติม",
+      "สถานที่ทำงาน",
+      "Google Scholar",
       "ประวัติการศึกษา",
       "ประสบการณ์สอน/ภาระงาน",
       "ประวัติย่อ/ความเชี่ยวชาญ",
@@ -1251,6 +1268,8 @@ export function PersonnelAdminClient({
       "อีเมล",
       "เบอร์โทรศัพท์",
       "ข้อมูลติดต่อเพิ่มเติม",
+      "สถานที่ทำงาน",
+      "Google Scholar",
       "ประวัติการศึกษา",
       "ประสบการณ์สอน/ภาระงาน",
       "ประวัติย่อ/ความเชี่ยวชาญ",
@@ -2927,7 +2946,7 @@ export function PersonnelAdminClient({
               <LiyonField
                 label="ช่องทางการติดต่อเพิ่มเติม (Contact Info)"
                 htmlFor="field-contact-info"
-                hint="เช่น ที่ตั้งห้องพักอาจารย์, Facebook, Line ID"
+                hint="เช่น Facebook, Line ID, เบอร์โทรสาร หรือช่องทางโซเชียลมีเดีย"
               >
                 <input
                   id="field-contact-info"
@@ -2936,6 +2955,40 @@ export function PersonnelAdminClient({
                   placeholder="Tel. 098 387 5997, Facebook: ไชยา เสนแสนยา, Line ID: 0983875997"
                   className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 />
+              </LiyonField>
+
+              <LiyonField
+                label="สถานที่ทำงาน / ห้องพักอาจารย์ (Workplace / Office Location)"
+                htmlFor="field-office-location"
+                hint="เช่น อาคารเรียนรวม ชั้น 3 ห้อง 305 คณะพุทธศาสตร์ มจร วังน้อย อยุธยา"
+              >
+                <div className="relative">
+                  <input
+                    id="field-office-location"
+                    value={formOfficeLocation}
+                    onChange={(e) => setFormOfficeLocation(e.target.value)}
+                    placeholder="ห้อง 305 อาคารเรียนรวม คณะพุทธศาสตร์ มจร วังน้อย อยุธยา"
+                    className="w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                  <MapPin className="w-4 h-4 text-amber-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </LiyonField>
+
+              <LiyonField
+                label="ลิงก์โปรไฟล์ผลงาน Google Scholar (Google Scholar Profile URL)"
+                htmlFor="field-google-scholar"
+                hint="เช่น https://scholar.google.com/citations?user=... หรือลิงก์หน้าคลังผลงานวิจัย"
+              >
+                <div className="relative">
+                  <input
+                    id="field-google-scholar"
+                    value={formGoogleScholarUrl}
+                    onChange={(e) => setFormGoogleScholarUrl(e.target.value)}
+                    placeholder="https://scholar.google.com/citations?user=..."
+                    className="w-full rounded-md border border-input bg-background pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring font-mono text-xs"
+                  />
+                  <GraduationCap className="w-4 h-4 text-sky-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
               </LiyonField>
 
               {/* Photo Upload & Portrait Preview Section */}

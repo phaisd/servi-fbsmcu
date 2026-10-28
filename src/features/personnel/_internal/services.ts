@@ -385,6 +385,8 @@ export interface ImportPersonnelItem {
   email?: string | null;
   phoneNumber?: string | null;
   contactInfo?: string | null;
+  officeLocation?: string | null;
+  googleScholarUrl?: string | null;
   imageUrl?: string | null;
   educationTh?: string | null;
   experiencesTh?: string | null;
@@ -464,6 +466,8 @@ export async function importPersonnelBatch(
       email: item.email?.trim() || null,
       phoneNumber: item.phoneNumber?.trim() || null,
       contactInfo: item.contactInfo?.trim() || null,
+      officeLocation: item.officeLocation?.trim() || null,
+      googleScholarUrl: item.googleScholarUrl?.trim() || null,
       imageUrl: item.imageUrl?.trim() || null,
       educationTh: item.educationTh?.trim() || null,
       experiencesTh: item.experiencesTh?.trim() || null,

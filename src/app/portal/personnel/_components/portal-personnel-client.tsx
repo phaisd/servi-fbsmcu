@@ -19,6 +19,7 @@ import {
   Sparkles,
   ChevronRight,
   Download,
+  MapPin,
 } from "lucide-react";
 import {
   LiyonDialog,
@@ -72,6 +73,8 @@ export interface PersonnelItem {
   experiencesTh?: string | null;
   bioTh?: string | null;
   contactInfo?: string | null;
+  officeLocation?: string | null;
+  googleScholarUrl?: string | null;
   orderIndex?: number;
   department?: {
     id: string;
@@ -1669,10 +1672,36 @@ export function PortalPersonnelClient({
                           </div>
                         </div>
                       )}
+                      {selectedPerson.officeLocation && (
+                        <div className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/30">
+                          <MapPin className="w-4 h-4 text-amber-500 shrink-0" />
+                          <div>
+                            <span className="text-muted-foreground block text-[10px]">สถานที่ทำงาน:</span>
+                            <span className="text-foreground font-medium">{selectedPerson.officeLocation}</span>
+                          </div>
+                        </div>
+                      )}
                       {selectedPerson.contactInfo && (
                         <div className="p-2.5 rounded-lg bg-muted/30">
                           <span className="text-muted-foreground block text-[10px] mb-1">ช่องทางติดต่ออื่นๆ:</span>
                           <span className="text-foreground font-medium">{selectedPerson.contactInfo}</span>
+                        </div>
+                      )}
+                      {selectedPerson.googleScholarUrl && (
+                        <div className="p-2.5 rounded-lg bg-sky-50 dark:bg-sky-950/30 border border-sky-200 dark:border-sky-800 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <GraduationCap className="w-4 h-4 text-sky-600 shrink-0" />
+                            <span className="text-xs font-bold text-sky-700 dark:text-sky-300">Google Scholar Profile</span>
+                          </div>
+                          <a
+                            href={selectedPerson.googleScholarUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-semibold"
+                          >
+                            <span>เปิดดู</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
                         </div>
                       )}
                     </div>

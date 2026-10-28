@@ -445,6 +445,8 @@ model Personnel {
   experiencesTh    String? @map("experiences_th") @db.Text
   bioTh            String? @map("bio_th") @db.Text
   contactInfo      String? @map("contact_info") @db.Text
+  officeLocation   String? @map("office_location") @db.VarChar(255)
+  googleScholarUrl String? @map("google_scholar_url") @db.VarChar(500)
 
   researchPublications ResearchPublication[]
 

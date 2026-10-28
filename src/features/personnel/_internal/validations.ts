@@ -25,6 +25,8 @@ const basePersonnelSchema = z.object({
   experiencesTh: z.string().optional().nullable(),
   bioTh: z.string().optional().nullable(),
   contactInfo: z.string().optional().nullable(),
+  officeLocation: z.string().optional().nullable(),
+  googleScholarUrl: z.string().optional().nullable(),
   isActive: z.boolean().default(true),
   orderIndex: z.number().int().default(0),
 });
