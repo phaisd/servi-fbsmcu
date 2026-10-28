@@ -162,6 +162,19 @@ export function matchExecutiveSlot(
       }
       continue;
     }
+    // Exclude Deputy Heads or Assistant Heads from matching Department Head slots
+    if (slot.isDepartmentHead) {
+      if (posTh.includes("รองหัวหน้า") || posTh.includes("ผู้ช่วยหัวหน้า")) {
+        continue;
+      }
+    }
+    // If someone is a Deputy/Assistant Department Head (Tier 3), do not assign them to lower Tier 4 slots
+    if (
+      slot.tier === 4 &&
+      (posTh.includes("รองหัวหน้า") || posTh.includes("ผู้ช่วยหัวหน้า"))
+    ) {
+      continue;
+    }
     if (slot.matchKeywords.some((kw) => posTh.includes(kw))) {
       return slot;
     }
@@ -210,6 +223,23 @@ export function classifyExecutivePersonnel<T extends MinimalPersonnelForExecutiv
       slotKey: null,
       executiveBadgeTh: posTh.split("/")[0].trim(),
       executiveBadgeEn: posEn ? posEn.split("/")[0].trim() : "Vice / Assistant Dean",
+    };
+  }
+
+  // Deputy / Assistant Head of Department (Tier 3, tierOrder: 20 so they sort after Department Heads)
+  if (
+    posTh.includes("รองหัวหน้าภาควิชา") ||
+    posTh.includes("รองหัวหน้าภาค") ||
+    posTh.includes("ผู้ช่วยหัวหน้าภาควิชา") ||
+    posTh.includes("ผู้ช่วยหัวหน้าภาค")
+  ) {
+    return {
+      person,
+      tier: 3,
+      tierOrder: 20,
+      slotKey: null,
+      executiveBadgeTh: posTh.split("/")[0].trim(),
+      executiveBadgeEn: posEn ? posEn.split("/")[0].trim() : "Deputy Head of Department",
     };
   }
 

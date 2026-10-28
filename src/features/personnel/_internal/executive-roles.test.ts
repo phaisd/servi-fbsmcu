@@ -44,7 +44,22 @@ describe("executive-roles", () => {
       orderIndex: 1,
     });
     expect(headBuddhism?.tier).toBe(3);
+    expect(headBuddhism?.tierOrder).toBe(1);
     expect(headBuddhism?.slotKey).toBe("HEAD_DEPT_BUDDHISM");
+
+    // Deputy Head of Department should not match HEAD_DEPT slot, and should sort after heads (tierOrder: 20)
+    const deputyHead = classifyExecutivePersonnel({
+      id: "p3",
+      firstNameTh: "สุเทพ",
+      lastNameTh: "พรมเลิศ",
+      positionTh: "รองหัวหน้าภาควิชาพระพุทธศาสนา / ผู้อำนวยการหลักสูตร พธ.ด. สาขาวิชาปรัชญา",
+      type: "EXECUTIVE",
+      orderIndex: 3,
+    });
+    expect(deputyHead?.tier).toBe(3);
+    expect(deputyHead?.tierOrder).toBe(20);
+    expect(deputyHead?.slotKey).toBeNull();
+    expect(deputyHead?.executiveBadgeTh).toBe("รองหัวหน้าภาควิชาพระพุทธศาสนา");
 
     const specialTeacher = classifyExecutivePersonnel({
       id: "p2",

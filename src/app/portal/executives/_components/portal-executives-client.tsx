@@ -98,7 +98,7 @@ export function PortalExecutivesClient({ items, locale }: Props) {
         className={`group relative rounded-2xl border bg-card transition-all duration-200 cursor-pointer overflow-hidden flex flex-col ${
           featured
             ? "max-w-md mx-auto w-full border-amber-500/40 shadow-lg hover:shadow-xl ring-2 ring-amber-500/20"
-            : "border-border/80 shadow-xs hover:shadow-md hover:border-primary/40"
+            : "w-full sm:w-[320px] max-w-sm border-border/80 shadow-xs hover:shadow-md hover:border-primary/40"
         }`}
       >
         {/* Top Accent Banner */}
@@ -264,7 +264,7 @@ export function PortalExecutivesClient({ items, locale }: Props) {
             </span>
             <h2 className="text-xl font-extrabold text-foreground">รองคณบดีคณะพุทธศาสตร์</h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="flex flex-wrap justify-center gap-5">
             {tier2ViceDeans.map((exec) => renderExecutiveCard(exec, false))}
           </div>
         </section>
@@ -277,9 +277,11 @@ export function PortalExecutivesClient({ items, locale }: Props) {
             <span className="text-[11px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
               Tier 3 • Heads of Academic Departments
             </span>
-            <h2 className="text-xl font-extrabold text-foreground">หัวหน้าภาควิชา</h2>
+            <h2 className="text-xl font-extrabold text-foreground">
+              {locale === "th" ? "หัวหน้าภาควิชาและรองหัวหน้าภาควิชา" : "Heads & Deputy Heads of Academic Departments"}
+            </h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="flex flex-wrap justify-center gap-5">
             {tier3DeptHeads.map((exec) => renderExecutiveCard(exec, false))}
           </div>
         </section>
@@ -296,7 +298,7 @@ export function PortalExecutivesClient({ items, locale }: Props) {
               ผู้อำนวยการหลักสูตรและสำนักงานคณบดี
             </h2>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-4xl mx-auto">
+          <div className="flex flex-wrap justify-center gap-5 max-w-4xl mx-auto">
             {tier4Others.map((exec) => renderExecutiveCard(exec, false))}
           </div>
         </section>
