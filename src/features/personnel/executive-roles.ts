@@ -1,4 +1,4 @@
-export type ExecutiveTier = 1 | 2 | 3 | 4;
+export type ExecutiveTier = 1 | 2 | 3 | 4 | 5;
 
 export interface ExecutiveSlotDefinition {
   slotKey: string;
@@ -111,8 +111,8 @@ export const FACULTY_EXECUTIVE_SLOTS: ExecutiveSlotDefinition[] = [
   },
   {
     slotKey: "DEAN_OFFICE_SECRETARY",
-    tier: 4,
-    tierOrder: 2,
+    tier: 5,
+    tierOrder: 1,
     titleTh: "เลขานุการสำนักงานคณบดี คณะพุทธศาสตร์",
     titleEn: "Secretary of the Office of the Dean, Faculty of Buddhism",
     shortBadgeTh: "เลขานุการสำนักงานคณบดี",
@@ -168,9 +168,9 @@ export function matchExecutiveSlot(
         continue;
       }
     }
-    // If someone is a Deputy/Assistant Department Head (Tier 3), do not assign them to lower Tier 4 slots
+    // If someone is a Deputy/Assistant Department Head (Tier 3), do not assign them to lower Tier 4 or 5 slots
     if (
-      slot.tier === 4 &&
+      (slot.tier === 4 || slot.tier === 5) &&
       (posTh.includes("รองหัวหน้า") || posTh.includes("ผู้ช่วยหัวหน้า"))
     ) {
       continue;
@@ -254,11 +254,42 @@ export function classifyExecutivePersonnel<T extends MinimalPersonnelForExecutiv
     };
   }
 
-  if (person.type === "EXECUTIVE") {
+  // Program Directors (Tier 4)
+  if (
+    posTh.includes("ผู้อำนวยการหลักสูตร") ||
+    posTh.includes("ผู้อำนวยการหลักสูต")
+  ) {
     return {
       person,
       tier: 4,
       tierOrder: 10,
+      slotKey: null,
+      executiveBadgeTh: posTh.split("/")[0].trim(),
+      executiveBadgeEn: posEn ? posEn.split("/")[0].trim() : "Program Director",
+    };
+  }
+
+  // Office of the Dean (Tier 5)
+  if (
+    posTh.includes("สำนักงานคณบดี") ||
+    posTh.includes("เลขานุการสำนักงาน") ||
+    posTh.includes("ผู้อำนวยการสำนักงาน")
+  ) {
+    return {
+      person,
+      tier: 5,
+      tierOrder: 10,
+      slotKey: null,
+      executiveBadgeTh: posTh.split("/")[0].trim(),
+      executiveBadgeEn: posEn ? posEn.split("/")[0].trim() : "Office of the Dean",
+    };
+  }
+
+  if (person.type === "EXECUTIVE") {
+    return {
+      person,
+      tier: 4,
+      tierOrder: 20,
       slotKey: null,
       executiveBadgeTh: posTh.split("/")[0].trim() || "ผู้บริหารคณะพุทธศาสตร์",
       executiveBadgeEn: posEn ? posEn.split("/")[0].trim() : "Faculty Executive",

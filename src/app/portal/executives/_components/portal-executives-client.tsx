@@ -73,8 +73,12 @@ export function PortalExecutivesClient({ items, locale }: Props) {
     () => classifiedList.filter((item) => item.tier === 3),
     [classifiedList]
   );
-  const tier4Others = useMemo(
+  const tier4ProgramDirectors = useMemo(
     () => classifiedList.filter((item) => item.tier === 4),
+    [classifiedList]
+  );
+  const tier5DeanOffice = useMemo(
+    () => classifiedList.filter((item) => item.tier === 5),
     [classifiedList]
   );
 
@@ -110,7 +114,9 @@ export function PortalExecutivesClient({ items, locale }: Props) {
                 ? "bg-gradient-to-r from-primary via-amber-500 to-primary"
                 : exec.tier === 3
                   ? "bg-gradient-to-r from-emerald-600 to-teal-500"
-                  : "bg-gradient-to-r from-sky-600 to-indigo-600"
+                  : exec.tier === 4
+                    ? "bg-gradient-to-r from-sky-600 to-indigo-600"
+                    : "bg-gradient-to-r from-violet-600 to-purple-600"
           }`}
         />
 
@@ -147,7 +153,9 @@ export function PortalExecutivesClient({ items, locale }: Props) {
                   ? "bg-primary/10 text-primary border border-primary/20"
                   : exec.tier === 3
                     ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20"
-                    : "bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20"
+                    : exec.tier === 4
+                      ? "bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20"
+                      : "bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-500/20"
             }`}
           >
             <Award className="w-3.5 h-3.5 shrink-0" />
@@ -287,19 +295,36 @@ export function PortalExecutivesClient({ items, locale }: Props) {
         </section>
       )}
 
-      {/* TIER 4: PROGRAM DIRECTORS & OFFICE OF THE DEAN */}
-      {tier4Others.length > 0 && (
+      {/* TIER 4: PROGRAM DIRECTORS */}
+      {tier4ProgramDirectors.length > 0 && (
         <section className="space-y-4 pt-4 border-t border-border/60">
           <div className="text-center space-y-1">
             <span className="text-[11px] font-bold uppercase tracking-widest text-sky-600 dark:text-sky-400">
-              Tier 4 • Program Directors & Office of the Dean
+              Tier 4 • Graduate Program Directors
             </span>
             <h2 className="text-xl font-extrabold text-foreground">
-              ผู้อำนวยการหลักสูตรและสำนักงานคณบดี
+              {locale === "th" ? "ผู้อำนวยการหลักสูตร" : "Graduate Program Directors"}
             </h2>
           </div>
           <div className="flex flex-wrap justify-center gap-5 max-w-4xl mx-auto">
-            {tier4Others.map((exec) => renderExecutiveCard(exec, false))}
+            {tier4ProgramDirectors.map((exec) => renderExecutiveCard(exec, false))}
+          </div>
+        </section>
+      )}
+
+      {/* TIER 5: OFFICE OF THE DEAN */}
+      {tier5DeanOffice.length > 0 && (
+        <section className="space-y-4 pt-4 border-t border-border/60">
+          <div className="text-center space-y-1">
+            <span className="text-[11px] font-bold uppercase tracking-widest text-violet-600 dark:text-violet-400">
+              Tier 5 • Office of the Dean
+            </span>
+            <h2 className="text-xl font-extrabold text-foreground">
+              {locale === "th" ? "สำนักงานคณบดี" : "Office of the Dean"}
+            </h2>
+          </div>
+          <div className="flex flex-wrap justify-center gap-5 max-w-4xl mx-auto">
+            {tier5DeanOffice.map((exec) => renderExecutiveCard(exec, false))}
           </div>
         </section>
       )}

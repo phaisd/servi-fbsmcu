@@ -31,7 +31,7 @@ describe("executive-roles", () => {
       type: "SUPPORT",
     });
     expect(secretary?.slotKey).toBe("DEAN_OFFICE_SECRETARY");
-    expect(secretary?.tier).toBe(4);
+    expect(secretary?.tier).toBe(5);
   });
 
   it("classifies Department Heads into Tier 3 and excludes SPECIAL lecturers", () => {
@@ -60,6 +60,26 @@ describe("executive-roles", () => {
     expect(deputyHead?.tierOrder).toBe(20);
     expect(deputyHead?.slotKey).toBeNull();
     expect(deputyHead?.executiveBadgeTh).toBe("รองหัวหน้าภาควิชาพระพุทธศาสนา");
+
+    const programDirector = classifyExecutivePersonnel({
+      id: "p4",
+      firstNameTh: "แสวง",
+      lastNameTh: "นิลนามะ",
+      positionTh: "ผู้อำนวยการหลักสูตป.เอก ศาสนาเปรียบเทียบ",
+      type: "ACADEMIC",
+    });
+    expect(programDirector?.tier).toBe(4);
+    expect(programDirector?.executiveBadgeTh).toContain("ผู้อำนวยการหลักสูต");
+
+    const secretaryPerson = classifyExecutivePersonnel({
+      id: "p5",
+      firstNameTh: "พระครูปลัดสมเกียรติ",
+      lastNameTh: "กิตฺติญาโณ",
+      positionTh: "เลขานุการสำนักงานคณบดี คณะพุทธศาสตร์",
+      type: "SUPPORT",
+    });
+    expect(secretaryPerson?.tier).toBe(5);
+    expect(secretaryPerson?.executiveBadgeTh).toBe("เลขานุการสำนักงานคณบดี");
 
     const specialTeacher = classifyExecutivePersonnel({
       id: "p2",
