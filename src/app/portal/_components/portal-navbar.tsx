@@ -93,7 +93,12 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
           {
             label: locale === "th" ? "ทำเนียบบุคลากร" : "Personnel",
             href: "/portal/personnel",
-            active: pathname.startsWith("/portal/personnel"),
+            active: pathname === "/portal/personnel" || pathname.startsWith("/portal/personnel/"),
+          },
+          {
+            label: locale === "th" ? "ทำเนียบผู้บริหาร" : "Executives",
+            href: "/portal/executives",
+            active: pathname.startsWith("/portal/executives"),
           },
           {
             label: locale === "th" ? "ผลงานวิจัย" : "Research",
@@ -113,7 +118,10 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
   const configuredServices = servicesConfig?.items?.filter((s) => s.enabled !== false);
 
   const defaultServiceItems = [
+    { label: locale === "th" ? "ทำเนียบผู้บริหาร" : "Executive Directory", href: "/portal/executives" },
     { label: locale === "th" ? "ภาควิชาพระพุทธศาสนา" : "Department of Buddhism", href: "/portal/departments/buddhism" },
+    { label: locale === "th" ? "ภาควิชาบาลีและสันสกฤต" : "Department of Pali and Sanskrit", href: "/portal/departments/pali" },
+    { label: locale === "th" ? "ภาควิชาศาสนาและปรัชญา" : "Department of Religion and Philosophy", href: "/portal/departments/philosophy" },
     { label: locale === "th" ? "เวลาเรียน & ลงทะเบียนวิชา" : "Class Attendance & Enroll", href: "/portal/attendance" },
     { label: locale === "th" ? "หลักสูตรการศึกษา" : "Curriculums", href: "/portal/programs" },
     { label: locale === "th" ? "ตารางเรียน / ตารางสอน" : "Class Timetables", href: "/portal/timetables" },

@@ -748,6 +748,28 @@ export function PortalPersonnelClient({
                       <ChevronRight className="w-3.5 h-3.5" />
                     </Link>
                   )}
+
+                  {(deptName.includes("บาลี") || deptName.includes("สันสกฤต")) && (
+                    <Link
+                      href="/portal/departments/pali"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 font-bold text-xs transition-colors border border-emerald-500/20 shadow-xs"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                      <span>เข้าสู่หน้าเว็บเฉพาะภาควิชาบาลีและสันสกฤต</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </Link>
+                  )}
+
+                  {(deptName.includes("ศาสนา") || deptName.includes("ปรัชญา")) && (
+                    <Link
+                      href="/portal/departments/philosophy"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-400 font-bold text-xs transition-colors border border-indigo-500/20 shadow-xs"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>เข้าสู่หน้าเว็บเฉพาะภาควิชาศาสนาและปรัชญา</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </Link>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

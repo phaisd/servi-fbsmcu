@@ -109,6 +109,8 @@ export async function updatePersonnelOrderAction(id: string, newOrder: number) {
   revalidatePath("/personnel");
   revalidatePath("/portal/personnel");
   revalidatePath("/portal/departments/buddhism");
+  revalidatePath("/portal/departments/pali");
+  revalidatePath("/portal/departments/philosophy");
   return result;
 }
 
@@ -119,6 +121,8 @@ export async function reorderPersonnelBatchAction(items: { id: string; orderInde
   revalidatePath("/personnel");
   revalidatePath("/portal/personnel");
   revalidatePath("/portal/departments/buddhism");
+  revalidatePath("/portal/departments/pali");
+  revalidatePath("/portal/departments/philosophy");
   return result;
 }
 
@@ -276,6 +280,8 @@ export async function assignExecutiveSlotAction(input: {
   revalidatePath("/portal/personnel");
   revalidatePath("/portal/executives");
   revalidatePath("/portal/departments/buddhism");
+  revalidatePath("/portal/departments/pali");
+  revalidatePath("/portal/departments/philosophy");
   return result;
 }
 
@@ -287,5 +293,7 @@ export async function stepDownExecutiveAction(personnelId: string) {
   revalidatePath("/portal/personnel");
   revalidatePath("/portal/executives");
   revalidatePath("/portal/departments/buddhism");
+  revalidatePath("/portal/departments/pali");
+  revalidatePath("/portal/departments/philosophy");
   return result;
 }
