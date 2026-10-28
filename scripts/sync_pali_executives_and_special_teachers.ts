@@ -22,7 +22,7 @@ interface ResearchItem {
 
 interface TeacherSyncSeed {
   orderIndex: number;
-  departmentCode: "BUDDHISM" | "PHILOSOPHY" | "PALI_SANSKRIT";
+  departmentCode: "BUDDHISM" | "PHILOSOPHY" | "PALI_SANSKRIT" | "EXECUTIVE";
   academicPosition: string | null;
   academicPositionEn: string | null;
   titlePlacement: "PREFIX" | "SUFFIX";
@@ -360,10 +360,10 @@ const FACULTY_EXECUTIVES: TeacherSyncSeed[] = [
     bioTh: "หัวหน้าภาควิชาพระพุทธศาสนา ผู้เชี่ยวชาญด้านพระพุทธศาสนาเถรวาท พระไตรปิฎกวิเคราะห์ พระวินัยปิฎก และศาสนาเปรียบเทียบ",
     contactInfo: "ภาควิชาพระพุทธศาสนา คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย ต.ลำไทร อ.วังน้อย จ.พระนครศรีอยุธยา 13170",
   },
-  // 2. Dean of Faculty of Buddhism -> orderIndex: 2 in BUDDHISM
+  // 2. Dean of Faculty of Buddhism -> orderIndex: 1 (Outside faculty, not bound to any department)
   {
-    orderIndex: 2,
-    departmentCode: "BUDDHISM",
+    orderIndex: 1,
+    departmentCode: "EXECUTIVE",
     academicPosition: "ผศ.ดร.",
     academicPositionEn: "Asst. Prof. Ph.D.",
     titlePlacement: "SUFFIX",
@@ -371,8 +371,8 @@ const FACULTY_EXECUTIVES: TeacherSyncSeed[] = [
     lastNameTh: "",
     firstNameEn: "Phrarachaudomwachiramethi",
     lastNameEn: "",
-    positionTh: "คณบดีคณะพุทธศาสตร์ / อาจารย์ประจำภาควิชาพระพุทธศาสนา",
-    positionEn: "Dean of Faculty of Buddhism / Assistant Professor",
+    positionTh: "คณบดีคณะพุทธศาสตร์",
+    positionEn: "Dean, Faculty of Buddhism",
     type: "EXECUTIVE",
     webEmail: null,
     fallbackMcuEmail: "udomwachiramethi@mcu.ac.th",
@@ -914,7 +914,7 @@ async function main() {
 
   // Helper to upsert a TeacherSyncSeed (Personnel + User account following Email Rule)
   async function syncTeacherSeed(seed: TeacherSyncSeed) {
-    const departmentId = deptByCode[seed.departmentCode];
+    const departmentId = seed.departmentCode === "EXECUTIVE" ? null : deptByCode[seed.departmentCode];
     const displayNameTh =
       seed.titlePlacement === "SUFFIX"
         ? `${seed.firstNameTh}${seed.lastNameTh ? " " + seed.lastNameTh : ""}${seed.academicPosition ? ", " + seed.academicPosition : ""}`.trim()
