@@ -25,6 +25,8 @@ import {
   LiyonDialog,
   LiyonDialogBody,
   LiyonDialogFooter,
+  LiyonDialogTitle,
+  LiyonDialogDescription,
 } from "@/shared/components/liyon";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -52,6 +54,7 @@ interface StudentGradeItem {
   attendancePercentage: number;
   isEligible: boolean | null;
   eligibilityStatusTh: string;
+  attendanceScore?: number | null;
   assignmentScore: number | null;
   midtermScore: number | null;
   affectiveScore: number | null;
@@ -62,6 +65,7 @@ interface StudentGradeItem {
 }
 
 interface GradingConfig {
+  attendanceMax?: number;
   assignmentMax: number;
   midtermMax: number;
   affectiveMax: number;
@@ -81,6 +85,8 @@ interface GradesClientProps {
     semester: number;
     room: string;
     primaryTeacher: string;
+    coTeachers?: string[];
+    coTeacherNames?: string | null;
     degree?: string;
     programLanguage?: string;
     faculty?: string;
@@ -162,7 +168,7 @@ export function GradesClient({
   // อัปเดตคะแนนของนิสิตแต่ละคนแบบเรียลไทม์
   const handleScoreChange = (
     enrollmentId: string,
-    field: "assignmentScore" | "midtermScore" | "affectiveScore" | "finalScore" | "grade" | "gradeRemarks",
+    field: "attendanceScore" | "assignmentScore" | "midtermScore" | "affectiveScore" | "finalScore" | "grade" | "gradeRemarks",
     value: string
   ) => {
     setStudents((prev) =>
@@ -182,6 +188,7 @@ export function GradesClient({
 
           // คำนวณคะแนนรวมใหม่ทันที
           const hasAny =
+            updated.attendanceScore !== null ||
             updated.assignmentScore !== null ||
             updated.midtermScore !== null ||
             updated.affectiveScore !== null ||
@@ -189,6 +196,7 @@ export function GradesClient({
 
           if (hasAny) {
             const sum =
+              (updated.attendanceScore || 0) +
               (updated.assignmentScore || 0) +
               (updated.midtermScore || 0) +
               (updated.affectiveScore || 0) +
@@ -213,6 +221,7 @@ export function GradesClient({
     try {
       const itemsToUpdate = students.map((s) => ({
         enrollmentId: s.enrollmentId,
+        attendanceScore: s.attendanceScore,
         assignmentScore: s.assignmentScore,
         midtermScore: s.midtermScore,
         affectiveScore: s.affectiveScore,
@@ -237,10 +246,37 @@ export function GradesClient({
     }
   };
 
+  // คำนวณคะแนนมาเรียนตามเวลาเรียนจริง
+  const _handleAutoFillAttendanceScores = () => {
+    if (!config.attendanceMax || config.attendanceMax <= 0) {
+      toast.error("กรุณากำหนดสัดส่วนคะแนนมาเรียนในการตั้งค่าคะแนนก่อน");
+      return;
+    }
+    setStudents((prev) =>
+      prev.map((item) => {
+        const pct = item.attendancePercentage || 0;
+        const calculated = Math.round(((pct / 100) * (config.attendanceMax || 0)) * 10) / 10;
+        const updated = { ...item, attendanceScore: calculated };
+        const sum =
+          (updated.attendanceScore || 0) +
+          (updated.assignmentScore || 0) +
+          (updated.midtermScore || 0) +
+          (updated.affectiveScore || 0) +
+          (updated.finalScore || 0);
+        updated.totalScore = Math.round(sum * 100) / 100;
+        updated.grade = calculateGrade(updated.totalScore);
+        return updated;
+      })
+    );
+    setHasChanges(true);
+    toast.success(`คำนวณคะแนนมาเรียนจากเวลาเรียนจริงเรียบร้อยแล้ว (เต็ม ${config.attendanceMax} คะแนน)`);
+  };
+
   // บันทึกสัดส่วนคะแนน
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     const sum =
+      Number(configForm.attendanceMax || 0) +
       Number(configForm.assignmentMax) +
       Number(configForm.midtermMax) +
       Number(configForm.affectiveMax) +
@@ -431,11 +467,11 @@ export function GradesClient({
               <th>นามสกุล / ฉายา</th>
               <th>ชั้นปี</th>
               <th>สาขาวิชา</th>
-              <th>การเข้าเรียน (%)</th>
+              <th>มาเรียน/กิจกรรม (%)</th>
               <th>สิทธิ์สอบ</th>
+              <th>จิตวิสัย (${config.affectiveMax})</th>
               <th>คะแนนเก็บ (${config.assignmentMax})</th>
               <th>กลางภาค (${config.midtermMax})</th>
-              <th>จิตวิสัย (${config.affectiveMax})</th>
               <th>ปลายภาค (${config.finalMax})</th>
               <th>รวม (100)</th>
               <th>เกรด</th>
@@ -456,9 +492,9 @@ export function GradesClient({
                 <td>${s.major || "-"}</td>
                 <td class="text-center">${s.attendancePercentage}%</td>
                 <td class="text-center">${s.isEligible ? "มีสิทธิ์สอบ" : "หมดสิทธิ์สอบ"}</td>
+                <td class="text-right">${s.affectiveScore ?? "-"}</td>
                 <td class="text-right">${s.assignmentScore ?? "-"}</td>
                 <td class="text-right">${s.midtermScore ?? "-"}</td>
-                <td class="text-right">${s.affectiveScore ?? "-"}</td>
                 <td class="text-right">${s.finalScore ?? "-"}</td>
                 <td class="text-right" style="font-weight: bold;">${s.totalScore ?? "-"}</td>
                 <td class="text-center ${s.grade === "F" ? "grade-fail" : "grade-pass"}">${s.grade ?? "-"}</td>
@@ -624,6 +660,12 @@ export function GradesClient({
             <span>สาขาวิชา: <b className="text-slate-800 dark:text-slate-200">{course.major || "-"}</b></span>
             {" • "}
             <span>อาจารย์ผู้สอน: <b className="text-slate-800 dark:text-slate-200">{course.primaryTeacher}</b></span>
+            {course.coTeacherNames && (
+              <>
+                {" • "}
+                <span>อาจารย์ผู้สอนร่วม: <b className="text-slate-800 dark:text-slate-200">{course.coTeacherNames}</b></span>
+              </>
+            )}
             {course.startDate && (
               <>
                 {" • "}
@@ -801,9 +843,9 @@ export function GradesClient({
             <div>
               <p className="text-xs font-medium text-slate-500">สัดส่วนคะแนนเต็ม (100 คะแนน)</p>
               <div className="flex items-center gap-1 text-xs font-bold text-slate-700 dark:text-slate-300 mt-1">
+                <span title="จิตวิสัย">{config.affectiveMax}</span> +{" "}
                 <span title="คะแนนเก็บ">{config.assignmentMax}</span> +{" "}
                 <span title="สอบกลางภาค">{config.midtermMax}</span> +{" "}
-                <span title="จิตวิสัย">{config.affectiveMax}</span> +{" "}
                 <span title="สอบปลายภาค">{config.finalMax}</span>
               </div>
             </div>
@@ -812,7 +854,7 @@ export function GradesClient({
             </div>
           </div>
           <p className="text-2xs text-amber-600 dark:text-amber-400 mt-2">
-            เก็บ {config.assignmentMax} | กลาง {config.midtermMax} | จิตวิสัย {config.affectiveMax} | ปลาย {config.finalMax}
+            จิตวิสัย {config.affectiveMax} | เก็บ {config.assignmentMax} | กลาง {config.midtermMax} | ปลาย {config.finalMax}
           </p>
         </LiyonCard>
       </div>
@@ -862,8 +904,23 @@ export function GradesClient({
                 <th className="py-3 px-3 text-center w-12">ที่</th>
                 <th className="py-3 px-3 min-w-[110px]">รหัสนิสิต</th>
                 <th className="py-3 px-3 min-w-[180px]">ชื่อ - นามสกุล / ฉายา</th>
-                <th className="py-3 px-2 text-center min-w-[100px]" title="เวลาเรียนสะสมและสิทธิ์สอบ">
-                  สิทธิ์สอบ
+                <th className="py-3 px-2 text-center min-w-[95px]" title="เวลาเรียนและกิจกรรมสะสม">
+                  มาเรียน/กิจกรรม
+                  <span className="block text-2xs font-normal text-slate-500">
+                    (เวลาเรียน)
+                  </span>
+                </th>
+                <th className="py-3 px-2 text-center min-w-[110px] bg-sky-50/50 dark:bg-sky-950/20" title="คะแนนความขยันมาเรียนและเข้าร่วมกิจกรรม">
+                  คะแนนมาเรียน
+                  <span className="block text-2xs font-normal text-sky-600 dark:text-sky-400">
+                    (เต็ม {config.attendanceMax ?? 0})
+                  </span>
+                </th>
+                <th className="py-3 px-2 text-center min-w-[110px] bg-amber-50/50 dark:bg-amber-950/20">
+                  จิตวิสัย / จิตพิสัย
+                  <span className="block text-2xs font-normal text-amber-600 dark:text-amber-400">
+                    (เต็ม {config.affectiveMax})
+                  </span>
                 </th>
                 <th className="py-3 px-2 text-center min-w-[110px] bg-blue-50/50 dark:bg-blue-950/20">
                   คะแนนเก็บ
@@ -875,12 +932,6 @@ export function GradesClient({
                   สอบระหว่างภาค
                   <span className="block text-2xs font-normal text-purple-600 dark:text-purple-400">
                     (เต็ม {config.midtermMax})
-                  </span>
-                </th>
-                <th className="py-3 px-2 text-center min-w-[110px] bg-amber-50/50 dark:bg-amber-950/20">
-                  จิตวิสัย / จิตพิสัย
-                  <span className="block text-2xs font-normal text-amber-600 dark:text-amber-400">
-                    (เต็ม {config.affectiveMax})
                   </span>
                 </th>
                 <th className="py-3 px-2 text-center min-w-[110px] bg-emerald-50/50 dark:bg-emerald-950/20">
@@ -930,7 +981,7 @@ export function GradesClient({
                         </div>
                       </td>
 
-                      {/* สิทธิ์สอบ */}
+                      {/* มาเรียน/กิจกรรม (เวลาเรียน) */}
                       <td className="py-2.5 px-2 text-center">
                         <span
                           className={`inline-flex items-center px-2 py-0.5 rounded-full text-2xs font-bold ${
@@ -938,10 +989,42 @@ export function GradesClient({
                               ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
                               : "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400"
                           }`}
-                          title={`เข้าเรียน ${st.attendancePercentage}%`}
+                          title={`เข้าเรียนและกิจกรรม ${st.attendancePercentage}% (${isEligible ? "มีสิทธิ์สอบ" : "หมดสิทธิ์สอบ"})`}
                         >
                           {st.attendancePercentage}%
                         </span>
+                      </td>
+
+                      {/* ช่องกรอก: คะแนนมาเรียน/กิจกรรม */}
+                      <td className="py-2 px-2 text-center bg-sky-50/20 dark:bg-sky-950/10">
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          max={config.attendanceMax ?? 100}
+                          value={st.attendanceScore ?? ""}
+                          onChange={(e) =>
+                            handleScoreChange(st.enrollmentId, "attendanceScore", e.target.value)
+                          }
+                          placeholder="-"
+                          className="w-16 py-1 px-1.5 text-center text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-sky-500/30"
+                        />
+                      </td>
+
+                      {/* ช่องกรอก: จิตวิสัย / จิตพิสัย */}
+                      <td className="py-2 px-2 text-center bg-amber-50/20 dark:bg-amber-950/10">
+                        <input
+                          type="number"
+                          step="any"
+                          min="0"
+                          max={config.affectiveMax}
+                          value={st.affectiveScore ?? ""}
+                          onChange={(e) =>
+                            handleScoreChange(st.enrollmentId, "affectiveScore", e.target.value)
+                          }
+                          placeholder="-"
+                          className="w-16 py-1 px-1.5 text-center text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-amber-500/30"
+                        />
                       </td>
 
                       {/* ช่องกรอก: คะแนนเก็บ */}
@@ -973,22 +1056,6 @@ export function GradesClient({
                           }
                           placeholder="-"
                           className="w-16 py-1 px-1.5 text-center text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-purple-500/30"
-                        />
-                      </td>
-
-                      {/* ช่องกรอก: จิตวิสัย / จิตพิสัย */}
-                      <td className="py-2 px-2 text-center bg-amber-50/20 dark:bg-amber-950/10">
-                        <input
-                          type="number"
-                          step="any"
-                          min="0"
-                          max={config.affectiveMax}
-                          value={st.affectiveScore ?? ""}
-                          onChange={(e) =>
-                            handleScoreChange(st.enrollmentId, "affectiveScore", e.target.value)
-                          }
-                          placeholder="-"
-                          className="w-16 py-1 px-1.5 text-center text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-amber-500/30"
                         />
                       </td>
 
@@ -1098,12 +1165,16 @@ export function GradesClient({
             <div className="p-6 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  <LiyonDialogTitle asChild>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                     ตั้งค่าสัดส่วนคะแนนรายวิชา
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  </LiyonDialogTitle>
+                  <LiyonDialogDescription asChild>
+                    <p className="text-xs text-slate-500 mt-0.5">
                     กำหนดคะแนนเต็มของแต่ละส่วน (ผลรวมต้องได้ 100 คะแนน)
                   </p>
+                  </LiyonDialogDescription>
                 </div>
                 <button
                   type="button"
@@ -1117,6 +1188,26 @@ export function GradesClient({
 
             <form onSubmit={handleSaveConfig}>
               <LiyonDialogBody className="p-6 space-y-4">
+                <div className="p-3 bg-sky-50/70 dark:bg-sky-950/30 rounded-xl border border-sky-200 dark:border-sky-800 space-y-1">
+                  <label className="block text-xs font-bold text-sky-900 dark:text-sky-200">
+                    เวลาเรียน / มาเรียน / เข้ากิจกรรม (Attendance & Participation)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={configForm.attendanceMax ?? 0}
+                    onChange={(e) =>
+                      setConfigForm({ ...configForm, attendanceMax: Number(e.target.value) })
+                    }
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-sky-300 dark:border-sky-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white font-bold focus:ring-2 focus:ring-sky-500/30"
+                    required
+                  />
+                  <p className="text-2xs text-sky-700 dark:text-sky-300">
+                    *ระบุ 0 ได้ หากไม่ต้องการนำเวลาเรียนมาคิดเป็นคะแนน (ใช้เฉพาะเกณฑ์ 80% สิทธิ์สอบอย่างเดียว)
+                  </p>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                     คะแนนเก็บ / การบ้าน / ชิ้นงาน (Assignment)
@@ -1235,12 +1326,16 @@ export function GradesClient({
             <div className="p-6 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  <LiyonDialogTitle asChild>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                     นำเข้าคะแนนจากไฟล์ CSV / ข้อความ
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  </LiyonDialogTitle>
+                  <LiyonDialogDescription asChild>
+                    <p className="text-xs text-slate-500 mt-0.5">
                     วางข้อมูล CSV ที่คัดลอกมาจาก Excel หรือไฟล์ตารางคะแนน
                   </p>
+                  </LiyonDialogDescription>
                 </div>
                 <button
                   type="button"

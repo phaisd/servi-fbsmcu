@@ -58,15 +58,39 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
 
   // ดึงรายการเมนูนำทาง (Header Navigation Links) จากการตั้งค่าใน Settings
   const headerSettings = tenantSettings?.hero?.header;
-  const configuredNavLinks = (headerSettings?.navLinks ?? []).filter((l) => l.enabled !== false);
+  const rawConfiguredNavLinks = (headerSettings?.navLinks ?? []).filter((l) => l.enabled !== false);
+
+  // ตรวจสอบให้มีเมนู "ทำเนียบผู้บริหาร" แยกออกจาก "คณาจารย์และบุคลากร" อย่างชัดเจน
+  const configuredNavLinks = [...rawConfiguredNavLinks];
+  if (configuredNavLinks.length > 0 && !configuredNavLinks.some((l) => l.href === "/portal/executives")) {
+    const personnelIdx = configuredNavLinks.findIndex((l) => l.href === "/portal/personnel");
+    const execLink = {
+      id: "executives",
+      labelTh: "ทำเนียบผู้บริหาร",
+      labelEn: "Executives",
+      href: "/portal/executives",
+      enabled: true,
+    };
+    if (personnelIdx >= 0) {
+      configuredNavLinks.splice(personnelIdx, 0, execLink);
+    } else {
+      configuredNavLinks.push(execLink);
+    }
+  }
 
   const navItems =
     configuredNavLinks.length > 0
       ? configuredNavLinks.map((link) => {
-          const label =
+          let label =
             locale === "th"
               ? link.labelTh || link.labelEn
               : link.labelEn || link.labelTh;
+          if (link.href === "/portal/personnel" && (!link.labelTh || link.labelTh.includes("ABOUT"))) {
+            label = locale === "th" ? "คณาจารย์และบุคลากร" : "Faculty & Staff";
+          }
+          if (link.href === "/portal/executives") {
+            label = locale === "th" ? "ทำเนียบผู้บริหาร" : "Executives";
+          }
           const active =
             pathname === link.href ||
             (link.href !== "/" &&
@@ -91,14 +115,14 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
             active: pathname.startsWith("/portal/programs"),
           },
           {
-            label: locale === "th" ? "ทำเนียบบุคลากร" : "Personnel",
-            href: "/portal/personnel",
-            active: pathname === "/portal/personnel" || pathname.startsWith("/portal/personnel/"),
-          },
-          {
             label: locale === "th" ? "ทำเนียบผู้บริหาร" : "Executives",
             href: "/portal/executives",
             active: pathname.startsWith("/portal/executives"),
+          },
+          {
+            label: locale === "th" ? "คณาจารย์และบุคลากร" : "Faculty & Staff",
+            href: "/portal/personnel",
+            active: pathname === "/portal/personnel" || pathname.startsWith("/portal/personnel/"),
           },
           {
             label: locale === "th" ? "ผลงานวิจัย" : "Research",

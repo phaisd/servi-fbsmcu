@@ -132,6 +132,38 @@ export function formatPublicationYearLabel(year: string, locale: string = "th"):
   return year;
 }
 
+export function getPersonnelCardContact(person: PersonnelItem, locale: string) {
+  // 1. Phone number
+  let phone = person.phoneNumber?.trim() || "";
+  if (!phone && person.contactInfo) {
+    const match = person.contactInfo.match(/โทร[.\s:]*([0-9-—–\s,]+)/);
+    if (match && match[1]) {
+      phone = match[1].trim();
+    }
+  }
+  if (!phone) {
+    phone = locale === "th" ? "035-248-000 ต่อ 8323" : "+66 3524 8000 ext. 8323";
+  }
+
+  // 2. Office location / Workplace
+  let office = person.officeLocation?.trim() || "";
+  if (!office && person.contactInfo) {
+    const match = person.contactInfo.match(/สถานที่ทำงาน:\s*([^|]+)/);
+    if (match && match[1]) {
+      office = match[1].trim();
+    } else {
+      office = person.contactInfo.split("|")[0].trim();
+    }
+  }
+  if (!office) {
+    office = person.department?.nameTh
+      ? `${person.department.nameTh} คณะพุทธศาสตร์`
+      : (locale === "th" ? "คณะพุทธศาสตร์ มจร วังน้อย" : "Faculty of Buddhism, MCU Wang Noi");
+  }
+
+  return { phone, office };
+}
+
 export function PortalPersonnelClient({
   items,
   locale,
@@ -539,6 +571,36 @@ export function PortalPersonnelClient({
       {/* ========================================================================= */}
       {viewMode === "directory" && (
         <div className="space-y-8">
+          {/* Executive Directory Banner */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/25 shadow-xs">
+            <div className="flex items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-xs">
+                <Award className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <span>{locale === "th" ? "ทำเนียบผู้บริหารคณะพุทธศาสตร์" : "Executive Leadership Directory"}</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 font-bold uppercase tracking-wider">
+                    {locale === "th" ? "หน้าเฉพาะ" : "Dedicated Page"}
+                  </span>
+                </h4>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {locale === "th"
+                    ? "โครงสร้างการบริหาร คณบดี รองคณบดี หัวหน้าภาควิชา ผู้อำนวยการหลักสูตร และสำนักงานคณบดี แยกเป็นหน้าเฉพาะแล้ว"
+                    : "Dean, Associate Deans, Department Heads, Program Directors, and Dean's Office are on the dedicated Executive page."}
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/portal/executives"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 transition-all shrink-0 shadow-sm hover:shadow-md cursor-pointer"
+            >
+              <Award className="w-4 h-4" />
+              <span>{locale === "th" ? "ไปยังหน้าทำเนียบผู้บริหาร" : "Go to Executives Directory"}</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
           {/* Search and Filters Bar */}
           <div className="p-4 sm:p-5 rounded-2xl bg-card border shadow-xs space-y-4">
             {/* Top row: Search input + Department Dropdown */}
@@ -650,6 +712,15 @@ export function PortalPersonnelClient({
                     </span>
                   </button>
                 )}
+
+                <Link
+                  href="/portal/executives"
+                  className="px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/20"
+                >
+                  <Award className="w-3.5 h-3.5 text-amber-500" />
+                  <span>{locale === "th" ? "เปิดหน้าทำเนียบผู้บริหารเฉพาะ" : "Open Executives Page"}</span>
+                  <ExternalLink className="w-3 h-3 opacity-70" />
+                </Link>
 
                 {paliSanskritCount > 0 && (
                   <button
@@ -856,25 +927,30 @@ export function PortalPersonnelClient({
                               </p>
                             </div>
 
-                            {/* Education Highlight */}
-                            {person.educationTh && (
-                              <div className="p-2.5 rounded-xl bg-muted/40 border border-border/50 text-xs text-muted-foreground line-clamp-2">
-                                <span className="font-semibold text-foreground">วุฒิการศึกษา: </span>
-                                {person.educationTh.split("\n")[0]}
-                              </div>
-                            )}
-
-                            {/* Contact details */}
-                            {person.email && (
-                              <div className="pt-2 border-t border-border/60 space-y-1.5 text-xs text-muted-foreground">
-                                <div className="flex items-center gap-2 truncate">
-                                  <Mail className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-                                  <a href={`mailto:${person.email}`} className="hover:text-primary transition-colors truncate">
-                                    {person.email}
-                                  </a>
+                            {/* Contact details: Phone and Workplace (Replacing Education & Email) */}
+                            {(() => {
+                              const contact = getPersonnelCardContact(person, locale);
+                              return (
+                                <div className="pt-2.5 border-t border-border/60 space-y-2 text-xs text-muted-foreground">
+                                  <div className="flex items-center gap-2 truncate">
+                                    <Phone className="h-3.5 w-3.5 shrink-0 text-primary/80" />
+                                    <span className="font-semibold text-foreground shrink-0">
+                                      {locale === "th" ? "เบอร์ติดต่อ:" : "Tel:"}
+                                    </span>
+                                    <span className="truncate">{contact.phone}</span>
+                                  </div>
+                                  <div className="flex items-start gap-2">
+                                    <MapPin className="h-3.5 w-3.5 shrink-0 text-amber-500 mt-0.5" />
+                                    <div className="line-clamp-2 leading-relaxed">
+                                      <span className="font-semibold text-foreground">
+                                        {locale === "th" ? "สถานที่ทำงาน: " : "Office: "}
+                                      </span>
+                                      <span>{contact.office}</span>
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
-                            )}
+                              );
+                            })()}
                           </div>
                         </div>
 

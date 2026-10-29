@@ -1,6 +1,16 @@
 import type { CertificateRequestMetadata } from "./validations";
 import { buildCertificateDocumentText } from "./templates";
 
+function escapeXml(str?: string | null): string {
+  if (!str) return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
 /**
  * แปลงฟอนต์เป็นชื่อฟอนต์ที่ Microsoft Word รู้จักเป็นอย่างดี
  */
@@ -8,6 +18,7 @@ function getWordFontName(fontFamily?: string, isEng?: boolean): string {
   const chosen = fontFamily || (isEng ? "Times New Roman" : "TH SarabunPSK");
   if (chosen.includes("Sarabun")) return "TH SarabunPSK, TH Sarabun New, Sarabun, sans-serif";
   if (chosen.includes("Times")) return "Times New Roman, Times, serif";
+  if (chosen.includes("Arial")) return "Arial, Helvetica, sans-serif";
   if (chosen.includes("Noto Serif")) return "Noto Serif Thai, TH SarabunPSK, serif";
   if (chosen.includes("Angsana")) return "Angsana New, AngsanaUPC, TH SarabunPSK, sans-serif";
   if (chosen.includes("Cordia")) return "Cordia New, CordiaUPC, TH SarabunPSK, sans-serif";
@@ -29,6 +40,7 @@ export function generateCertificateWordHtml(
   const fontName = getWordFontName(meta.fontFamily, isEng);
   const topMargin = meta.marginTopMm || 25;
   const sideMargin = meta.marginSideMm || 25;
+  const bottomMargin = meta.marginBottomMm || 12;
   const showPhotoBox = meta.showPhotoBox !== false;
   const photoBoxPosition = meta.photoBoxPosition ?? "BOTTOM_LEFT";
   const photoBoxOffsetMm = meta.photoBoxOffsetMm ?? 28;
@@ -130,7 +142,8 @@ export function generateCertificateWordHtml(
             <div>โทรศัพท์ ๐-๓๕๒๔-๘๐๙๖ ภายใน ๘๐๙๖</div>
             <div>https://fb.mcu.ac.th/</div>
           </td>
-          <td style="vertical-align:bottom; width:35%; text-align:right;">
+          <td style="vertical-align:bottom; width:40%; text-align:right;">
+            ${meta.officerName ? `<div style="font-size:8pt; color:#444; margin-bottom:2pt;"><span style="color:#666;">ผู้พิมพ์: </span><b>${escapeXml(meta.officerName)}</b>${meta.officerPosition ? ` (${escapeXml(meta.officerPosition)})` : ""}</div>` : ""}
             <div><b>ตรวจสอบความถูกต้องของเอกสาร</b></div>
             <div style="font-size:8pt; color:#666;">Ref: ${doc.docNo}</div>
             <div style="font-size:7.5pt; color:#0066cc;">${verifyUrl}</div>
@@ -207,7 +220,8 @@ export function generateCertificateWordHtml(
             <div>Mahachulalongkornrajavidyalaya University</div>
             <div>Tel. +66 3524 8000 ext. 8323, 8096 | https://fb.mcu.ac.th/</div>
           </td>
-          <td style="vertical-align:bottom; width:35%; text-align:right;">
+          <td style="vertical-align:bottom; width:45%; text-align:right;">
+            ${meta.officerName ? `<div style="font-size:8pt; color:#444; margin-bottom:2pt;"><span style="color:#666;">Printed by: </span><b>${escapeXml(meta.officerName)}</b>${meta.officerPosition ? ` (${escapeXml(meta.officerPosition)})` : ""}</div>` : ""}
             <div><b>Official Verification • MCU</b></div>
             <div style="font-size:7.5pt; color:#0066cc;">${verifyUrl}</div>
           </td>
@@ -270,7 +284,8 @@ export function generateCertificateWordHtml(
             <div>${doc.coordinatorName || "สำนักงานคณบดีคณะพุทธศาสตร์"}</div>
             <div>โทร. ${doc.coordinatorPhone || "035-248-096"} | https://fb.mcu.ac.th/</div>
           </td>
-          <td style="vertical-align:bottom; width:35%; text-align:right;">
+          <td style="vertical-align:bottom; width:40%; text-align:right;">
+            ${meta.officerName ? `<div style="font-size:8pt; color:#444; margin-bottom:2pt;"><span style="color:#666;">ผู้พิมพ์: </span><b>${escapeXml(meta.officerName)}</b>${meta.officerPosition ? ` (${escapeXml(meta.officerPosition)})` : ""}</div>` : ""}
             <div><b>ตรวจสอบความถูกต้องของเอกสาร</b></div>
             <div style="font-size:7.5pt; color:#0066cc;">${verifyUrl}</div>
           </td>
@@ -334,7 +349,8 @@ export function generateCertificateWordHtml(
             <div>มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย</div>
             <div>โทรศัพท์ ๐-๓๕๒๔-๘๐๙๖ ภายใน ๘๐๙๖ | https://fb.mcu.ac.th/</div>
           </td>
-          <td style="vertical-align:bottom; width:35%; text-align:right;">
+          <td style="vertical-align:bottom; width:40%; text-align:right;">
+            ${meta.officerName ? `<div style="font-size:8pt; color:#444; margin-bottom:2pt;"><span style="color:#666;">ผู้พิมพ์: </span><b>${escapeXml(meta.officerName)}</b>${meta.officerPosition ? ` (${escapeXml(meta.officerPosition)})` : ""}</div>` : ""}
             <div><b>ตรวจสอบความถูกต้องของเอกสาร</b></div>
             <div style="font-size:7.5pt; color:#0066cc;">${verifyUrl}</div>
           </td>
@@ -362,7 +378,7 @@ export function generateCertificateWordHtml(
       <style>
         @page Section1 {
           size: 210mm 297mm;
-          margin: ${topMargin}mm ${sideMargin}mm 20mm ${sideMargin}mm;
+          margin: ${topMargin}mm ${sideMargin}mm ${bottomMargin}mm ${sideMargin}mm;
           mso-header-margin: 35.4pt;
           mso-footer-margin: 35.4pt;
           mso-paper-source: 0;

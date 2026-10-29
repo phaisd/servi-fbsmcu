@@ -21,6 +21,8 @@ export {
   LiyonDialogHeader,
   LiyonDialogBody,
   LiyonDialogFooter,
+  LiyonDialogTitle,
+  LiyonDialogDescription,
   LiyonDialogPrimitive,
 } from "./liyon-dialog";
 export type { LiyonDialogProps, LiyonDialogHeaderProps, LiyonDialogCloseButtonProps } from "./liyon-dialog";

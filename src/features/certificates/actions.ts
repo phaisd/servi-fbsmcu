@@ -159,7 +159,12 @@ export async function getCertificateNoticeAction() {
   return getCertificateNotice(tenantId);
 }
 
-export async function updateCertificateNoticeAction(data: { noticeTh: string; noticeEn?: string }) {
+export async function updateCertificateNoticeAction(data: {
+  noticeTh: string;
+  noticeEn?: string;
+  warningTh?: string;
+  warningEn?: string;
+}) {
   const session = await requireSession();
   await requirePermission(CERTIFICATES_P.requestManage);
   const res = await updateCertificateNotice(session.tenantId, session.userId, data);

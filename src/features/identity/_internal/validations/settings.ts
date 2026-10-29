@@ -229,6 +229,13 @@ export const DEFAULT_FOOTER_QUICK_LINKS: FooterLink[] = [
     enabled: true,
   },
   {
+    id: "link-executives",
+    labelTh: "ทำเนียบผู้บริหาร",
+    labelEn: "Executive Board",
+    href: "/portal/executives",
+    enabled: true,
+  },
+  {
     id: "link-personnel",
     labelTh: "คณาจารย์และบุคลากร",
     labelEn: "Faculty & Staff",
@@ -303,6 +310,9 @@ export const footerSchema = z.object({
   mainWebsiteTextTh: z.string().default("เว็บไซต์หลัก มหาวิทยาลัย มจร"),
   mainWebsiteTextEn: z.string().default("MCU Main Website"),
   showStaffConsole: z.boolean().default(true),
+  showDevCredit: z.boolean().default(true),
+  devCreditTh: z.string().default("Dev. by สำนักงานคณบดีคณะพุทธศาสตร์"),
+  devCreditEn: z.string().default("Dev. by Office of the Dean, Faculty of Buddhism"),
   quickLinks: z.array(footerLinkSchema).optional().default(DEFAULT_FOOTER_QUICK_LINKS),
   systemLinks: z.array(footerLinkSchema).optional().default(DEFAULT_FOOTER_SYSTEM_LINKS),
 });
@@ -589,6 +599,9 @@ export const DEFAULT_FOOTER_SETTINGS: FooterSettings = {
   mainWebsiteTextTh: "เว็บไซต์หลัก มหาวิทยาลัย มจร",
   mainWebsiteTextEn: "MCU Main Website",
   showStaffConsole: true,
+  showDevCredit: true,
+  devCreditTh: "Dev. by สำนักงานคณบดีคณะพุทธศาสตร์",
+  devCreditEn: "Dev. by Office of the Dean, Faculty of Buddhism",
   quickLinks: DEFAULT_FOOTER_QUICK_LINKS,
   systemLinks: DEFAULT_FOOTER_SYSTEM_LINKS,
 };

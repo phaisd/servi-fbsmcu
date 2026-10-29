@@ -53,7 +53,10 @@ services:
       BOOTSTRAP_TENANT_NAME_TH: ${BOOTSTRAP_TENANT_NAME_TH:-คณะพุทธศาสตร์}
       BOOTSTRAP_TENANT_NAME_EN: ${BOOTSTRAP_TENANT_NAME_EN:-Faculty of Buddhism}
     ports:
-      - "3000:3000"
+      # Bound to loopback interface so traffic MUST flow through Cloudflare / Reverse Proxy
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - uploads_data:/app/public/uploads
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3000/api/auth/providers || exit 1"]
       interval: 10s
@@ -65,6 +68,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  uploads_data:
     driver: local
 
 networks:

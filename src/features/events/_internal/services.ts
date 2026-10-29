@@ -3,6 +3,13 @@ import { prisma as db } from "@/shared/lib/infra/prisma";
 import { writeAudit } from "@/features/identity/server";
 import { RegistrationStatus } from "@/generated/prisma";
 import type { Prisma } from "@/generated/prisma";
+import {
+  DEFAULT_MEDITATION_CONFIG,
+  type MeditationConfig,
+  type PeriodAttendanceItem,
+  type MeditationAttendanceStatus,
+} from "../meditation-types";
+import { SAMPLE_ENGLISH_ATTENDEES, SAMPLE_THAI_ATTENDEES } from "../meditation-sample-data";
 
 export async function getEvents(tenantId: string) {
   const events = await db.event.findMany({
@@ -1183,4 +1190,250 @@ export async function getStudentActivityTranscript(tenantId: string, studentCode
       issuedDate: new Date().toISOString(),
     },
   };
+}
+
+
+// =============================================================
+// MEDITATION PRACTICE RETREAT (10-12 DAYS) SERVICES
+// =============================================================
+
+export async function updateMeditationAttendance(
+  tenantId: string,
+  actorId: string,
+  eventId: string,
+  attendeeId: string,
+  dayKey: string,
+  periodId: string,
+  status: "PRESENT" | "LATE" | "ABSENT" | "LEAVE" | "CLEAR",
+  note?: string
+) {
+  const reg = await db.eventRegistration.findUnique({
+    where: { id: attendeeId, tenantId, eventId },
+  });
+  if (!reg) throw new Error("Attendee not found");
+
+  const currentDaily = ((reg.dailyAttendance as unknown as Record<string, Record<string, PeriodAttendanceItem>>) || {});
+  const dayRecord = { ...(currentDaily[dayKey] || {}) };
+
+  if (status === "CLEAR") {
+    delete dayRecord[periodId];
+  } else {
+    dayRecord[periodId] = {
+      status,
+      note: note || "",
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  const updatedDaily = {
+    ...currentDaily,
+    [dayKey]: dayRecord,
+  };
+
+  const updated = await db.eventRegistration.update({
+    where: { id: attendeeId },
+    data: { dailyAttendance: updatedDaily as unknown as Prisma.InputJsonValue },
+  });
+
+  return updated;
+}
+
+export async function batchUpdateMeditationAttendance(
+  tenantId: string,
+  actorId: string,
+  eventId: string,
+  updates: Array<{
+    attendeeId: string;
+    dayKey: string;
+    periodId: string;
+    status: "PRESENT" | "LATE" | "ABSENT" | "LEAVE" | "CLEAR";
+    note?: string;
+  }>
+) {
+  const byAttendee: Record<string, Array<{ dayKey: string; periodId: string; status: MeditationAttendanceStatus | "CLEAR"; note?: string }>> = {};
+  for (const u of updates) {
+    if (!byAttendee[u.attendeeId]) byAttendee[u.attendeeId] = [];
+    byAttendee[u.attendeeId].push(u);
+  }
+
+  for (const [attendeeId, attendeeUpdates] of Object.entries(byAttendee)) {
+    const reg = await db.eventRegistration.findUnique({
+      where: { id: attendeeId, tenantId, eventId },
+    });
+    if (!reg) continue;
+
+    const currentDaily = ((reg.dailyAttendance as unknown as Record<string, Record<string, PeriodAttendanceItem>>) || {});
+    const updatedDaily = { ...currentDaily };
+
+    for (const u of attendeeUpdates) {
+      const dayRecord = { ...(updatedDaily[u.dayKey] || {}) };
+      if (u.status === "CLEAR") {
+        delete dayRecord[u.periodId];
+      } else {
+        dayRecord[u.periodId] = {
+          status: u.status,
+          note: u.note || "",
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      updatedDaily[u.dayKey] = dayRecord;
+    }
+
+    await db.eventRegistration.update({
+      where: { id: attendeeId },
+      data: { dailyAttendance: updatedDaily as unknown as Prisma.InputJsonValue },
+    });
+  }
+
+  return { success: true };
+}
+
+export async function updateAttendeeGroup(
+  tenantId: string,
+  actorId: string,
+  attendeeId: string,
+  data: {
+    groupNumber?: number | null;
+    groupName?: string | null;
+    program?: string;
+    studentName?: string;
+    studentCode?: string;
+    major?: string;
+  }
+) {
+  const updated = await db.eventRegistration.update({
+    where: { id: attendeeId, tenantId },
+    data,
+  });
+  return updated;
+}
+
+export async function saveMeditationConfig(
+  tenantId: string,
+  actorId: string,
+  eventId: string,
+  config: MeditationConfig | Prisma.InputJsonValue
+) {
+  const updated = await db.event.update({
+    where: { id: eventId, tenantId },
+    data: { meditationConfig: config as unknown as Prisma.InputJsonValue },
+  });
+  return updated;
+}
+
+export async function seedMeditationPracticeEvent(tenantId: string, actorId: string) {
+  // Check if an existing meditation event exists
+  const existing = await db.event.findFirst({
+    where: {
+      tenantId,
+      eventType: "MEDITATION",
+    },
+    include: { _count: { select: { registrations: true } } },
+  });
+
+  let eventId: string;
+
+  if (!existing) {
+    const newEvent = await db.event.create({
+      data: {
+        tenantId,
+        title: "โครงการปฏิบัติวิปัสสนากัมมัฏฐานประจำปี นิสิตคณะพุทธศาสตร์ (Annual Meditation Practice)",
+        description: "โครงการปฏิบัติวิปัสสนากัมมัฏฐานประจำปี สำหรับนิสิตคณะพุทธศาสตร์ ชั้นปีที่ 1 - 4 ทั้งหลักสูตรภาษาไทยและภาษาอังกฤษ รวมระยะเวลา 12 วัน ณ อาคารปฏิบัติธรรมโพธิญาณมหาวิชชาลัย ต.ศาลายา อ.พุทธมณฑล จ.นครปฐม",
+        location: "ณ อาคารปฏิบัติธรรมโพธิญาณมหาวิชชาลัย ต.ศาลายา อ.พุทธมณฑล จ.นครปฐม",
+        startDate: new Date("2025-12-11T00:00:00+07:00"),
+        endDate: new Date("2025-12-22T23:59:59+07:00"),
+        capacity: 200,
+        isActive: true,
+        academicYear: "2568",
+        activityHours: 72,
+        eventType: "MEDITATION",
+        targetGroup: "FACULTY",
+        meditationConfig: DEFAULT_MEDITATION_CONFIG as unknown as Prisma.InputJsonValue,
+      },
+    });
+    eventId = newEvent.id;
+  } else {
+    eventId = existing.id;
+    if (!existing.meditationConfig) {
+      await db.event.update({
+        where: { id: existing.id },
+        data: { meditationConfig: DEFAULT_MEDITATION_CONFIG as unknown as Prisma.InputJsonValue },
+      });
+    }
+  }
+
+  // Check if registrations already seeded
+  const currentRegCount = await db.eventRegistration.count({
+    where: { tenantId, eventId },
+  });
+
+  if (currentRegCount === 0) {
+    const allAttendees = [...SAMPLE_ENGLISH_ATTENDEES, ...SAMPLE_THAI_ATTENDEES];
+    const periods = ["p1", "p2", "p3", "p4"];
+    
+    for (const att of allAttendees) {
+      const day1Att: Record<string, PeriodAttendanceItem> = {};
+      
+      if (att.studentCode === "T105") {
+        day1Att["p1"] = { status: "LATE", note: "มาสาย 10 นาที" };
+        day1Att["p2"] = { status: "PRESENT" };
+        day1Att["p3"] = { status: "PRESENT" };
+        day1Att["p4"] = { status: "PRESENT" };
+      } else if (att.studentCode === "T208") {
+        day1Att["p1"] = { status: "PRESENT" };
+        day1Att["p2"] = { status: "PRESENT" };
+        day1Att["p3"] = { status: "ABSENT", note: "ไม่ได้มาลงชื่อ" };
+        day1Att["p4"] = { status: "PRESENT" };
+      } else if (att.studentCode === "T307") {
+        day1Att["p1"] = { status: "PRESENT" };
+        day1Att["p2"] = { status: "LEAVE", note: "ปวดศีรษะ พักห้องพยาบาล" };
+        day1Att["p3"] = { status: "LEAVE", note: "ปวดศีรษะ" };
+        day1Att["p4"] = { status: "PRESENT" };
+      } else if (att.studentCode === "E1202") {
+        day1Att["p1"] = { status: "PRESENT" };
+        day1Att["p2"] = { status: "LATE", note: "Late 5 mins" };
+        day1Att["p3"] = { status: "PRESENT" };
+        day1Att["p4"] = { status: "PRESENT" };
+      } else if (att.studentCode === "E1209") {
+        day1Att["p1"] = { status: "PRESENT" };
+        day1Att["p2"] = { status: "PRESENT" };
+        day1Att["p3"] = { status: "PRESENT" };
+        day1Att["p4"] = { status: "ABSENT", note: "Missed evening session" };
+      } else {
+        periods.forEach(p => {
+          day1Att[p] = { status: "PRESENT" };
+        });
+      }
+
+      await db.eventRegistration.create({
+        data: {
+          tenantId,
+          eventId: eventId,
+          studentCode: att.studentCode,
+          studentName: att.studentName,
+          major: att.major,
+          role: att.role,
+          yearLevel: att.yearLevel,
+          department: att.department,
+          groupNumber: att.groupNumber,
+          groupName: att.groupName,
+          program: att.program,
+          status: "ATTENDED",
+          dailyAttendance: {
+            day_1: day1Att,
+          } as unknown as Prisma.InputJsonValue,
+        },
+      });
+    }
+  }
+
+  await writeAudit({
+    tenantId,
+    actorId,
+    action: "events.meditation.seed",
+    entity: "Event",
+    entityId: eventId,
+  });
+
+  return { success: true, eventId };
 }

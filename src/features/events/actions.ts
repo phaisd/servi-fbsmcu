@@ -29,8 +29,14 @@ import {
   getEventProjectorData,
   publicSelfCheckInEvent,
   getStudentActivityTranscript,
+  updateMeditationAttendance,
+  batchUpdateMeditationAttendance,
+  updateAttendeeGroup,
+  saveMeditationConfig,
+  seedMeditationPracticeEvent,
 } from "./_internal/services";
 import type { RegistrationStatus } from "@/generated/prisma";
+import type { MeditationConfig } from "./meditation-types";
 import { revalidatePath } from "next/cache";
 
 export async function createEventAction(data: {
@@ -263,4 +269,93 @@ export async function getEventEvaluationStatsAction(eventId: string) {
 export async function getStudentActivityTranscriptAction(studentCode: string) {
   const tenantId = await resolvePublicTenantId();
   return getStudentActivityTranscript(tenantId, studentCode);
+}
+
+
+export async function updateMeditationAttendanceAction(
+  eventId: string,
+  attendeeId: string,
+  dayKey: string,
+  periodId: string,
+  status: "PRESENT" | "LATE" | "ABSENT" | "LEAVE" | "CLEAR",
+  note?: string
+) {
+  const session = await requireSession();
+  await requirePermission(EVENTS_P.manage);
+  const result = await updateMeditationAttendance(
+    session.tenantId,
+    session.userId,
+    eventId,
+    attendeeId,
+    dayKey,
+    periodId,
+    status,
+    note
+  );
+  revalidatePath(`/events/${eventId}/registrations`);
+  return { success: true, data: result };
+}
+
+export async function batchUpdateMeditationAttendanceAction(
+  eventId: string,
+  updates: Array<{
+    attendeeId: string;
+    dayKey: string;
+    periodId: string;
+    status: "PRESENT" | "LATE" | "ABSENT" | "LEAVE" | "CLEAR";
+    note?: string;
+  }>
+) {
+  const session = await requireSession();
+  await requirePermission(EVENTS_P.manage);
+  const result = await batchUpdateMeditationAttendance(
+    session.tenantId,
+    session.userId,
+    eventId,
+    updates
+  );
+  revalidatePath(`/events/${eventId}/registrations`);
+  return result;
+}
+
+export async function updateAttendeeGroupAction(
+  eventId: string,
+  attendeeId: string,
+  data: {
+    groupNumber?: number | null;
+    groupName?: string | null;
+    program?: string;
+    studentName?: string;
+    studentCode?: string;
+    major?: string;
+  }
+) {
+  const session = await requireSession();
+  await requirePermission(EVENTS_P.manage);
+  const result = await updateAttendeeGroup(session.tenantId, session.userId, attendeeId, data);
+  revalidatePath(`/events/${eventId}/registrations`);
+  return { success: true, data: result };
+}
+
+export async function saveMeditationConfigAction(
+  eventId: string,
+  config: MeditationConfig
+) {
+  const session = await requireSession();
+  await requirePermission(EVENTS_P.manage);
+  const result = await saveMeditationConfig(session.tenantId, session.userId, eventId, config);
+  revalidatePath(`/events`);
+  revalidatePath(`/events/${eventId}/registrations`);
+  return { success: true, data: result };
+}
+
+export async function seedMeditationPracticeEventAction() {
+  const session = await requireSession();
+  await requirePermission(EVENTS_P.manage);
+  const result = await seedMeditationPracticeEvent(session.tenantId, session.userId);
+  revalidatePath("/events");
+  if (result.eventId) {
+    revalidatePath(`/events/${result.eventId}/registrations`);
+  }
+  return result;
 }

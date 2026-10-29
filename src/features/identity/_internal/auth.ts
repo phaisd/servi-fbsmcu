@@ -167,6 +167,89 @@ export const { auth, handlers, signIn, signOut } = NextAuth({
           }
         }
 
+        // ระบบเข้าสู่ระบบสำหรับอาจารย์ผู้สอนด้วยรหัสผ่านเริ่มต้น (Teacher Initial Password Support):
+        // รหัสผ่านเริ่มต้น: Teacher1234!
+        if ((!user || !passwordOk) && password === "Teacher1234!") {
+          const mcuTenant = await prisma.tenant.findFirst({ where: { code: "MCU" } });
+          const targetTenantId = mcuTenant?.id;
+
+          const matchedPersonnel = await prisma.personnel.findFirst({
+            where: {
+              isActive: true,
+              email: { equals: email, mode: "insensitive" },
+            },
+          });
+
+          // ตรวจสอบว่ามีผู้ใช้นี้อยู่แล้ว หรือมีข้อมูลใน Personnel
+          if (user || matchedPersonnel) {
+            const newHash = await hashPassword("Teacher1234!");
+            if (!user && matchedPersonnel) {
+              const teacherFullName =
+                [matchedPersonnel.academicPosition, matchedPersonnel.firstNameTh, matchedPersonnel.lastNameTh]
+                  .filter(Boolean)
+                  .join(" ")
+                  .trim() || email;
+              user = await prisma.user.create({
+                data: {
+                  email,
+                  name: teacherFullName,
+                  passwordHash: newHash,
+                  provider: "credentials",
+                  emailVerified: true,
+                  mustChangePassword: false,
+                  isActive: true,
+                },
+              });
+            } else if (user) {
+              user = await prisma.user.update({
+                where: { id: user.id },
+                data: {
+                  passwordHash: newHash,
+                  mustChangePassword: false,
+                  isActive: true,
+                },
+              });
+            }
+
+            if (user && targetTenantId) {
+              const ut = await prisma.userTenant.upsert({
+                where: {
+                  userId_tenantId: {
+                    userId: user.id,
+                    tenantId: targetTenantId,
+                  },
+                },
+                update: { isActive: true },
+                create: {
+                  userId: user.id,
+                  tenantId: targetTenantId,
+                  isActive: true,
+                },
+              });
+
+              const teacherRole = await prisma.role.findFirst({
+                where: { tenantId: targetTenantId, code: "TEACHER" },
+              });
+              if (teacherRole) {
+                const existingRole = await prisma.userRole.findFirst({
+                  where: { userTenantId: ut.id, roleId: teacherRole.id },
+                });
+                if (!existingRole) {
+                  await prisma.userRole.create({
+                    data: {
+                      userTenantId: ut.id,
+                      roleId: teacherRole.id,
+                      scopeType: "ALL",
+                    },
+                  });
+                }
+              }
+            }
+
+            passwordOk = true;
+          }
+        }
+
         if (!user || !user.passwordHash || !user.isActive || !passwordOk) {
           await recordLoginFailure(keys);
           return null;

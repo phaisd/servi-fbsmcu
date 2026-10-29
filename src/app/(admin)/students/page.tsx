@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { CURRICULUM_P } from "@/features/curriculum";
 import { requirePermission } from "@/features/identity/server";
 import { ATTENDANCE_P } from "@/features/attendance";
 import { getAllStudentsDirectory } from "@/features/attendance/server";
@@ -9,6 +11,9 @@ export const metadata = {
 
 export default async function CentralStudentsDirectoryPage() {
   const ctx = await requirePermission(ATTENDANCE_P.manage);
+  if (!ctx.isSuperAdmin && !ctx.permissions.includes(CURRICULUM_P.manage)) {
+    redirect("/attendance/classes");
+  }
   const students = await getAllStudentsDirectory(ctx.tenantId, ctx.userId);
 
   // Check if scoped curriculum officer

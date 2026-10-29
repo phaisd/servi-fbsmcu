@@ -435,6 +435,7 @@ export async function batchUpdateCourseGradesAction(
   courseId: string,
   items: Array<{
     enrollmentId: string;
+    attendanceScore?: number | null;
     assignmentScore?: number | null;
     midtermScore?: number | null;
     affectiveScore?: number | null;
@@ -463,6 +464,7 @@ export async function batchUpdateCourseGradesAction(
 export async function updateCourseGradingConfigAction(
   courseId: string,
   config: {
+    attendanceMax?: number;
     assignmentMax: number;
     midtermMax: number;
     affectiveMax: number;

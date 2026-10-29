@@ -136,6 +136,9 @@ export function RegistrationsClient({ event, initialItems }: Props) {
   const [yearFilter, setYearFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ATTENDED" | "REGISTERED">("ALL");
   const [search, setSearch] = useState("");
+  const [_activeView, _setActiveView] = useState<"MEDITATION" | "STANDARD">(
+    event.eventType === "MEDITATION" || Boolean((event as { meditationConfig?: unknown }).meditationConfig) ? "MEDITATION" : "STANDARD"
+  );
 
   // Statistics
   const total = items.length;

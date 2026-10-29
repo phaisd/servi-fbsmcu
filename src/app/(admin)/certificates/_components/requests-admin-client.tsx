@@ -23,6 +23,7 @@ import {
   AlertTriangle,
   Edit3,
   Users,
+  AlertCircle,
 } from "lucide-react";
 import {
   CERTIFICATE_PURPOSES,
@@ -69,6 +70,8 @@ interface Props {
   initialNotice?: {
     noticeTh: string;
     noticeEn?: string;
+    warningTh?: string;
+    warningEn?: string;
   };
 }
 
@@ -102,6 +105,16 @@ const TEMPLATE_LABELS: Record<
   },
 };
 
+export const PRESET_REJECTION_REASONS = [
+  "ข้อมูลกรอกไม่ครบถ้วน / รายละเอียดไม่ชัดเจน",
+  "ลืมแนบเอกสาร หรือเอกสารแนบไม่ถูกต้อง",
+  "ไม่พบข้อมูลนิสิตในระบบสังกัดคณะพุทธศาสตร์",
+  "วัตถุประสงค์ในการขอไม่สอดคล้องกับระเบียบการออกหนังสือ",
+  "ข้อมูลในหนังสือเดินทาง (Passport) หรือ Visa ไม่ตรงกับหลักฐาน",
+  "ยอดชำระหรือหลักฐานการลงทะเบียนไม่สมบูรณ์",
+  "พ้นสภาพการเป็นนิสิต หรือสำเร็จการศึกษาแล้ว",
+];
+
 export function RequestsAdminClient({
   initialItems,
   certificateTypes,
@@ -124,12 +137,28 @@ export function RequestsAdminClient({
       noticeTh: "*สำหรับการขอต่ออายุวีซ่า ให้ดำเนินการ ก่อนหมดอายุที่ท้ายเล่ม 30 วัน",
       noticeEn:
         "*For visa extension requests, please submit your application at least 30 days before your visa/passport expiration date.",
+      warningTh: "กรุณากรอกข้อมูลให้ครบถ้วน เพื่อป้องกันการขอหนังสือไม่สมบูรณ์",
+      warningEn: "Please fill in all information completely to prevent incomplete certificate requests.",
     }
   );
   const [isNoticeEditOpen, setIsNoticeEditOpen] = useState(false);
   const [editNoticeTh, setEditNoticeTh] = useState(notice.noticeTh);
   const [editNoticeEn, setEditNoticeEn] = useState(notice.noticeEn || "");
+  const [editWarningTh, setEditWarningTh] = useState(notice.warningTh || "กรุณากรอกข้อมูลให้ครบถ้วน เพื่อป้องกันการขอหนังสือไม่สมบูรณ์");
+  const [editWarningEn, setEditWarningEn] = useState(notice.warningEn || "");
   const [isSavingNotice, setIsSavingNotice] = useState(false);
+  // Rejection modal state
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [rejectTarget, setRejectTarget] = useState<{
+    id: string;
+    studentName: string;
+    studentCode?: string;
+    purpose?: string;
+    currentReason?: string | null;
+  } | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [isSubmittingReject, setIsSubmittingReject] = useState(false);
+
 
 
   // New Request Modal State
@@ -199,10 +228,14 @@ export function RequestsAdminClient({
       await updateCertificateNoticeAction({
         noticeTh: editNoticeTh.trim(),
         noticeEn: editNoticeEn.trim(),
+        warningTh: editWarningTh.trim(),
+        warningEn: editWarningEn.trim(),
       });
       setNotice({
         noticeTh: editNoticeTh.trim(),
         noticeEn: editNoticeEn.trim(),
+        warningTh: editWarningTh.trim(),
+        warningEn: editWarningEn.trim(),
       });
       setIsNoticeEditOpen(false);
       notify("บันทึกข้อความประกาศหน้าคำร้องเรียบร้อยแล้ว");
@@ -286,7 +319,45 @@ export function RequestsAdminClient({
     });
   };
 
-  const handleQuickReject = (id: string) => {
+  const handleOpenRejectModal = (item: SerializedItem) => {
+    const m = item.metadata;
+    setRejectTarget({
+      id: item.id,
+      studentName: m.fullName || item.userName || "นิสิต",
+      studentCode: m.studentCode,
+      purpose: m.requestPurpose,
+      currentReason: item.reason,
+    });
+    setRejectReason(item.reason || PRESET_REJECTION_REASONS[0]);
+    setRejectModalOpen(true);
+  };
+
+  const handleConfirmReject = () => {
+    if (!rejectTarget) return;
+    if (!rejectReason.trim()) {
+      notify("กรุณาระบุหรือเลือกสาเหตุการไม่อนุมัติคำร้อง");
+      return;
+    }
+    setIsSubmittingReject(true);
+    startTransition(async () => {
+      try {
+        await reviewRequestAction(rejectTarget.id, {
+          status: "REJECTED",
+          reason: rejectReason.trim(),
+        });
+        notify("บันทึกการไม่อนุมัติคำร้องเรียบร้อยแล้ว");
+        setRejectModalOpen(false);
+        setRejectTarget(null);
+        router.refresh();
+      } catch {
+        notify("เกิดข้อผิดพลาดในการบันทึกการไม่อนุมัติ");
+      } finally {
+        setIsSubmittingReject(false);
+      }
+    });
+  };
+
+  const _handleQuickReject = (id: string) => {
     startTransition(async () => {
       try {
         await reviewRequestAction(id, { status: "REJECTED", reason: "ข้อมูลไม่ครบถ้วน" });
@@ -339,6 +410,14 @@ export function RequestsAdminClient({
     e.preventDefault();
     if (!newForm.fullName.trim()) {
       notify("กรุณาระบุชื่อ-ฉายา / นามสกุลของนิสิต");
+      return;
+    }
+    const isThai =
+      newForm.nationality.trim().toLowerCase() === "ไทย" ||
+      newForm.nationality.trim().toLowerCase().startsWith("ไทย") ||
+      newForm.nationality.trim().toLowerCase().startsWith("thai");
+    if (!isThai && newForm.nationality.trim() && !newForm.passportNo.trim()) {
+      notify("กรุณากรอกเลขที่หนังสือเดินทาง (Passport No.) สำหรับนิสิตต่างชาติ");
       return;
     }
     startTransition(async () => {
@@ -1110,21 +1189,38 @@ export function RequestsAdminClient({
 
                     {/* Status */}
                     <td className="px-4 py-3.5 align-top">
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
-                          item.status === "APPROVED"
-                            ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20"
+                      <div className="space-y-1">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                            item.status === "APPROVED"
+                              ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20"
+                              : item.status === "REJECTED"
+                                ? "bg-rose-50 text-rose-700 ring-1 ring-rose-600/20"
+                                : "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20"
+                          }`}
+                        >
+                          {item.status === "APPROVED"
+                            ? "อนุมัติแล้ว"
                             : item.status === "REJECTED"
-                              ? "bg-rose-50 text-rose-700 ring-1 ring-rose-600/20"
-                              : "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20"
-                        }`}
-                      >
-                        {item.status === "APPROVED"
-                          ? "อนุมัติแล้ว"
-                          : item.status === "REJECTED"
-                            ? "ไม่อนุมัติ"
-                            : "รออนุมัติ"}
-                      </span>
+                              ? "ไม่อนุมัติ"
+                              : "รออนุมัติ"}
+                        </span>
+                        {item.status === "REJECTED" && (
+                          <div
+                            onClick={() => handleOpenRejectModal(item)}
+                            title="คลิกเพื่อแก้ไขหรือดูเหตุผลการไม่อนุมัติ"
+                            className="cursor-pointer group flex items-start gap-1 text-[11px] text-rose-600 hover:text-rose-800 bg-rose-50/70 hover:bg-rose-100/80 p-1.5 rounded-lg border border-rose-200/60 transition max-w-[190px]"
+                          >
+                            <AlertCircle className="h-3.5 w-3.5 text-rose-500 shrink-0 mt-0.5" />
+                            <div className="overflow-hidden">
+                              <span className="font-semibold block text-[10px] text-rose-700">สาเหตุ:</span>
+                              <span className="line-clamp-2 break-words text-[11px]">
+                                {item.reason || "ข้อมูลไม่ครบถ้วน"}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </td>
 
                     {/* Actions */}
@@ -1162,8 +1258,8 @@ export function RequestsAdminClient({
                             <button
                               type="button"
                               disabled={isPending}
-                              onClick={() => handleQuickReject(item.id)}
-                              title="ไม่อนุมัติ"
+                              onClick={() => handleOpenRejectModal(item)}
+                              title="ไม่อนุมัติ (ระบุสาเหตุ)"
                               className="rounded-xl border border-rose-200 bg-rose-50 p-1.5 text-rose-700 hover:bg-rose-100"
                             >
                               <XCircle className="h-4 w-4" />
@@ -1296,7 +1392,7 @@ export function RequestsAdminClient({
                         placeholder={
                           newForm.docTemplate === "RESIDENCE_MEMO"
                             ? "กรอกเลขเอง เช่น ๘๐๐๒/ ว ๐๗๓"
-                            : "เช่น 8002 / 716"
+                            : "เช่น 8002 / 1"
                         }
                         className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-mono"
                       />
@@ -1525,13 +1621,17 @@ export function RequestsAdminClient({
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              <div className="rounded-lg bg-amber-50 p-2.5 text-[11px] text-amber-800 border border-amber-200 leading-relaxed">
+                💡 <strong>เคล็ดลับการขึ้นบรรทัดใหม่:</strong> หากข้อความยาวและต้องการตัดขึ้นบรรทัดใหม่ สามารถกดปุ่ม <strong>Enter</strong> ในช่องพิมพ์ข้อความได้เลย ระบบจะแสดงผลแยกบรรทัดตามที่จัดไว้ให้อัตโนมัติ (whitespace-pre-line)
+              </div>
+
               <div>
                 <label className="mb-1.5 block text-xs font-bold text-slate-700">
-                  ข้อความประกาศภาษาไทย (Thai Notice Banner) *
+                  กล่องที่ 1: ข้อความประกาศภาษาไทย (Thai Notice Banner) *
                 </label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={editNoticeTh}
                   onChange={(e) => setEditNoticeTh(e.target.value)}
                   placeholder="*สำหรับการขอต่ออายุวีซ่า ให้ดำเนินการ ก่อนหมดอายุที่ท้ายเล่ม 30 วัน"
@@ -1541,13 +1641,39 @@ export function RequestsAdminClient({
 
               <div>
                 <label className="mb-1.5 block text-xs font-bold text-slate-700">
-                  ข้อความประกาศภาษาอังกฤษ (English Notice Banner - ถ้ามี)
+                  กล่องที่ 1: ข้อความประกาศภาษาอังกฤษ (English Notice Banner - ถ้ามี)
                 </label>
                 <textarea
                   rows={2}
                   value={editNoticeEn}
                   onChange={(e) => setEditNoticeEn(e.target.value)}
                   placeholder="*For visa extension requests, please submit your application at least 30 days before your visa/passport expiration date."
+                  className="w-full rounded-xl border border-slate-300 p-3 text-xs leading-relaxed focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                />
+              </div>
+
+              <div className="border-t border-slate-200 pt-3">
+                <label className="mb-1.5 block text-xs font-bold text-red-700">
+                  กล่องที่ 2: ข้อความแจ้งเตือนสีแดง (กรุณากรอกข้อมูลให้ครบถ้วน - ภาษาไทย) *
+                </label>
+                <textarea
+                  rows={2}
+                  value={editWarningTh}
+                  onChange={(e) => setEditWarningTh(e.target.value)}
+                  placeholder="กรุณากรอกข้อมูลให้ครบถ้วน เพื่อป้องกันการขอหนังสือไม่สมบูรณ์"
+                  className="w-full rounded-xl border border-red-200 bg-red-50/30 p-3 text-xs leading-relaxed focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                  กล่องที่ 2: ข้อความแจ้งเตือน (English Warning - ถ้ามี)
+                </label>
+                <textarea
+                  rows={2}
+                  value={editWarningEn}
+                  onChange={(e) => setEditWarningEn(e.target.value)}
+                  placeholder="Please fill in all information completely to prevent incomplete certificate requests."
                   className="w-full rounded-xl border border-slate-300 p-3 text-xs leading-relaxed focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
                 />
               </div>
@@ -1560,6 +1686,8 @@ export function RequestsAdminClient({
                     setEditNoticeEn(
                       "*For visa extension requests, please submit your application at least 30 days before your visa/passport expiration date."
                     );
+                    setEditWarningTh("กรุณากรอกข้อมูลให้ครบถ้วน เพื่อป้องกันการขอหนังสือไม่สมบูรณ์");
+                    setEditWarningEn("Please fill in all information completely to prevent incomplete certificate requests.");
                   }}
                   className="text-xs font-semibold text-slate-500 hover:text-slate-700 underline"
                 >
@@ -1589,7 +1717,116 @@ export function RequestsAdminClient({
           </div>
         </div>
       )}
+
+      {/* REJECT MODAL WITH PRESET REASONS & CUSTOM TEXT */}
+      {rejectModalOpen && rejectTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 text-rose-700">
+                <div className="rounded-full bg-rose-100 p-1.5">
+                  <XCircle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    ระบุสาเหตุการไม่อนุมัติคำร้อง
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    ข้อความนี้จะแสดงในหน้าระบบนิสิต เพื่อให้นิสิตทราบและแก้ไข
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRejectModalOpen(false)}
+                className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Target info card */}
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="font-semibold text-slate-600">ผู้ยื่นคำขอ:</span>
+                <span className="font-bold text-slate-900">{rejectTarget.studentName}</span>
+              </div>
+              {rejectTarget.studentCode && (
+                <div className="flex justify-between">
+                  <span className="font-semibold text-slate-600">รหัสนิสิต / ผู้ขอ:</span>
+                  <span className="font-mono text-slate-800">{rejectTarget.studentCode}</span>
+                </div>
+              )}
+              {rejectTarget.purpose && (
+                <div className="flex justify-between">
+                  <span className="font-semibold text-slate-600">วัตถุประสงค์:</span>
+                  <span className="text-slate-800">{rejectTarget.purpose}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Preset chips */}
+            <div>
+              <label className="mb-2 block text-xs font-bold text-slate-700">
+                คลิกเลือกเหตุผลสำเร็จรูป (Quick Preset Options):
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {PRESET_REJECTION_REASONS.map((preset) => {
+                  const isSelected = rejectReason === preset;
+                  return (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setRejectReason(preset)}
+                      className={`rounded-lg border px-2.5 py-1 text-xs text-left transition ${
+                        isSelected
+                          ? "border-rose-500 bg-rose-50 text-rose-800 font-semibold ring-1 ring-rose-400"
+                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom text area */}
+            <div>
+              <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                ข้อความสาเหตุที่จะแจ้งนิสิต (สามารถพิมพ์แก้ไขเพิ่มเติมได้):
+              </label>
+              <textarea
+                rows={3}
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="พิมพ์เหตุผลหรือคำแนะนำให้นิสิตเพิ่มเติม เช่น เอกสารแนบไม่ชัดเจน กรุณาแนบสำเนาพาสปอร์ตหน้าวีซ่าใหม่..."
+                className="w-full rounded-xl border border-rose-200 bg-rose-50/20 p-3 text-xs leading-relaxed focus:border-rose-500 focus:outline-none focus:ring-1 focus:ring-rose-500"
+              />
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setRejectModalOpen(false)}
+                className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingReject}
+                onClick={handleConfirmReject}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-rose-500 disabled:opacity-50"
+              >
+                {isSubmittingReject ? <span className="h-3.5 w-3.5 animate-spin">⏳</span> : null}
+                ยืนยันการไม่อนุมัติ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-

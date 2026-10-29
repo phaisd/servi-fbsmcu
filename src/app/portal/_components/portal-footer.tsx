@@ -46,9 +46,25 @@ export async function PortalFooter() {
   const systemsTitle = locale === "th" ? footer.systemsTitleTh : footer.systemsTitleEn;
   const mainWebsiteText = locale === "th" ? footer.mainWebsiteTextTh : footer.mainWebsiteTextEn;
 
-  const quickLinks = (footer.quickLinks ?? DEFAULT_FOOTER_QUICK_LINKS).filter(
+  const rawQuickLinks = (footer.quickLinks ?? DEFAULT_FOOTER_QUICK_LINKS).filter(
     (l) => l.enabled !== false
   );
+  const quickLinks = [...rawQuickLinks];
+  if (!quickLinks.some((l) => l.href === "/portal/executives")) {
+    const pIdx = quickLinks.findIndex((l) => l.href === "/portal/personnel");
+    const execLink = {
+      id: "link-executives",
+      labelTh: "ทำเนียบผู้บริหาร",
+      labelEn: "Executive Board",
+      href: "/portal/executives",
+      enabled: true,
+    };
+    if (pIdx >= 0) {
+      quickLinks.splice(pIdx, 0, execLink);
+    } else {
+      quickLinks.push(execLink);
+    }
+  }
   const systemLinks = (footer.systemLinks ?? DEFAULT_FOOTER_SYSTEM_LINKS).filter(
     (l) => l.enabled !== false
   );
@@ -158,8 +174,17 @@ export async function PortalFooter() {
       {/* Bottom Bar (Liyon .foot-bottom) */}
       <div className="foot-bottom">
         <div className="foot-bottom-in">
-          <div>
-            © {currentYear} {brandName} · {brandTagline}. {copyright}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span>
+              © {currentYear} {brandName} · {brandTagline}. {copyright}
+            </span>
+            {(footer.showDevCredit ?? true) && (
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/10 text-[11px] font-semibold text-white/90">
+                {locale === "th"
+                  ? (footer.devCreditTh || "Dev. by สำนักงานคณบดีคณะพุทธศาสตร์")
+                  : (footer.devCreditEn || "Dev. by Office of the Dean, Faculty of Buddhism")}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-4 text-xs">
             <Link href="/portal/news" className="hover:underline">

@@ -35,6 +35,7 @@ import {
   LiyonDialog,
   LiyonDialogBody,
   LiyonDialogFooter,
+  LiyonDialogTitle,
 } from "@/shared/components/liyon";
 import { toast } from "sonner";
 import {
@@ -2494,9 +2495,11 @@ export function StudentsDirectoryClient({
                 <Users className="w-5 h-5" />
               </div>
               <div>
+                <LiyonDialogTitle asChild>
                 <h3 className="font-bold text-foreground text-sm sm:text-base">
                   {drillDownGroup.title}
                 </h3>
+              </LiyonDialogTitle>
                 <p className="text-xs text-muted-foreground">
                   พบทั้งหมด {drillDownGroup.students.length} รูป/คน
                 </p>

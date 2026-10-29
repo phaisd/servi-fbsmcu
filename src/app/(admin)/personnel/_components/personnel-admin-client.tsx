@@ -2989,6 +2989,26 @@ export function PersonnelAdminClient({
                   />
                   <GraduationCap className="w-4 h-4 text-sky-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 </div>
+                {(formFirstNameTh || formFirstNameEn) && (
+                  <div className="flex items-center justify-between gap-2 pt-1.5 text-xs">
+                    <span className="text-[11px] text-muted-foreground">
+                      หากมีบัญชีทางการ ให้คัดลอกลิงก์มาวางในช่องนี้
+                    </span>
+                    <a
+                      href={`https://scholar.google.com/scholar?q=${encodeURIComponent(
+                        `"${[formFirstNameTh, formLastNameTh].filter(Boolean).join(" ")}"` +
+                          (formFirstNameEn ? ` OR "${[formFirstNameEn, formLastNameEn].filter(Boolean).join(" ")}"` : "")
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline shrink-0"
+                    >
+                      <Search className="w-3 h-3" />
+                      <span>🔍 ค้นหาผลงานอาจารย์ท่านนี้บน Google Scholar</span>
+                      <ExternalLink className="w-3 h-3 ml-0.5" />
+                    </a>
+                  </div>
+                )}
               </LiyonField>
 
               {/* Photo Upload & Portrait Preview Section */}

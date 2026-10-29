@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
+  AlertCircle,
   Globe,
   ShieldCheck,
   UserCheck,
@@ -27,6 +28,7 @@ interface PortalRequestItem {
   certificateTypeId: string;
   typeName: string;
   status: string;
+  reason?: string | null;
   createdAt: string;
   metadata: CertificateRequestMetadata;
 }
@@ -490,11 +492,18 @@ export function PortalCertificatesClient({ initialItems, currentUser }: Props) {
                         : "✓ ติดต่อรับฉบับจริงพร้อมตราประทับที่สำนักงานคณบดี"}
                     </span>
                   ) : item.status === "REJECTED" ? (
-                    <span className="text-[11px] font-medium text-rose-500 text-right">
-                      {isEn
-                        ? "Please contact registrar staff for inquiry"
-                        : "ติดต่อเจ้าหน้าที่ทะเบียนเพื่อตรวจสอบข้อมูล"}
-                    </span>
+                    <div className="w-full sm:max-w-[240px] rounded-xl bg-rose-50 border border-rose-200/90 p-2.5 text-left space-y-1 shadow-2xs">
+                      <div className="flex items-center gap-1.5 text-[11px] font-bold text-rose-800">
+                        <AlertCircle className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+                        <span>{isEn ? "Reason for Rejection:" : "สาเหตุที่ไม่อนุมัติ:"}</span>
+                      </div>
+                      <p className="text-xs text-rose-700 font-semibold leading-relaxed break-words">
+                        {item.reason || (isEn ? "Incomplete information" : "ข้อมูลไม่ครบถ้วนหรือไม่เป็นไปตามเกณฑ์")}
+                      </p>
+                      <p className="text-[10px] text-rose-500 pt-0.5">
+                        {isEn ? "Please re-apply or contact Dean's Office." : "กรุณาแก้ไขข้อมูลและยื่นคำร้องใหม่"}
+                      </p>
+                    </div>
                   ) : (
                     <span className="text-[11px] text-slate-400 text-right">
                       {isEn ? "Staff is reviewing your request" : "เจ้าหน้าที่กำลังตรวจสอบคำร้อง"}

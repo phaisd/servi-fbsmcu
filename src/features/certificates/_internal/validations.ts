@@ -184,6 +184,7 @@ export const certificateMetadataSchema = z.object({
   lineHeight: z.number().min(1.1).max(3.0).optional().default(1.85),
   marginTopMm: z.number().min(10).max(60).optional().default(24),
   marginSideMm: z.number().min(10).max(50).optional().default(25),
+  marginBottomMm: z.number().min(4).max(50).optional().default(12),
   footerFontSizePt: z.number().min(6).max(24).optional().default(10.5),
   footerLayout: z.enum(["TWO_COLUMNS", "STACKED"]).optional().default("TWO_COLUMNS"),
   footerLeftText: z.string().optional().default(""),

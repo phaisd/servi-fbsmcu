@@ -33,6 +33,7 @@ export function LiyonDialog({ open, onOpenChange, danger, wide, children }: Liyo
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[3px]" />
         <DialogPrimitive.Content
+          aria-describedby={undefined}
           className={cn(
             "dlg fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 outline-none",
             danger && "danger",
@@ -89,5 +90,8 @@ export function LiyonDialogBody({ children, className }: { children: React.React
 export function LiyonDialogFooter({ children, className }: { children: React.ReactNode; className?: string }) {
   return <div className={cn("ft", className)}>{children}</div>;
 }
+
+export const LiyonDialogTitle = DialogPrimitive.Title;
+export const LiyonDialogDescription = DialogPrimitive.Description;
 
 export { DialogPrimitive as LiyonDialogPrimitive };

@@ -9,7 +9,7 @@ import {
   type CertificateRequestMetadata,
   type CertificateTemplateType,
 } from "./validations";
-import { INITIAL_EXCEL_CERTIFICATE_RECORDS, inferDefaultTemplate } from "./templates";
+import { inferDefaultTemplate } from "./templates";
 
 // ==========================================
 // Helper: Resolve Default User for Public Portal Requests
@@ -57,51 +57,6 @@ export async function ensureCertificateDefaults(tenantId: string) {
     }
   }
 
-  const allTypes = await db.certificateType.findMany({ where: { tenantId } });
-  const defaultTypeId = allTypes[0]?.id;
-  if (!defaultTypeId) return;
-
-  const existingRequests = await db.certificateRequest.findMany({
-    where: { tenantId },
-    select: { id: true, note: true },
-  });
-
-  if (existingRequests.length < INITIAL_EXCEL_CERTIFICATE_RECORDS.length) {
-    const existingKeys = new Set(
-      existingRequests.map((r) => {
-        const m = parseCertificateNote(r.note);
-        return `${m.studentCode || ""}|${m.fullName || ""}|${m.requestPurpose || ""}`;
-      })
-    );
-
-    const fallbackUserId = await resolveFallbackUserId(tenantId);
-    for (const rec of INITIAL_EXCEL_CERTIFICATE_RECORDS) {
-      const key = `${rec.studentCode || ""}|${rec.fullName || ""}|${rec.requestPurpose || ""}`;
-      if (existingKeys.has(key)) continue;
-
-      const matchedType =
-        allTypes.find(
-          (t) =>
-            t.name.toLowerCase() === (rec.requestPurpose || "").toLowerCase() ||
-            t.name.toLowerCase().includes((rec.requestPurpose || "").slice(0, 12).toLowerCase())
-        ) || allTypes[0];
-
-      const noteJson = serializeCertificateNote({
-        ...rec,
-        docTemplate: rec.docTemplate ?? inferDefaultTemplate(rec),
-      });
-
-      await db.certificateRequest.create({
-        data: {
-          tenantId,
-          userId: fallbackUserId,
-          certificateTypeId: matchedType.id,
-          status: CertificateRequestStatus.APPROVED,
-          note: noteJson,
-        },
-      });
-    }
-  }
 }
 
 // ==========================================
@@ -992,7 +947,7 @@ export async function getNextCertificateDocNo(
   }
 
   // เลขถัดไปแบบต่อเนื่องกันทุกฉบับ
-  const nextVal = hasFound && maxNum > 0 ? maxNum + 1 : 716;
+  const nextVal = hasFound && maxNum > 0 ? maxNum + 1 : 1;
 
   if (template === "ENG_CERT") {
     return `8002/ ${nextVal}`;
@@ -1009,27 +964,40 @@ export const DEFAULT_CERTIFICATE_NOTICE_TH =
   "*สำหรับการขอต่ออายุวีซ่า ให้ดำเนินการ ก่อนหมดอายุที่ท้ายเล่ม 30 วัน";
 export const DEFAULT_CERTIFICATE_NOTICE_EN =
   "*For visa extension requests, please submit your application at least 30 days before your visa/passport expiration date.";
+export const DEFAULT_CERTIFICATE_WARNING_TH =
+  "กรุณากรอกข้อมูลให้ครบถ้วน เพื่อป้องกันการขอหนังสือไม่สมบูรณ์";
+export const DEFAULT_CERTIFICATE_WARNING_EN =
+  "Please fill in all information completely to prevent incomplete certificate requests.";
 
 export async function getCertificateNotice(tenantId: string): Promise<{
   noticeTh: string;
   noticeEn: string;
+  warningTh: string;
+  warningEn: string;
 }> {
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
     select: { settings: true },
   });
   const settings = (tenant?.settings as Record<string, unknown>) || {};
-  const certSettings = (settings.certificates as { noticeTh?: string; noticeEn?: string } | undefined) || {};
+  const certSettings = (settings.certificates as {
+    noticeTh?: string;
+    noticeEn?: string;
+    warningTh?: string;
+    warningEn?: string;
+  } | undefined) || {};
   return {
     noticeTh: certSettings.noticeTh?.trim() || DEFAULT_CERTIFICATE_NOTICE_TH,
     noticeEn: certSettings.noticeEn?.trim() || DEFAULT_CERTIFICATE_NOTICE_EN,
+    warningTh: certSettings.warningTh?.trim() || DEFAULT_CERTIFICATE_WARNING_TH,
+    warningEn: certSettings.warningEn?.trim() || DEFAULT_CERTIFICATE_WARNING_EN,
   };
 }
 
 export async function updateCertificateNotice(
   tenantId: string,
   actorId: string,
-  input: { noticeTh: string; noticeEn?: string }
+  input: { noticeTh: string; noticeEn?: string; warningTh?: string; warningEn?: string }
 ) {
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
@@ -1043,12 +1011,13 @@ export async function updateCertificateNotice(
       ...existingCert,
       noticeTh: input.noticeTh.trim() || DEFAULT_CERTIFICATE_NOTICE_TH,
       noticeEn: (input.noticeEn || "").trim() || DEFAULT_CERTIFICATE_NOTICE_EN,
+      warningTh: (input.warningTh || "").trim() || DEFAULT_CERTIFICATE_WARNING_TH,
+      warningEn: (input.warningEn || "").trim() || DEFAULT_CERTIFICATE_WARNING_EN,
     },
   };
 
   await db.tenant.update({
     where: { id: tenantId },
-
     data: { settings: updatedSettings },
   });
 
@@ -1065,6 +1034,8 @@ export async function updateCertificateNotice(
   return {
     noticeTh: updatedSettings.certificates.noticeTh,
     noticeEn: updatedSettings.certificates.noticeEn,
+    warningTh: updatedSettings.certificates.warningTh,
+    warningEn: updatedSettings.certificates.warningEn,
   };
 }
 

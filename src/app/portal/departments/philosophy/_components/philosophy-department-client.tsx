@@ -10,10 +10,8 @@ import {
   Calendar,
   Mail,
   Phone,
-  Briefcase,
   ExternalLink,
   Search,
-  Sparkles,
   Award,
   Building2,
   ChevronRight,
@@ -22,6 +20,7 @@ import {
 import {
   LiyonDialog,
   LiyonDialogCloseButton,
+  LiyonDialogTitle,
 } from "@/shared/components/liyon";
 import { Button } from "@/components/ui/button";
 import { formatPersonnelName } from "@/features/personnel";
@@ -41,15 +40,15 @@ interface Props {
 export function PhilosophyDepartmentClient({
   teachers,
   curriculums,
-  locale = "th",
+  locale: _locale = "th",
 }: Props) {
   const [activeTab, setActiveTab] = useState<"teachers" | "research" | "programs" | "about">("teachers");
 
   // Selected Teacher Modal State
   const [selectedPerson, setSelectedPerson] = useState<PersonnelItem | null>(null);
   const [activeModalTab, setActiveModalTab] = useState<"research" | "education" | "experience" | "contact">("research");
-  const [modalYearFilter, setModalYearFilter] = useState<string>("ALL");
-  const [modalPubSearch, setModalPubSearch] = useState("");
+  const [_modalYearFilter, setModalYearFilter] = useState<string>("ALL");
+  const [_modalPubSearch, setModalPubSearch] = useState("");
 
   // Search & Filters in Department Research
   const [teacherSearch, setTeacherSearch] = useState("");
@@ -297,7 +296,7 @@ export function PhilosophyDepartmentClient({
                 academicPosition: person.academicPosition,
                 firstNameTh: person.firstNameTh,
                 lastNameTh: person.lastNameTh,
-                titlePlacement: (person as any).titlePlacement,
+                titlePlacement: person.titlePlacement,
               });
 
               return (
@@ -696,14 +695,16 @@ export function PhilosophyDepartmentClient({
                       อาจารย์ประจำภาควิชาศาสนาและปรัชญา
                     </span>
                   </div>
-                  <h3 className="text-lg sm:text-xl font-bold text-foreground">
+                  <LiyonDialogTitle asChild>
+                    <h3 className="text-lg sm:text-xl font-bold text-foreground">
                     {formatPersonnelName({
                       academicPosition: selectedPerson.academicPosition,
                       firstNameTh: selectedPerson.firstNameTh,
                       lastNameTh: selectedPerson.lastNameTh,
-                      titlePlacement: (selectedPerson as any).titlePlacement,
+                      titlePlacement: selectedPerson.titlePlacement,
                     })}
                   </h3>
+                  </LiyonDialogTitle>
                   <p className="text-xs text-primary font-medium">
                     {selectedPerson.positionTh}
                   </p>

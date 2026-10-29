@@ -124,7 +124,7 @@ const TEMPLATE_CARDS: {
 
 export function CertificateStudioClient({
   request,
-  suggestedNextDocNo = "8002 / 716",
+  suggestedNextDocNo = "8002 / 1",
   currentUser,
   staffUsers = [],
   personnelList = [],
@@ -156,6 +156,7 @@ export function CertificateStudioClient({
       lineHeight: initial.lineHeight ?? 1.85,
       marginTopMm: initial.marginTopMm ?? 24,
       marginSideMm: initial.marginSideMm ?? 25,
+      marginBottomMm: initial.marginBottomMm ?? 12,
       showSignatureGraphic: initial.showSignatureGraphic ?? true,
       showPhotoBox: initial.showPhotoBox ?? true,
       photoBoxPosition: initial.photoBoxPosition ?? "BOTTOM_LEFT",
@@ -261,6 +262,7 @@ export function CertificateStudioClient({
       lineHeight: 1.85,
       marginTopMm: 24,
       marginSideMm: 25,
+      marginBottomMm: 12,
     }));
     showToast(
       isEng
@@ -946,8 +948,8 @@ export function CertificateStudioClient({
                     />
                   </div>
 
-                  {/* Margins (Top & Side) */}
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* Margins (Top, Side & Bottom) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
                       <div className="mb-1 flex items-center justify-between">
                         <span className="text-[11px] font-semibold text-slate-700">
@@ -959,7 +961,7 @@ export function CertificateStudioClient({
                       </div>
                       <input
                         type="range"
-                        min={12}
+                        min={10}
                         max={40}
                         step={1}
                         value={meta.marginTopMm ?? 24}
@@ -978,12 +980,32 @@ export function CertificateStudioClient({
                       </div>
                       <input
                         type="range"
-                        min={12}
+                        min={10}
                         max={40}
                         step={1}
                         value={meta.marginSideMm ?? 25}
                         onChange={(e) => updateField("marginSideMm", parseInt(e.target.value, 10))}
                         className="w-full accent-indigo-600"
+                      />
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                      <div className="mb-1 flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-slate-700">
+                          ขอบกระดาษด้านล่าง
+                        </span>
+                        <span className="font-mono text-xs font-bold text-slate-800">
+                          {meta.marginBottomMm ?? 12} มม.
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={6}
+                        max={35}
+                        step={1}
+                        value={meta.marginBottomMm ?? 12}
+                        onChange={(e) => updateField("marginBottomMm", parseInt(e.target.value, 10))}
+                        className="w-full accent-indigo-600"
+                        title="ปรับลดระยะขอบล่างเพื่อเพิ่มพื้นที่ให้เนื้อหาและป้องกันไม่ให้เอกสารล้นเป็น 2 หน้า"
                       />
                     </div>
                   </div>

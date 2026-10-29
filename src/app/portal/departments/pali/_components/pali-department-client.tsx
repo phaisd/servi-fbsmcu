@@ -10,21 +10,15 @@ import {
   Calendar,
   Mail,
   Phone,
-  Briefcase,
   ExternalLink,
   Search,
-  Sparkles,
   Award,
   Building2,
   ChevronRight,
-  CheckCircle2,
   ScrollText,
 } from "lucide-react";
 import {
   LiyonDialog,
-  LiyonDialogHeader,
-  LiyonDialogBody,
-  LiyonDialogFooter,
   LiyonDialogCloseButton,
 } from "@/shared/components/liyon";
 import { Button } from "@/components/ui/button";
@@ -45,15 +39,15 @@ interface Props {
 export function PaliDepartmentClient({
   teachers,
   curriculums,
-  locale = "th",
+  locale: _locale = "th",
 }: Props) {
   const [activeTab, setActiveTab] = useState<"teachers" | "research" | "programs" | "about">("teachers");
 
   // Selected Teacher Modal State
   const [selectedPerson, setSelectedPerson] = useState<PersonnelItem | null>(null);
   const [activeModalTab, setActiveModalTab] = useState<"research" | "education" | "experience" | "contact">("research");
-  const [modalYearFilter, setModalYearFilter] = useState<string>("ALL");
-  const [modalPubSearch, setModalPubSearch] = useState("");
+  const [_modalYearFilter, setModalYearFilter] = useState<string>("ALL");
+  const [_modalPubSearch, setModalPubSearch] = useState("");
 
   // Search & Filters in Department Research
   const [teacherSearch, setTeacherSearch] = useState("");
@@ -301,7 +295,7 @@ export function PaliDepartmentClient({
                 academicPosition: person.academicPosition,
                 firstNameTh: person.firstNameTh,
                 lastNameTh: person.lastNameTh,
-                titlePlacement: (person as any).titlePlacement,
+                titlePlacement: person.titlePlacement,
               });
 
               return (
@@ -705,7 +699,7 @@ export function PaliDepartmentClient({
                       academicPosition: selectedPerson.academicPosition,
                       firstNameTh: selectedPerson.firstNameTh,
                       lastNameTh: selectedPerson.lastNameTh,
-                      titlePlacement: (selectedPerson as any).titlePlacement,
+                      titlePlacement: selectedPerson.titlePlacement,
                     })}
                   </h3>
                   <p className="text-xs text-primary font-medium">

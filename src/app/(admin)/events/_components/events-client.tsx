@@ -26,6 +26,7 @@ import {
   updateEventAction,
   deleteEventAction,
   seedOpeningCeremonyAction,
+  seedMeditationPracticeEventAction,
 } from "@/features/events/actions";
 import { useRouter } from "next/navigation";
 
@@ -252,6 +253,26 @@ export function EventsClient({ initialItems }: Props) {
     }
   };
 
+  const _handleSeedMeditation = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await seedMeditationPracticeEventAction();
+      if (res.success) {
+        toast.success(
+          "สร้างโครงการปฏิบัติวิปัสสนากัมมัฏฐานประจำปีเรียบร้อย พร้อม 82 รายชื่อนิสิตทั้ง 2 หลักสูตร!"
+        );
+        router.refresh();
+        if (res.eventId) {
+          router.push(`/events/${res.eventId}/registrations`);
+        }
+      }
+    } catch (err: unknown) {
+      toast.error((err instanceof Error ? err.message : String(err)) || "ไม่สามารถสร้างโครงการได้");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   const handleSeedOpeningCeremony = async () => {
     setIsSyncing(true);
     try {
@@ -367,6 +388,7 @@ export function EventsClient({ initialItems }: Props) {
               <option value="ALL">ทุกประเภทกิจกรรม</option>
               <option value="CEREMONY">พิธีการ / ปฐมนิเทศ</option>
               <option value="ACADEMIC">วิชาการ / สัมมนา</option>
+              <option value="MEDITATION">ปฏิบัติวิปัสสนากัมมัฏฐานประจำปี (10-12 วัน)</option>
               <option value="BUDDHIST">กิจกรรมทางพระพุทธศาสนา / ปฏิบัติธรรม</option>
               <option value="VOLUNTEER">จิตอาสา / บำเพ็ญประโยชน์</option>
               <option value="CULTURE">ทำนุบำรุงศิลปวัฒนธรรมและประเพณี</option>

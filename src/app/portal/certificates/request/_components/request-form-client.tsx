@@ -85,12 +85,29 @@ interface Props {
   initialNotice?: {
     noticeTh: string;
     noticeEn?: string;
+    warningTh?: string;
+    warningEn?: string;
   };
   canManageNotice?: boolean;
   initialProfile?: InitialApplicantProfile | null;
   personnelList?: PersonnelOption[];
   initialMode?: "student" | "personnel";
   initialPersonnelId?: string;
+}
+
+function isThaiNationality(nationality?: string): boolean {
+  if (!nationality) return false;
+  const n = nationality.trim().toLowerCase();
+  return (
+    n === "ไทย" ||
+    n === "thai" ||
+    n === "thailand" ||
+    n === "สัญชาติไทย" ||
+    n === "คนไทย" ||
+    n === "th" ||
+    n.startsWith("ไทย") ||
+    n.startsWith("thai")
+  );
 }
 
 export function RequestFormClient({
@@ -131,11 +148,15 @@ export function RequestFormClient({
       noticeTh: "*สำหรับการขอต่ออายุวีซ่า ให้ดำเนินการ ก่อนหมดอายุที่ท้ายเล่ม 30 วัน",
       noticeEn:
         "*For visa extension requests, please submit your application at least 30 days before your visa/passport expiration date.",
+      warningTh: "กรุณากรอกข้อมูลให้ครบถ้วน เพื่อป้องกันการขอหนังสือไม่สมบูรณ์",
+      warningEn: "Please fill in all information completely to prevent incomplete certificate requests.",
     }
   );
   const [isNoticeEditOpen, setIsNoticeEditOpen] = useState(false);
   const [editNoticeTh, setEditNoticeTh] = useState(notice.noticeTh);
   const [editNoticeEn, setEditNoticeEn] = useState(notice.noticeEn || "");
+  const [editWarningTh, setEditWarningTh] = useState(notice.warningTh || "กรุณากรอกข้อมูลให้ครบถ้วน เพื่อป้องกันการขอหนังสือไม่สมบูรณ์");
+  const [editWarningEn, setEditWarningEn] = useState(notice.warningEn || "");
   const [isSavingNotice, setIsSavingNotice] = useState(false);
 
   // Post-submission confirmation popup modal state
@@ -238,6 +259,8 @@ export function RequestFormClient({
     registrationPdfUrl: "",
     paymentPdfUrl: "",
   });
+
+  const isNonThai = Boolean(form.nationality.trim()) && !isThaiNationality(form.nationality);
 
   const notify = (msg: string) => {
     setToast(msg);
@@ -432,6 +455,7 @@ export function RequestFormClient({
     lineHeight: 1.85,
     marginTopMm: 24,
     marginSideMm: 25,
+    marginBottomMm: 12,
     showSignatureGraphic: true,
     showPhotoBox: true,
   });
@@ -446,9 +470,51 @@ export function RequestFormClient({
       );
       return;
     }
+    if (!form.nationality.trim()) {
+      notify(
+        isEn
+          ? "Please specify your Nationality."
+          : "กรุณาระบุสัญชาติ (Nationality) ของผู้ยื่นคำร้อง"
+      );
+      return;
+    }
     if (form.applicantType === "NEW_STUDENT" && !form.passportNo.trim()) {
       notify("กรุณากรอกเลขที่ใบสมัคร หรือ เลขที่หนังสือเดินทาง (Passport No.) สำหรับนิสิตใหม่");
       return;
+    }
+    if (isNonThai) {
+      if (!form.passportNo.trim()) {
+        notify(
+          isEn
+            ? "Passport Number is required for non-Thai applicants."
+            : "กรุณากรอกเลขหนังสือเดินทาง (Passport No.) สำหรับผู้ที่ไม่ใช่สัญชาติไทย"
+        );
+        return;
+      }
+      if (!form.passportExpireDate.trim()) {
+        notify(
+          isEn
+            ? "Passport Expiration Date is required for non-Thai applicants."
+            : "กรุณากรอกวันหมดอายุ Passport สำหรับผู้ที่ไม่ใช่สัญชาติไทย"
+        );
+        return;
+      }
+      if (!form.visaType.trim()) {
+        notify(
+          isEn
+            ? "Type of Visa is required for non-Thai applicants."
+            : "กรุณากรอกประเภทวีซ่า (Type of Visa) สำหรับผู้ที่ไม่ใช่สัญชาติไทย"
+        );
+        return;
+      }
+      if (!form.visaExpireDate.trim()) {
+        notify(
+          isEn
+            ? "Visa Expiration Date is required for non-Thai applicants."
+            : "กรุณากรอกวันหมดอายุวีซ่า (Visa Expiration) สำหรับผู้ที่ไม่ใช่สัญชาติไทย"
+        );
+        return;
+      }
     }
 
     startTransition(async () => {
@@ -499,6 +565,7 @@ export function RequestFormClient({
             lineHeight: 1.85,
             marginTopMm: 24,
             marginSideMm: 25,
+            marginBottomMm: 12,
             bankTargetTh: form.bankTargetTh,
             showSignatureGraphic: true,
             showPhotoBox: true,
@@ -530,10 +597,14 @@ export function RequestFormClient({
       await updateCertificateNoticeAction({
         noticeTh: editNoticeTh.trim(),
         noticeEn: editNoticeEn.trim(),
+        warningTh: editWarningTh.trim(),
+        warningEn: editWarningEn.trim(),
       });
       setNotice({
         noticeTh: editNoticeTh.trim(),
         noticeEn: editNoticeEn.trim(),
+        warningTh: editWarningTh.trim(),
+        warningEn: editWarningEn.trim(),
       });
       setIsNoticeEditOpen(false);
       notify("บันทึกข้อความประกาศหน้าคำร้องเรียบร้อยแล้ว");
@@ -580,7 +651,7 @@ export function RequestFormClient({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8 p-6 sm:p-8">
-          {/* PROMINENT RED NOTICE BANNER (Before Step 1 - Admin Editable) */}
+          {/* PROMINENT RED NOTICE BANNER 1: Visa / Expiration Notice */}
           <div className="relative overflow-hidden rounded-2xl border-2 border-rose-500 bg-gradient-to-r from-red-50 via-rose-50 to-orange-50 p-4 sm:p-5 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-start gap-3.5">
@@ -588,11 +659,11 @@ export function RequestFormClient({
                   <AlertTriangle className="h-5 w-5" />
                 </span>
                 <div className="space-y-1">
-                  <div className="text-base sm:text-lg font-black tracking-wide text-red-600 leading-snug">
+                  <div className="text-base sm:text-lg font-black tracking-wide text-red-600 leading-snug whitespace-pre-line">
                     {notice.noticeTh}
                   </div>
                   {notice.noticeEn && (
-                    <div className="text-xs sm:text-sm font-semibold text-rose-700 leading-snug">
+                    <div className="text-xs sm:text-sm font-semibold text-rose-700 leading-snug whitespace-pre-line">
                       {notice.noticeEn}
                     </div>
                   )}
@@ -605,13 +676,54 @@ export function RequestFormClient({
                   onClick={() => {
                     setEditNoticeTh(notice.noticeTh);
                     setEditNoticeEn(notice.noticeEn || "");
+                    setEditWarningTh(notice.warningTh || "กรุณากรอกข้อมูลให้ครบถ้วน เพื่อป้องกันการขอหนังสือไม่สมบูรณ์");
+                    setEditWarningEn(notice.warningEn || "");
                     setIsNoticeEditOpen(true);
                   }}
                   className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-red-300 bg-white/95 px-3 py-1.5 text-xs font-bold text-red-700 shadow-2xs hover:bg-red-100 hover:text-red-900 transition-colors"
                   title="แก้ไขข้อความประกาศ (เฉพาะ Admin)"
                 >
                   <Edit3 className="h-3.5 w-3.5" />
-                  <span>แก้ไขประกาศ (Admin)</span>
+                  <span>แก้ไขประกาศ/คำเตือน (Admin)</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* PROMINENT RED NOTICE BANNER 2: Incomplete Data Warning */}
+          <div className="relative overflow-hidden rounded-2xl border-2 border-red-600 bg-gradient-to-r from-red-50 via-rose-50 to-red-100/70 p-4 sm:p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3.5">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-700 text-white shadow-md">
+                  <AlertTriangle className="h-5 w-5" />
+                </span>
+                <div className="space-y-1">
+                  <div className="text-base sm:text-lg font-black tracking-wide text-rose-800 leading-snug whitespace-pre-line">
+                    {notice.warningTh || "กรุณากรอกข้อมูลให้ครบถ้วน เพื่อป้องกันการขอหนังสือไม่สมบูรณ์"}
+                  </div>
+                  {notice.warningEn && (
+                    <div className="text-xs sm:text-sm font-semibold text-rose-700 leading-snug whitespace-pre-line">
+                      {notice.warningEn}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {canManageNotice && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditNoticeTh(notice.noticeTh);
+                    setEditNoticeEn(notice.noticeEn || "");
+                    setEditWarningTh(notice.warningTh || "กรุณากรอกข้อมูลให้ครบถ้วน เพื่อป้องกันการขอหนังสือไม่สมบูรณ์");
+                    setEditWarningEn(notice.warningEn || "");
+                    setIsNoticeEditOpen(true);
+                  }}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-red-300 bg-white/95 px-3 py-1.5 text-xs font-bold text-red-700 shadow-2xs hover:bg-red-100 hover:text-red-900 transition-colors"
+                  title="แก้ไขข้อความเตือน (เฉพาะ Admin)"
+                >
+                  <Edit3 className="h-3.5 w-3.5" />
+                  <span>แก้ไขประกาศ/คำเตือน (Admin)</span>
                 </button>
               )}
             </div>
@@ -1071,7 +1183,7 @@ export function RequestFormClient({
 
                     <div>
                       <label className="mb-1 block text-xs font-semibold text-slate-700">
-                        สัญชาติ (Nationality)
+                        สัญชาติ (Nationality) *
                       </label>
                       <input
                         type="text"
@@ -1280,7 +1392,7 @@ export function RequestFormClient({
 
                   <div>
                     <label className="mb-1 block text-xs font-semibold text-slate-700">
-                      สัญชาติ (Nationality)
+                      สัญชาติ (Nationality) *
                     </label>
                     <input
                       type="text"
@@ -1331,7 +1443,7 @@ export function RequestFormClient({
             </h2>
 
             {/* Purpose & Certificate Configuration Row */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
                   วัตถุประสงค์ในการขอหนังสือ (Purpose) *
@@ -1378,93 +1490,116 @@ export function RequestFormClient({
                   </option>
                 </select>
               </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-slate-700">
-                  ขนาดตัวอักษรใน PDF (ปรับได้ 10-26pt)
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    step="0.5"
-                    min={10}
-                    max={26}
-                    value={form.fontSizePt}
-                    onChange={(e) =>
-                      setForm((p) => ({
-                        ...p,
-                        fontSizePt: parseFloat(e.target.value || "16"),
-                      }))
-                    }
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-xs font-bold text-indigo-700"
-                  />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setForm((p) => ({
-                        ...p,
-                        fontSizePt: p.docTemplate === "ENG_CERT" ? 12.5 : 16,
-                      }))
-                    }
-                    className="shrink-0 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-2 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
-                  >
-                    เท่าต้นฉบับ
-                  </button>
-                </div>
-              </div>
             </div>
 
-            {/* Passport & Visa Row (Optional for Thai, required for visa) */}
+            {/* Passport & Visa Row (Optional for Thai, required for non-Thai) */}
+            {isNonThai && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50/90 p-3 text-xs text-amber-900 flex items-center gap-2.5 shadow-2xs">
+                <span className="text-base shrink-0">📌</span>
+                <span>
+                  <strong>สำหรับผู้ที่ไม่ใช่สัญชาติไทย (สัญชาติ: {form.nationality}):</strong> จำเป็นต้องกรอกข้อมูลหนังสือเดินทาง (Passport) และวีซ่า (Visa) ทุกช่องด้านล่างนี้เพื่อความถูกต้องสมบูรณ์ของเอกสารราชการ
+                </span>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
                   เลขหนังสือเดินทาง (Passport No.)
+                  {isNonThai ? (
+                    <span className="ml-1 text-red-600 font-bold">* (จำเป็น)</span>
+                  ) : null}
                 </label>
                 <input
                   type="text"
+                  required={isNonThai}
                   value={form.passportNo}
                   onChange={(e) => setForm((p) => ({ ...p, passportNo: e.target.value }))}
-                  placeholder="เช่น MJ121085 (คนไทยเว้นว่างได้)"
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 font-mono text-xs placeholder:text-slate-400"
+                  placeholder={
+                    isNonThai
+                      ? "จำเป็นต้องกรอก (เช่น MJ121085)"
+                      : "เช่น MJ121085 (คนไทยเว้นว่างได้)"
+                  }
+                  className={`w-full rounded-xl border px-3 py-2 font-mono text-xs placeholder:text-slate-400 ${
+                    isNonThai
+                      ? "border-red-300 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                      : "border-slate-200"
+                  }`}
                 />
               </div>
 
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
                   วันหมดอายุ Passport
+                  {isNonThai ? (
+                    <span className="ml-1 text-red-600 font-bold">* (จำเป็น)</span>
+                  ) : null}
                 </label>
                 <input
                   type="text"
+                  required={isNonThai}
                   value={form.passportExpireDate}
                   onChange={(e) => setForm((p) => ({ ...p, passportExpireDate: e.target.value }))}
-                  placeholder="เช่น 19 Feb 2029"
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs placeholder:text-slate-400"
+                  placeholder={
+                    isNonThai
+                      ? "จำเป็นต้องกรอก (เช่น 19 Feb 2029)"
+                      : "เช่น 19 Feb 2029"
+                  }
+                  className={`w-full rounded-xl border px-3 py-2 text-xs placeholder:text-slate-400 ${
+                    isNonThai
+                      ? "border-red-300 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                      : "border-slate-200"
+                  }`}
                 />
               </div>
 
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
                   ประเภทวีซ่า (Type of Visa)
+                  {isNonThai ? (
+                    <span className="ml-1 text-red-600 font-bold">* (จำเป็น)</span>
+                  ) : null}
                 </label>
                 <input
                   type="text"
+                  required={isNonThai}
                   value={form.visaType}
                   onChange={(e) => setForm((p) => ({ ...p, visaType: e.target.value }))}
-                  placeholder="เช่น Non-Immigrant Visa"
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs placeholder:text-slate-400"
+                  placeholder={
+                    isNonThai
+                      ? "จำเป็นต้องกรอก (เช่น Non-Immigrant)"
+                      : "เช่น Non-Immigrant Visa"
+                  }
+                  className={`w-full rounded-xl border px-3 py-2 text-xs placeholder:text-slate-400 ${
+                    isNonThai
+                      ? "border-red-300 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                      : "border-slate-200"
+                  }`}
                 />
               </div>
 
               <div>
                 <label className="mb-1 block text-xs font-semibold text-slate-700">
                   วันหมดอายุวีซ่า (Visa Expiration)
+                  {isNonThai ? (
+                    <span className="ml-1 text-red-600 font-bold">* (จำเป็น)</span>
+                  ) : null}
                 </label>
                 <input
                   type="text"
+                  required={isNonThai}
                   value={form.visaExpireDate}
                   onChange={(e) => setForm((p) => ({ ...p, visaExpireDate: e.target.value }))}
-                  placeholder="เช่น 13 May 2026"
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs placeholder:text-slate-400"
+                  placeholder={
+                    isNonThai
+                      ? "จำเป็นต้องกรอก (เช่น 13 May 2026)"
+                      : "เช่น 13 May 2026"
+                  }
+                  className={`w-full rounded-xl border px-3 py-2 text-xs placeholder:text-slate-400 ${
+                    isNonThai
+                      ? "border-red-300 bg-red-50/20 focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                      : "border-slate-200"
+                  }`}
                 />
               </div>
             </div>
@@ -1999,30 +2134,72 @@ export function RequestFormClient({
             </div>
 
             <div className="p-6 space-y-4">
-              <div>
-                <label className="mb-1.5 block text-xs font-bold text-slate-700">
-                  ข้อความประกาศภาษาไทย (Thai Notice Banner) *
-                </label>
-                <textarea
-                  rows={3}
-                  value={editNoticeTh}
-                  onChange={(e) => setEditNoticeTh(e.target.value)}
-                  placeholder="*สำหรับการขอต่ออายุวีซ่า ให้ดำเนินการ ก่อนหมดอายุที่ท้ายเล่ม 30 วัน"
-                  className="w-full rounded-xl border border-slate-300 p-3 text-xs leading-relaxed focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
-                />
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/80 p-3 text-xs text-indigo-950 leading-relaxed">
+                💡 <b>คำแนะนำการขึ้นบรรทัดใหม่:</b> หากข้อความมีความยาวและต้องการให้<b>ตัดขึ้นบรรทัดใหม่</b> ให้กดปุ่ม <b>Enter</b> ในช่องพิมพ์ข้อความได้เลย ระบบจะแสดงผลตัดขึ้นบรรทัดใหม่ให้ตามที่พิมพ์ทันที
               </div>
 
-              <div>
-                <label className="mb-1.5 block text-xs font-bold text-slate-700">
-                  ข้อความประกาศภาษาอังกฤษ (English Notice Banner - ถ้ามี)
-                </label>
-                <textarea
-                  rows={2}
-                  value={editNoticeEn}
-                  onChange={(e) => setEditNoticeEn(e.target.value)}
-                  placeholder="*For visa extension requests, please submit your application at least 30 days before your visa/passport expiration date."
-                  className="w-full rounded-xl border border-slate-300 p-3 text-xs leading-relaxed focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
-                />
+              {/* กล่องที่ 1 */}
+              <div className="rounded-2xl border border-rose-200 bg-rose-50/40 p-4 space-y-3">
+                <div className="font-bold text-xs text-rose-800 flex items-center gap-1.5">
+                  <AlertTriangle className="h-4 w-4 text-rose-600" />
+                  <span>กล่องประกาศที่ 1 (เตือนระยะเวลาวีซ่า / ประกาศทั่วไป)</span>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-slate-700">
+                    ภาษาไทย * (กด Enter เพื่อขึ้นบรรทัดใหม่)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editNoticeTh}
+                    onChange={(e) => setEditNoticeTh(e.target.value)}
+                    placeholder="*สำหรับการขอต่ออายุวีซ่า ให้ดำเนินการ ก่อนหมดอายุที่ท้ายเล่ม 30 วัน"
+                    className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs leading-relaxed focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-slate-700">
+                    ภาษาอังกฤษ (ถ้ามี)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editNoticeEn}
+                    onChange={(e) => setEditNoticeEn(e.target.value)}
+                    placeholder="*For visa extension requests, please submit your application at least 30 days before your visa/passport expiration date."
+                    className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs leading-relaxed focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  />
+                </div>
+              </div>
+
+              {/* กล่องที่ 2 */}
+              <div className="rounded-2xl border border-red-300 bg-red-50/50 p-4 space-y-3">
+                <div className="font-bold text-xs text-red-800 flex items-center gap-1.5">
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                  <span>กล่องประกาศที่ 2 (เตือนการกรอกข้อมูลให้ครบถ้วน)</span>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-slate-700">
+                    ภาษาไทย * (กด Enter เพื่อขึ้นบรรทัดใหม่)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editWarningTh}
+                    onChange={(e) => setEditWarningTh(e.target.value)}
+                    placeholder="กรุณากรอกข้อมูลให้ครบถ้วน เพื่อป้องกันการขอหนังสือไม่สมบูรณ์"
+                    className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs leading-relaxed focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold text-slate-700">
+                    ภาษาอังกฤษ (ถ้ามี)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editWarningEn}
+                    onChange={(e) => setEditWarningEn(e.target.value)}
+                    placeholder="Please fill in all information completely to prevent incomplete certificate requests."
+                    className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs leading-relaxed focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+                  />
+                </div>
               </div>
 
               <div className="flex items-center justify-between pt-2">
@@ -2032,6 +2209,10 @@ export function RequestFormClient({
                     setEditNoticeTh("*สำหรับการขอต่ออายุวีซ่า ให้ดำเนินการ ก่อนหมดอายุที่ท้ายเล่ม 30 วัน");
                     setEditNoticeEn(
                       "*For visa extension requests, please submit your application at least 30 days before your visa/passport expiration date."
+                    );
+                    setEditWarningTh("กรุณากรอกข้อมูลให้ครบถ้วน เพื่อป้องกันการขอหนังสือไม่สมบูรณ์");
+                    setEditWarningEn(
+                      "Please fill in all information completely to prevent incomplete certificate requests."
                     );
                   }}
                   className="text-xs font-semibold text-slate-500 hover:text-slate-700 underline"

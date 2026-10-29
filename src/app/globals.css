@@ -149,6 +149,10 @@ html[data-font-size="xlarge"] {
     margin: 0 auto !important;
     width: 210mm !important;
     min-height: 285mm !important;
+    max-height: 296mm !important;
+    page-break-after: avoid !important;
+    break-after: avoid !important;
+    overflow: hidden !important;
     background: #ffffff !important;
     color: #000000 !important;
   }

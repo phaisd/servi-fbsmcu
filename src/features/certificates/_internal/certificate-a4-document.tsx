@@ -106,6 +106,8 @@ function CertificateFooterBlock({
   footerFontSizePt,
   footerLayout,
   showVerificationQr = true,
+  officerName,
+  officerPosition,
 }: {
   leftContent: React.ReactNode;
   qrDataUrl: string | null;
@@ -115,16 +117,27 @@ function CertificateFooterBlock({
   footerFontSizePt: number;
   footerLayout: "TWO_COLUMNS" | "STACKED";
   showVerificationQr?: boolean;
+  officerName?: string;
+  officerPosition?: string;
 }) {
   if (!showVerificationQr) {
     return (
-      <div className="mt-4 pt-2.5 border-t border-black/25 text-black">
+      <div className="mt-4 pt-2.5 border-t border-black/25 flex items-end justify-between gap-4 text-black">
         <div
-          className="text-left leading-tight"
+          className="text-left leading-tight min-w-0 max-w-[50%]"
           style={{ fontSize: `${footerFontSizePt}pt` }}
         >
           {leftContent}
         </div>
+        {officerName ? (
+          <div className="text-[7.5pt] text-black/80 text-right leading-tight">
+            <span className="text-black/60">{isEnglish ? "Printed by: " : "ผู้พิมพ์: "}</span>
+            <span className="font-semibold">{officerName}</span>
+            {officerPosition ? (
+              <span className="text-black/65"> ({officerPosition})</span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -134,41 +147,53 @@ function CertificateFooterBlock({
       <div className="mt-4 pt-2.5 border-t border-black/25 flex items-end justify-between gap-4 text-black">
         {/* คอลัมน์ซ้าย: สำนักงานคณบดี / ติดต่อผู้ประสานงาน ถึง URL */}
         <div
-          className="text-left leading-tight min-w-0 max-w-[54%]"
+          className="text-left leading-tight min-w-0 max-w-[50%]"
           style={{ fontSize: `${footerFontSizePt}pt` }}
         >
           {leftContent}
         </div>
 
-        {/* คอลัมน์ขวา: ชุด QR Code พร้อมข้อมูลตรวจสอบความถูกต้อง */}
-        <div className="flex items-center justify-end gap-2.5 shrink-0 max-w-[46%]">
-          <div className="leading-tight text-right">
-            <div className="font-bold text-[8.5pt]">
-              {isEnglish
-                ? "Official Verification • Faculty of Buddhism, MCU"
-                : "ตรวจสอบความถูกต้องของเอกสาร • คณะพุทธศาสตร์ มจร"}
+        {/* คอลัมน์ขวา: ข้อมูลผู้ออกเอกสาร (กรอบบน) + ชุด QR Code พร้อมข้อมูลตรวจสอบความถูกต้อง */}
+        <div className="flex flex-col items-end shrink-0 max-w-[50%]">
+          {officerName ? (
+            <div className="text-[7.5pt] text-black/80 text-right leading-tight mb-1">
+              <span className="text-black/60">{isEnglish ? "Printed by: " : "ผู้พิมพ์: "}</span>
+              <span className="font-semibold">{officerName}</span>
+              {officerPosition ? (
+                <span className="text-black/65"> ({officerPosition})</span>
+              ) : null}
             </div>
-            <div className="text-[7pt] text-black/70 mt-0.5">
-              {isEnglish
-                ? "Scan QR code to verify student status & authenticity"
-                : "สแกน QR Code เพื่อตรวจสอบสถานภาพนิสิตและข้อมูลแท้จริง"}
+          ) : null}
+
+          <div className="flex items-center justify-end gap-2.5">
+            <div className="leading-tight text-right">
+              <div className="font-bold text-[8.5pt]">
+                {isEnglish
+                  ? "Official Verification • Faculty of Buddhism, MCU"
+                  : "ตรวจสอบความถูกต้องของเอกสาร • คณะพุทธศาสตร์ มจร"}
+              </div>
+              <div className="text-[7pt] text-black/70 mt-0.5">
+                {isEnglish
+                  ? "Scan QR code to verify student status & authenticity"
+                  : "สแกน QR Code เพื่อตรวจสอบสถานภาพนิสิตและข้อมูลแท้จริง"}
+              </div>
+              <div className="text-[6.8pt] text-black/60 font-mono mt-0.5">
+                Ref: {docNo} {requestId ? `• ID: ${requestId.slice(0, 8)}` : ""}
+              </div>
             </div>
-            <div className="text-[6.8pt] text-black/60 font-mono mt-0.5">
-              Ref: {docNo} {requestId ? `• ID: ${requestId.slice(0, 8)}` : ""}
-            </div>
+            {qrDataUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={qrDataUrl}
+                alt="Verification QR"
+                className="w-13 h-13 border border-black/40 p-0.5 object-contain shrink-0 bg-white"
+              />
+            ) : (
+              <div className="w-13 h-13 border border-dashed border-black/40 flex items-center justify-center text-[7pt] text-black/50 shrink-0 font-mono">
+                QR STAMP
+              </div>
+            )}
           </div>
-          {qrDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={qrDataUrl}
-              alt="Verification QR"
-              className="w-13 h-13 border border-black/40 p-0.5 object-contain shrink-0 bg-white"
-            />
-          ) : (
-            <div className="w-13 h-13 border border-dashed border-black/40 flex items-center justify-center text-[7pt] text-black/50 shrink-0 font-mono">
-              QR STAMP
-            </div>
-          )}
         </div>
       </div>
     );
@@ -198,6 +223,15 @@ function CertificateFooterBlock({
             </div>
           )}
           <div className="leading-tight">
+            {officerName ? (
+              <div className="text-[7.5pt] text-black/80 leading-tight mb-1">
+                <span className="text-black/60">{isEnglish ? "Printed by: " : "ผู้พิมพ์: "}</span>
+                <span className="font-semibold">{officerName}</span>
+                {officerPosition ? (
+                  <span className="text-black/65"> ({officerPosition})</span>
+                ) : null}
+              </div>
+            ) : null}
             <div className="font-bold text-[8.5pt]">
               {isEnglish
                 ? "Official Verification • Faculty of Buddhism, MCU"
@@ -230,13 +264,10 @@ export interface CertificateFontPreset {
 }
 
 export const CERTIFICATE_FONT_PRESETS: CertificateFontPreset[] = [
-  { id: "Sarabun", name: "TH Sarabun (สารบรรณ)", description: "มาตรฐานเอกสารราชการไทยและมหาวิทยาลัย (แนะนำ)", desc: "มาตรฐานเอกสารราชการไทยและมหาวิทยาลัย (แนะนำ)", isGoogleFont: true },
-  { id: "Noto Serif Thai", name: "Noto Serif Thai (ทางการ/วิชาการ)", description: "แบบมีหัวคลาสสิก เรียบร้อย สง่างาม", desc: "แบบมีหัวคลาสสิก เรียบร้อย สง่างาม", isGoogleFont: true },
-  { id: "Krub", name: "Krub (ครับ)", description: "ทางการ ทันสมัย สัดส่วนกะทัดรัด", desc: "ทางการ ทันสมัย สัดส่วนกะทัดรัด", isGoogleFont: true },
-  { id: "Bai Jamjuree", name: "Bai Jamjuree (จามจุรี)", description: "ทรงเหลี่ยมมน สวยงาม ชัดเจน", desc: "ทรงเหลี่ยมมน สวยงาม ชัดเจน", isGoogleFont: true },
-  { id: "Prompt", name: "Prompt (พร้อมต์)", description: "ทันสมัย ไม่มีหัว ชัดเจน", desc: "ทันสมัย ไม่มีหัว ชัดเจน", isGoogleFont: true },
-  { id: "Chakra Petch", name: "Chakra Petch (จักรเพชร)", description: "สไตล์เหลี่ยมทางการ มีเอกลักษณ์", desc: "สไตล์เหลี่ยมทางการ มีเอกลักษณ์", isGoogleFont: true },
-  { id: "Times New Roman", name: "Times New Roman", description: "มาตรฐานสากล สำหรับเอกสารภาษาอังกฤษ", desc: "มาตรฐานสากล สำหรับเอกสารภาษาอังกฤษ", isGoogleFont: false },
+  { id: "Sarabun", name: "TH Sarabun (สารบรรณ)", description: "มาตรฐานหนังสือราชการไทยและมหาวิทยาลัย (แนะนำอันดับ 1)", desc: "มาตรฐานหนังสือราชการไทยและมหาวิทยาลัย (แนะนำอันดับ 1)", isGoogleFont: true },
+  { id: "Noto Serif Thai", name: "Noto Serif Thai (ทางการ/วิชาการ)", description: "แบบมีหัวคลาสสิก เรียบร้อย สง่างาม สำหรับเอกสารสำคัญ", desc: "แบบมีหัวคลาสสิก เรียบร้อย สง่างาม สำหรับเอกสารสำคัญ", isGoogleFont: true },
+  { id: "Times New Roman", name: "Times New Roman (อังกฤษ Serif)", description: "มาตรฐานสากล สำหรับเอกสารภาษาอังกฤษใช้นอกประเทศ", desc: "มาตรฐานสากล สำหรับเอกสารภาษาอังกฤษใช้นอกประเทศ", isGoogleFont: false },
+  { id: "Arial", name: "Arial (อังกฤษ Sans-serif)", description: "มาตรฐานสากล สำหรับเอกสารราชการ/สถานทูต อ่านง่ายชัดเจน", desc: "มาตรฐานสากล สำหรับเอกสารราชการ/สถานทูต อ่านง่ายชัดเจน", isGoogleFont: false },
   { id: "Angsana New", name: "Angsana New (อังศนา)", description: "ฟอนต์ราชการ Windows ดั้งเดิม", desc: "ฟอนต์ราชการ Windows ดั้งเดิม", isGoogleFont: false },
   { id: "Cordia New", name: "Cordia New (คอร์เดีย)", description: "ฟอนต์ราชการ Windows ยอดนิยม", desc: "ฟอนต์ราชการ Windows ยอดนิยม", isGoogleFont: false },
 ];
@@ -250,20 +281,14 @@ export function resolveFontFamilyCss(font?: string, isEng?: boolean): string {
       return "'Sarabun', 'TH SarabunPSK', 'TH Sarabun New', sans-serif";
     case "Noto Serif Thai":
       return "'Noto Serif Thai', 'TH SarabunPSK', serif";
-    case "Krub":
-      return "'Krub', 'Sarabun', 'TH SarabunPSK', sans-serif";
-    case "Bai Jamjuree":
-      return "'Bai Jamjuree', 'Sarabun', 'TH SarabunPSK', sans-serif";
-    case "Prompt":
-      return "'Prompt', 'Sarabun', 'TH SarabunPSK', sans-serif";
-    case "Chakra Petch":
-      return "'Chakra Petch', 'Sarabun', 'TH SarabunPSK', sans-serif";
     case "Angsana New":
       return "'Angsana New', 'AngsanaUPC', 'TH SarabunPSK', sans-serif";
     case "Cordia New":
       return "'Cordia New', 'CordiaUPC', 'TH SarabunPSK', sans-serif";
     case "Times New Roman":
       return '"Times New Roman", Times, Georgia, serif';
+    case "Arial":
+      return 'Arial, "Helvetica Neue", Helvetica, sans-serif';
     default:
       return `${chosen}, 'Sarabun', 'TH SarabunPSK', sans-serif`;
   }
@@ -286,6 +311,7 @@ export function CertificateA4Document({
   const lineHeight = metadata.lineHeight ?? (isEng ? 1.85 : 1.85);
   const marginTopMm = metadata.marginTopMm ?? 24;
   const marginSideMm = metadata.marginSideMm ?? 25;
+  const marginBottomMm = metadata.marginBottomMm ?? 12;
   const showSignature = metadata.showSignatureGraphic !== false;
   const showPhotoBox = metadata.showPhotoBox !== false;
   const photoBoxPosition = metadata.photoBoxPosition ?? "BOTTOM_LEFT";
@@ -336,7 +362,7 @@ export function CertificateA4Document({
     width: "210mm",
     minHeight: "297mm",
     paddingTop: `${marginTopMm}mm`,
-    paddingBottom: "16mm",
+    paddingBottom: `${marginBottomMm}mm`,
     paddingLeft: `${marginSideMm}mm`,
     paddingRight: `${marginSideMm}mm`,
     fontSize: `${fontSizePt}pt`,
@@ -350,7 +376,34 @@ export function CertificateA4Document({
     <style
       dangerouslySetInnerHTML={{
         __html: `
-          @import url('https://fonts.googleapis.com/css2?family=Bai+Jamjuree:wght@300;400;500;600;700&family=Chakra+Petch:wght@300;400;600;700&family=Krub:wght@300;400;500;600;700&family=Noto+Serif+Thai:wght@300;400;600;700&family=Prompt:wght@300;400;500;600;700&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@400;600;700&family=Sarabun:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
+          @page {
+            size: A4 portrait;
+            margin: 0 !important;
+          }
+          @media print {
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              height: 297mm !important;
+              max-height: 297mm !important;
+              overflow: hidden !important;
+            }
+            .certificate-print-sheet {
+              box-shadow: none !important;
+              border: none !important;
+              margin: 0 auto !important;
+              width: 210mm !important;
+              height: 296mm !important;
+              min-height: 296mm !important;
+              max-height: 296mm !important;
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+              page-break-after: avoid !important;
+              break-after: avoid !important;
+              overflow: hidden !important;
+            }
+          }
         `,
       }}
     />
@@ -481,6 +534,8 @@ export function CertificateA4Document({
             footerFontSizePt={footerFontSizePt}
             footerLayout={footerLayout}
             showVerificationQr={showVerificationQr}
+            officerName={metadata.officerName}
+            officerPosition={metadata.officerPosition}
           />
         </div>
       </div>
@@ -565,6 +620,8 @@ export function CertificateA4Document({
             footerFontSizePt={footerFontSizePt}
             footerLayout={footerLayout}
             showVerificationQr={showVerificationQr}
+            officerName={metadata.officerName}
+            officerPosition={metadata.officerPosition}
           />
         </div>
       </div>
@@ -681,6 +738,8 @@ export function CertificateA4Document({
             footerFontSizePt={footerFontSizePt}
             footerLayout={footerLayout}
             showVerificationQr={showVerificationQr}
+            officerName={metadata.officerName}
+            officerPosition={metadata.officerPosition}
           />
         </div>
       </div>
@@ -794,6 +853,8 @@ export function CertificateA4Document({
             footerFontSizePt={footerFontSizePt}
             footerLayout={footerLayout}
             showVerificationQr={showVerificationQr}
+            officerName={metadata.officerName}
+            officerPosition={metadata.officerPosition}
           />
         </div>
       </div>

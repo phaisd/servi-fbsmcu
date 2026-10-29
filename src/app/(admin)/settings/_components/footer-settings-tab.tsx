@@ -14,6 +14,7 @@ import {
   RotateCcw,
   ListOrdered,
   Layers,
+  Code,
 } from "lucide-react";
 import { LiyonCard, LiyonField, LiyonSwitch } from "@/shared/components/liyon";
 import {
@@ -127,6 +128,50 @@ export function FooterSettingsTab({ value, onChange }: FooterSettingsTabProps) {
               onCheckedChange={(checked) => update("showStaffConsole", checked)}
             />
           </div>
+
+          {/* Dev Credit Toggle & Text */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border">
+            <div className="space-y-0.5">
+              <div className="text-sm font-medium flex items-center gap-1.5">
+                <Code className="w-4 h-4 text-primary" />
+                <span>แสดงเครดิตผู้พัฒนา (Dev. Credit) ท้ายเว็บ</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                แสดงข้อความ &quot;Dev. by สำนักงานคณบดีคณะพุทธศาสตร์&quot; ที่แถบล่างสุดของ Footer
+              </p>
+            </div>
+            <LiyonSwitch
+              checked={value.showDevCredit ?? true}
+              onCheckedChange={(checked) => update("showDevCredit", checked)}
+            />
+          </div>
+
+          {(value.showDevCredit ?? true) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 rounded-lg border bg-slate-50/50 dark:bg-muted/20">
+              <LiyonField
+                label="ข้อความเครดิตผู้พัฒนา (ภาษาไทย)"
+                hint="เช่น Dev. by สำนักงานคณบดีคณะพุทธศาสตร์"
+              >
+                <input
+                  type="text"
+                  className="input"
+                  value={value.devCreditTh ?? "Dev. by สำนักงานคณบดีคณะพุทธศาสตร์"}
+                  onChange={(e) => update("devCreditTh", e.target.value)}
+                />
+              </LiyonField>
+              <LiyonField
+                label="Developer Credit Text (English)"
+                hint="e.g. Dev. by Office of the Dean, Faculty of Buddhism"
+              >
+                <input
+                  type="text"
+                  className="input"
+                  value={value.devCreditEn ?? "Dev. by Office of the Dean, Faculty of Buddhism"}
+                  onChange={(e) => update("devCreditEn", e.target.value)}
+                />
+              </LiyonField>
+            </div>
+          )}
 
           <div className="space-y-4 pt-2">
             <LiyonField

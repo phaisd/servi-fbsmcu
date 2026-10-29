@@ -838,6 +838,7 @@ model CourseEnrollment {
   status          EnrollmentStatus @default(ENROLLED)
   enrolledAt      DateTime         @default(now()) @map("enrolled_at") @db.Timestamptz()
   notes           String?          @db.Text
+  attendanceScore Float?           @map("attendance_score")
   assignmentScore Float?           @map("assignment_score")
   midtermScore    Float?           @map("midterm_score")
   affectiveScore  Float?           @map("affective_score")
@@ -997,6 +998,7 @@ model Event {
   activityHours Int      @default(3) @map("activity_hours")
   eventType     String   @default("CEREMONY") @map("event_type") @db.VarChar(50)
   targetGroup   String   @default("ALL") @map("target_group") @db.VarChar(100)
+  meditationConfig Json? @map("meditation_config")
 
   registrations EventRegistration[]
 
@@ -1029,6 +1031,10 @@ model EventRegistration {
   department  String?            @db.VarChar(100)
   remarks     String?            @db.VarChar(255)
   attendedAt  DateTime?          @map("attended_at") @db.Timestamptz()
+  groupNumber Int?               @map("group_number")
+  groupName   String?            @map("group_name") @db.VarChar(100)
+  program     String?            @default("THAI") @db.VarChar(20)
+  dailyAttendance Json?          @map("daily_attendance")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()

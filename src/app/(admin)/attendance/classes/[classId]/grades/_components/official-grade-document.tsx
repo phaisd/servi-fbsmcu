@@ -18,6 +18,7 @@ interface StudentGradeItem {
   major: string;
   studyStatus: string;
   attendancePercentage: number;
+  attendanceScore?: number | null;
   assignmentScore: number | null;
   midtermScore: number | null;
   affectiveScore: number | null;
@@ -28,6 +29,7 @@ interface StudentGradeItem {
 }
 
 interface GradingConfig {
+  attendanceMax?: number;
   assignmentMax: number;
   midtermMax: number;
   affectiveMax: number;
@@ -47,6 +49,8 @@ interface OfficialGradeDocumentProps {
     semester: number;
     room: string;
     primaryTeacher: string;
+    coTeachers?: string[];
+    coTeacherNames?: string | null;
     degree?: string;
     programLanguage?: string;
     faculty?: string;
@@ -297,6 +301,14 @@ export function OfficialGradeDocument({
                   {course.primaryTeacher || "อาจารย์ผู้สอน"}
                 </span>
               </div>
+              {course.coTeacherNames && (
+                <div className="flex items-baseline gap-2">
+                  <span className="font-bold">อาจารย์ผู้สอนร่วม:</span>
+                  <span className="underline decoration-dotted underline-offset-4 font-semibold text-slate-900">
+                    {course.coTeacherNames}
+                  </span>
+                </div>
+              )}
             </div>
             <div className="flex items-center justify-between text-xs text-slate-600 pt-0.5">
               <span>
@@ -316,6 +328,15 @@ export function OfficialGradeDocument({
                 <th className="border border-black px-2 py-2 w-28 font-mono">รหัส</th>
                 <th className="border border-black px-3 py-2 text-left">ชื่อฉายา-นามสกุล</th>
                 
+                {/* ช่องมาเรียน/กิจกรรม ก่อนช่องจิตพิสัย */}
+                <th className="border border-black px-1.5 py-2 w-16 text-center leading-tight">
+                  <div className="flex flex-col items-center">
+                    <span>มาเรียน/</span>
+                    <span>กิจกรรม</span>
+                    <span className="text-[10px] text-slate-500 font-normal">(เวลาเรียน)</span>
+                  </div>
+                </th>
+
                 {/* 4 Score columns matching PDF */}
                 <th className="border border-black px-1.5 py-2 w-14 text-center leading-tight">
                   <div className="flex flex-col items-center">
@@ -372,6 +393,11 @@ export function OfficialGradeDocument({
                     </td>
                     <td className="border border-black px-3 py-1.5 text-left font-medium">
                       {student.fullName}
+                    </td>
+                    <td className="border border-black px-1 py-1.5 text-center font-mono text-[11px] font-bold">
+                      {student.attendancePercentage !== null && student.attendancePercentage !== undefined
+                        ? `${student.attendancePercentage}%`
+                        : "-"}
                     </td>
                     <td className="border border-black px-1 py-1.5 font-mono">
                       {student.affectiveScore !== null ? student.affectiveScore : "-"}
@@ -444,7 +470,7 @@ export function OfficialGradeDocument({
           </div>
 
           {/* Signature Block */}
-          <div className="grid grid-cols-2 gap-8 text-center text-xs mt-6 mb-4">
+          <div className={`grid ${course.coTeachers && course.coTeachers.length > 0 ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2"} gap-6 text-center text-xs mt-6 mb-4`}>
             <div className="space-y-2">
               <p>ลงชื่อ .............................................................. หัวหน้าภาค</p>
               <p>( .............................................................. )</p>
@@ -455,6 +481,13 @@ export function OfficialGradeDocument({
               <p>( {course.primaryTeacher || ".............................................................."} )</p>
               <p>วันที่ .......... / .................... / {currentYearBE}</p>
             </div>
+            {course.coTeachers && course.coTeachers.map((name, i) => (
+              <div key={i} className="space-y-2">
+                <p>ลงชื่อ .............................................................. อาจารย์ผู้สอนร่วม</p>
+                <p>( {name} )</p>
+                <p>วันที่ .......... / .................... / {currentYearBE}</p>
+              </div>
+            ))}
           </div>
 
           {/* Quality Assurance Regulations Footer Note */}

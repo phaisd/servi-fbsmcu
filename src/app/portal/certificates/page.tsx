@@ -46,6 +46,7 @@ export default async function PublicCertificatesPage() {
       certificateTypeId: item.certificateTypeId,
       typeName: item.certificateType.name,
       status: item.status,
+      reason: item.reason,
       createdAt: item.createdAt.toISOString(),
       metadata: {
         ...parsedMeta,

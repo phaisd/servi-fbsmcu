@@ -13,6 +13,8 @@ import {
   LiyonDialog,
   LiyonDialogBody,
   LiyonDialogFooter,
+  LiyonDialogTitle,
+  LiyonDialogDescription,
 } from "@/shared/components/liyon";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -628,12 +630,16 @@ export function CalendarAdminClient({
             <div className="p-6 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  <LiyonDialogTitle asChild>
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                     สร้างปฏิทินปีการศึกษาใหม่
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  </LiyonDialogTitle>
+                  <LiyonDialogDescription asChild>
+                    <p className="text-xs text-slate-500 mt-0.5">
                     สำหรับรองรับการเปลี่ยนแปลงในปีการศึกษาถัดไป (เช่น 2027 / 2570)
                   </p>
+                  </LiyonDialogDescription>
                 </div>
                 <button
                   type="button"

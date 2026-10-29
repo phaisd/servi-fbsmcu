@@ -1887,12 +1887,68 @@ async function findOrCreateTeacherUser(
 ) {
   const cleanName = teacherName.trim();
 
-  // 1. ตรวจสอบว่ามีผู้ใช้นี้อยู่แล้วหรือไม่
-  const existingUser = await db.user.findFirst({
+  // 1. ตรวจสอบว่ามีผู้ใช้นี้อยู่แล้วหรือไม่ (Exact Match)
+  let existingUser = await db.user.findFirst({
     where: {
       name: { equals: cleanName, mode: "insensitive" },
+      isActive: true,
     },
   });
+
+  // 1.1 Smart Matching ผ่านตารางทำเนียบบุคลากร (Personnel)
+  // เพื่อรองรับทั้งชื่อภาษาอังกฤษในตารางสอนหลักสูตรนานาชาติ และชื่อภาษาไทย โดยไม่สร้างบัญชีซ้ำซ้อน
+  if (!existingUser) {
+    const strippedName = cleanName
+      .replace(/(ผศ\s*\.?\s*ดร\.?|รศ\s*\.?\s*ดร\.?|ศ\s*\.?\s*ดร\.?|ดร\.?|อ\.ดร\.?|อาจารย์\s*ดร\.?|อาจารย์|อ\.|พระมหา|พระครูปลัด|พระครู|พระราช|พระธรรม|พระ|วิ\.|asst\s*\.?\s*prof\s*\.?|assoc\s*\.?\s*prof\s*\.?|prof\s*\.?|dr\s*\.?|ph\s*\.?\s*d\s*\.?|ven\s*\.?|pm\s*\.?)/gi, "")
+      .replace(/[*,_.]/g, "")
+      .trim();
+
+    const parts = strippedName.split(/\s+/).filter((p) => p.length > 2);
+
+    const matchedPersonnel = await db.personnel.findFirst({
+      where: {
+        isActive: true,
+        OR: [
+          { firstNameEn: { equals: cleanName, mode: "insensitive" } },
+          {
+            AND: [
+              parts[0] ? { firstNameEn: { contains: parts[0], mode: "insensitive" } } : {},
+              parts[1] ? { lastNameEn: { contains: parts[1], mode: "insensitive" } } : {},
+            ],
+          },
+          {
+            AND: [
+              parts[0] ? { firstNameTh: { contains: parts[0] } } : {},
+              parts[1] ? { lastNameTh: { contains: parts[1] } } : {},
+            ],
+          },
+          parts[0] ? { lastNameEn: { contains: parts[0], mode: "insensitive" } } : {},
+          parts[0] ? { firstNameTh: { contains: parts[0] } } : {},
+          parts[0] ? { lastNameTh: { contains: parts[0] } } : {},
+        ],
+      },
+    });
+
+    if (matchedPersonnel) {
+      if (matchedPersonnel.email) {
+        existingUser = await db.user.findUnique({
+          where: { email: matchedPersonnel.email.toLowerCase() },
+        });
+      }
+      if (!existingUser) {
+        existingUser = await db.user.findFirst({
+          where: {
+            isActive: true,
+            OR: [
+              { name: { contains: matchedPersonnel.firstNameTh } },
+              matchedPersonnel.lastNameTh ? { name: { contains: matchedPersonnel.lastNameTh } } : {},
+              matchedPersonnel.lastNameEn ? { name: { contains: matchedPersonnel.lastNameEn, mode: "insensitive" } } : {},
+            ],
+          },
+        });
+      }
+    }
+  }
 
   if (existingUser) {
     // ผูก User เข้ากับ Tenant หากยังไม่ได้ผูก
@@ -2864,6 +2920,14 @@ export async function getCourseAttendanceMatrix(
         select: { logoUrl: true },
       },
       primaryTeacher: true,
+      teachers: {
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+      },
       sessions: {
         orderBy: { sessionNumber: "asc" },
       },
@@ -3018,6 +3082,7 @@ export async function updateCourseCalculationRules(
 // =========================================================================
 
 export interface CourseGradingConfig {
+  attendanceMax?: number;
   assignmentMax: number; // คะแนนเก็บ (Default: 30)
   midtermMax: number;    // สอบระหว่างภาค (Default: 30)
   affectiveMax: number;  // จิตวิสัย / จิตพิสัย (Default: 10)
@@ -3055,6 +3120,14 @@ export async function getCourseGrades(
         select: { logoUrl: true },
       },
       primaryTeacher: true,
+      teachers: {
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+        orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+      },
       sessions: {
         orderBy: { sessionNumber: "asc" },
       },
@@ -3077,6 +3150,7 @@ export async function getCourseGrades(
   if (!course) throw new Error("NOT_FOUND: ไม่พบรายวิชา");
 
   const defaultConfig: CourseGradingConfig = {
+    attendanceMax: 0,
     assignmentMax: 30,
     midtermMax: 30,
     affectiveMax: 10,
@@ -3085,6 +3159,7 @@ export async function getCourseGrades(
 
   const rawConfig = (course.gradingConfig as Partial<CourseGradingConfig>) || {};
   const gradingConfig: CourseGradingConfig = {
+    attendanceMax: Number(rawConfig.attendanceMax) >= 0 ? Number(rawConfig.attendanceMax) : 0,
     assignmentMax: Number(rawConfig.assignmentMax) >= 0 ? Number(rawConfig.assignmentMax) : defaultConfig.assignmentMax,
     midtermMax: Number(rawConfig.midtermMax) >= 0 ? Number(rawConfig.midtermMax) : defaultConfig.midtermMax,
     affectiveMax: Number(rawConfig.affectiveMax) >= 0 ? Number(rawConfig.affectiveMax) : defaultConfig.affectiveMax,
@@ -3124,6 +3199,7 @@ export async function getCourseGrades(
     });
 
     const hasAnyScore =
+      enr.attendanceScore !== null ||
       enr.assignmentScore !== null ||
       enr.midtermScore !== null ||
       enr.affectiveScore !== null ||
@@ -3131,7 +3207,8 @@ export async function getCourseGrades(
 
     const computedTotal = hasAnyScore
       ? Math.round(
-          ((enr.assignmentScore || 0) +
+          ((enr.attendanceScore || 0) +
+            (enr.assignmentScore || 0) +
             (enr.midtermScore || 0) +
             (enr.affectiveScore || 0) +
             (enr.finalScore || 0)) * 100
@@ -3160,6 +3237,7 @@ export async function getCourseGrades(
       attendancePercentage: eligibility.percentage,
       isEligible: eligibility.isEligible,
       eligibilityStatusTh: eligibility.statusText || "",
+      attendanceScore: enr.attendanceScore,
       assignmentScore: enr.assignmentScore,
       midtermScore: enr.midtermScore,
       affectiveScore: enr.affectiveScore,
@@ -3235,6 +3313,28 @@ export async function getCourseGrades(
       semester: course.semester,
       room: course.room || "-",
       primaryTeacher: course.primaryTeacher?.name || "-",
+      coTeachers: (course.teachers || [])
+        .filter(
+          (ct) =>
+            !ct.isPrimary &&
+            ct.user?.name &&
+            ct.user.name !== course.primaryTeacher?.name &&
+            !ct.user.name.includes("เจ้าหน้าที่") &&
+            !ct.user.name.includes("ผู้ดูแล")
+        )
+        .map((ct) => ct.user.name as string),
+      coTeacherNames:
+        (course.teachers || [])
+          .filter(
+            (ct) =>
+              !ct.isPrimary &&
+              ct.user?.name &&
+              ct.user.name !== course.primaryTeacher?.name &&
+              !ct.user.name.includes("เจ้าหน้าที่") &&
+              !ct.user.name.includes("ผู้ดูแล")
+          )
+          .map((ct) => ct.user.name as string)
+          .join(", ") || null,
       degree,
       programLanguage,
       faculty,
@@ -3258,6 +3358,7 @@ export async function batchUpdateCourseGrades(
   courseId: string,
   items: Array<{
     enrollmentId: string;
+    attendanceScore?: number | null;
     assignmentScore?: number | null;
     midtermScore?: number | null;
     affectiveScore?: number | null;
@@ -3276,6 +3377,7 @@ export async function batchUpdateCourseGrades(
     const updated = [];
     for (const item of items) {
       const hasAnyScore =
+        item.attendanceScore !== null && item.attendanceScore !== undefined ||
         item.assignmentScore !== null && item.assignmentScore !== undefined ||
         item.midtermScore !== null && item.midtermScore !== undefined ||
         item.affectiveScore !== null && item.affectiveScore !== undefined ||
@@ -3286,7 +3388,8 @@ export async function batchUpdateCourseGrades(
           ? item.totalScore
           : hasAnyScore
           ? Math.round(
-              ((item.assignmentScore || 0) +
+              ((item.attendanceScore || 0) +
+                (item.assignmentScore || 0) +
                 (item.midtermScore || 0) +
                 (item.affectiveScore || 0) +
                 (item.finalScore || 0)) * 100
@@ -3303,6 +3406,7 @@ export async function batchUpdateCourseGrades(
       const res = await tx.courseEnrollment.update({
         where: { id: item.enrollmentId },
         data: {
+          attendanceScore: item.attendanceScore !== undefined ? item.attendanceScore : undefined,
           assignmentScore: item.assignmentScore !== undefined ? item.assignmentScore : undefined,
           midtermScore: item.midtermScore !== undefined ? item.midtermScore : undefined,
           affectiveScore: item.affectiveScore !== undefined ? item.affectiveScore : undefined,
@@ -3347,6 +3451,7 @@ export async function updateCourseGradingConfig(
   }
 
   const sanitizedConfig: CourseGradingConfig = {
+    attendanceMax: Math.max(0, Number(config.attendanceMax) || 0),
     assignmentMax: Math.max(0, Number(config.assignmentMax) || 0),
     midtermMax: Math.max(0, Number(config.midtermMax) || 0),
     affectiveMax: Math.max(0, Number(config.affectiveMax) || 0),
