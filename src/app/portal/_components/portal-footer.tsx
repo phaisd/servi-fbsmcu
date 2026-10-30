@@ -54,21 +54,6 @@ export async function PortalFooter() {
     (l) => l.enabled !== false
   );
   const quickLinks = [...rawQuickLinks];
-  if (!quickLinks.some((l) => l.href === "/portal/executives")) {
-    const pIdx = quickLinks.findIndex((l) => l.href === "/portal/personnel");
-    const execLink = {
-      id: "link-executives",
-      labelTh: "ทำเนียบผู้บริหาร",
-      labelEn: "Executive Board",
-      href: "/portal/executives",
-      enabled: true,
-    };
-    if (pIdx >= 0) {
-      quickLinks.splice(pIdx, 0, execLink);
-    } else {
-      quickLinks.push(execLink);
-    }
-  }
   const systemLinks = (footer.systemLinks ?? DEFAULT_FOOTER_SYSTEM_LINKS).filter(
     (l) => l.enabled !== false
   );
