@@ -35,7 +35,8 @@ interface ManualSection {
   title: string;
   desc: string;
   icon: React.ComponentType<{ className?: string }>;
-  adminOnly?: boolean;
+  enabled?: boolean; // ปิดการแสดงผลคู่มือนี้โดยเด็ดขาด (true = เปิด, false = ปิด)
+  adminOnly?: boolean; // แสดงเฉพาะแอดมิน (true = เฉพาะแอดมิน, false = ทุกคนเห็น)
   steps: {
     title: string;
     description: string;
@@ -379,8 +380,10 @@ export function PortalManualClient() {
   const [adminOnlyFilter, setAdminOnlyFilter] = useState<"ALL" | "GENERAL" | "ADMIN">("ALL");
 
   // กรองเฉพาะคู่มือที่อนุญาตให้ผู้ใช้ปัจจุบันเห็น
-  // หากไม่ใช่ Admin ผู้ใช้จะไม่เห็นคู่มือที่เป็น adminOnly: true
+  // 1. ถ้า enabled === false จะถูกปิดซ่อน ไม่แสดงให้ใครเห็นเลย
+  // 2. ถ้า adminOnly === true จะแสดงเฉพาะเมื่อผู้ใช้ล็อกอินเป็น Admin
   const accessibleSections = MANUAL_SECTIONS.filter((s) => {
+    if (s.enabled === false) return false;
     if (s.adminOnly && !isAdminUser) return false;
     return true;
   });
