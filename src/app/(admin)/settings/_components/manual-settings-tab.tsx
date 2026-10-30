@@ -35,7 +35,6 @@ export function ManualSettingsTab({ value, onChange }: ManualSettingsTabProps) {
     title: string;
     desc: string;
     icon: React.ComponentType<{ className?: string }>;
-    adminOnlyNote?: string;
   }> = [
     {
       key: "showPersonnel",
@@ -48,7 +47,6 @@ export function ManualSettingsTab({ value, onChange }: ManualSettingsTabProps) {
       title: "ระบบจัดการข้อมูลอาจารย์ คำสั่งแต่งตั้ง และงานวิจัย (Admin)",
       desc: "คู่มือสำหรับเจ้าหน้าที่: เพิ่มแก้ไขข้อมูลอาจารย์ อัปโหลดคำสั่งแต่งตั้ง (PDF/JPG) เพิ่มผลงานวิจัย และตั้งค่าหน้า Portal",
       icon: FolderOpen,
-      adminOnlyNote: "เฉพาะผู้ดูแลระบบและเจ้าหน้าที่",
     },
     {
       key: "showCurriculum",
@@ -85,7 +83,6 @@ export function ManualSettingsTab({ value, onChange }: ManualSettingsTabProps) {
       title: "ระบบตั้งค่าองค์กร เมนูนำทาง และสิทธิ์ผู้ใช้ (Settings & RBAC)",
       desc: "คู่มือการปรับแต่งหน้าแรก (Hero Section) เมนูนำทาง ข้อมูลติดต่อ สีของระบบ และการกำหนดสิทธิ์ผู้ใช้งาน",
       icon: Settings,
-      adminOnlyNote: "เฉพาะผู้ดูแลระบบและเจ้าหน้าที่",
     },
   ];
 
@@ -155,15 +152,7 @@ export function ManualSettingsTab({ value, onChange }: ManualSettingsTabProps) {
                     <Icon className="w-4 h-4" />
                   </div>
                   <div className="space-y-1 flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-sm font-bold text-foreground">{item.title}</h3>
-                      {item.adminOnlyNote && (
-                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20">
-                          <Lock className="w-2.5 h-2.5" />
-                          <span>{item.adminOnlyNote}</span>
-                        </span>
-                      )}
-                    </div>
+                    <h3 className="text-sm font-bold text-foreground">{item.title}</h3>
                     <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
                   </div>
                 </div>

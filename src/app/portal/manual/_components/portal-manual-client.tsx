@@ -96,7 +96,6 @@ const MANUAL_SECTIONS: ManualSection[] = [
     title: "ระบบจัดการข้อมูลอาจารย์ คำสั่งแต่งตั้ง และงานวิจัย (Admin)",
     desc: "สำหรับเจ้าหน้าที่/แอดมิน: เพิ่มแก้ไขข้อมูลอาจารย์ อัปโหลดคำสั่งแต่งตั้ง (PDF/JPG) เพิ่มผลงานวิจัย และตั้งค่าหน้า Portal",
     icon: FolderOpen,
-    adminOnly: true,
     steps: [
       {
         title: "การเข้าสู่ระบบจัดการบุคลากร (Admin Console)",
@@ -326,7 +325,6 @@ const MANUAL_SECTIONS: ManualSection[] = [
     title: "ระบบตั้งค่าองค์กร เมนูนำทาง และสิทธิ์ผู้ใช้ (Settings & RBAC)",
     desc: "การปรับแต่งหน้าแรก (Hero Section) เมนูนำทาง ข้อมูลติดต่อ สีของระบบ และการกำหนดสิทธิ์ผู้ใช้งาน",
     icon: Settings,
-    adminOnly: true,
     steps: [
       {
         title: "การตั้งค่าองค์กรและหน้าแรก (Tenant Settings)",
@@ -385,14 +383,13 @@ export function PortalManualClient({
   const [selectedSectionId, setSelectedSectionId] = useState<string>("personnel-search");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
-  const [adminOnlyFilter, setAdminOnlyFilter] = useState<"ALL" | "GENERAL" | "ADMIN">("ALL");
 
   // ตรวจสอบสถานะเปิด/ปิดของแต่ละระบบตามการตั้งค่าในหน้า /settings
   const isSectionEnabled = (id: string): boolean => {
     if (!manualSettings.enabled) return false;
     switch (id) {
       case "personnel-search":
-        return manualSettings.showPersonnel ?? false;
+        return manualSettings.showPersonnel ?? true;
       case "admin-personnel":
         return manualSettings.showPersonnelAdmin ?? true;
       case "students-and-curriculum":
@@ -404,7 +401,7 @@ export function PortalManualClient({
       case "certificates-and-documents":
         return manualSettings.showCertificates ?? true;
       case "news-and-events":
-        return manualSettings.showNews ?? false;
+        return manualSettings.showNews ?? true;
       case "admin-settings":
         return manualSettings.showSystemSettings ?? true;
       default:
@@ -412,12 +409,10 @@ export function PortalManualClient({
     }
   };
 
-  // กรองเฉพาะคู่มือที่อนุญาตให้ผู้ใช้ปัจจุบันเห็น
+  // กรองเฉพาะคู่มือที่เปิดใช้งานในการตั้งค่า
   const accessibleSections = MANUAL_SECTIONS.filter((s) => {
     if (s.enabled === false) return false;
-    if (!isSectionEnabled(s.id)) return false;
-    if (s.adminOnly && !isAdminUser) return false;
-    return true;
+    return isSectionEnabled(s.id);
   });
 
   const activeSection =
@@ -425,12 +420,8 @@ export function PortalManualClient({
 
   const filteredSections = accessibleSections.filter((s) => {
     const matchesCat = selectedCategory === "ALL" || s.category === selectedCategory;
-    const matchesAdminFilter =
-      adminOnlyFilter === "ALL" ||
-      (adminOnlyFilter === "ADMIN" && s.adminOnly) ||
-      (adminOnlyFilter === "GENERAL" && !s.adminOnly);
 
-    if (!searchQuery.trim()) return matchesCat && matchesAdminFilter;
+    if (!searchQuery.trim()) return matchesCat;
     const q = searchQuery.toLowerCase().trim();
     const matchesQuery =
       s.title.toLowerCase().includes(q) ||
@@ -442,7 +433,7 @@ export function PortalManualClient({
           st.description.toLowerCase().includes(q) ||
           st.bullets?.some((b) => b.toLowerCase().includes(q))
       );
-    return matchesCat && matchesAdminFilter && matchesQuery;
+    return matchesCat && matchesQuery;
   });
 
   if (!manualSettings.enabled) {
@@ -522,38 +513,6 @@ export function PortalManualClient({
             </button>
           ))}
         </div>
-
-        {/* Admin Quick Filter Toggle (Visible only when logged in as Admin) */}
-        {isAdminUser && (
-          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-amber-500/10 border border-amber-500/30 shrink-0 text-xs font-semibold">
-            <span className="text-[11px] text-amber-900 dark:text-amber-200 px-2 flex items-center gap-1">
-              <Lock className="w-3 h-3 text-amber-600" />
-              <span>โหมดแอดมิน:</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setAdminOnlyFilter("ALL")}
-              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                adminOnlyFilter === "ALL"
-                  ? "bg-amber-500 text-stone-900 font-bold shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              แสดงทั้งหมด
-            </button>
-            <button
-              type="button"
-              onClick={() => setAdminOnlyFilter("ADMIN")}
-              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                adminOnlyFilter === "ADMIN"
-                  ? "bg-amber-500 text-stone-900 font-bold shadow-xs"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              เฉพาะของแอดมิน
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Main Grid: Sidebar Menu + Detail Content */}
@@ -584,40 +543,26 @@ export function PortalManualClient({
                     }`}
                   >
                     <div
-                      className={`p-2 rounded-lg shrink-0 mt-0.5 ${
+                      className={`p-2 rounded-xl shrink-0 mt-0.5 ${
                         isSelected
                           ? "bg-white/20 text-white"
-                          : "bg-primary/10 text-primary"
+                          : "bg-primary/10 text-primary border border-primary/15"
                       }`}
                     >
                       <Icon className="w-4 h-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="text-xs sm:text-sm font-semibold truncate leading-tight">
-                          {sec.title}
-                        </h4>
-                        {sec.adminOnly && (
-                          <span
-                            className={`p-0.5 rounded ${
-                              isSelected ? "text-amber-200" : "text-amber-600 dark:text-amber-400"
-                            }`}
-                            title="คู่มือเฉพาะผู้ดูแลระบบ"
-                          >
-                            <Lock className="w-3 h-3" />
-                          </span>
-                        )}
-                      </div>
+                      <h4 className="text-xs sm:text-sm font-semibold truncate leading-tight">
+                        {sec.title}
+                      </h4>
                       <span
-                        className={`inline-block mt-1 text-[10px] px-2 py-0.2 rounded-full font-semibold ${
+                        className={`inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full font-semibold ${
                           isSelected
                             ? "bg-white/20 text-white"
-                            : sec.adminOnly
-                            ? "bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/20"
                             : "bg-muted text-muted-foreground border border-border/60"
                         }`}
                       >
-                        {sec.adminOnly ? "🔒 เฉพาะผู้ดูแลระบบ" : sec.categoryLabel}
+                        {sec.categoryLabel}
                       </span>
                     </div>
                   </button>
@@ -645,12 +590,6 @@ export function PortalManualClient({
                   <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                     {activeSection.categoryLabel}
                   </span>
-                  {activeSection.adminOnly && (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/20">
-                      <Lock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                      <span>เฉพาะผู้ดูแลระบบ (Admin)</span>
-                    </span>
-                  )}
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0">
