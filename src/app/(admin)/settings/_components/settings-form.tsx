@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Building, Sparkles, Grid, Newspaper, PanelBottom, Mail } from "lucide-react";
+import { Building, Sparkles, Grid, Newspaper, PanelBottom, Mail, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/shared/lib/i18n/client";
 import { cn } from "@/shared/lib/utils";
@@ -16,6 +16,7 @@ import {
   DEFAULT_FOOTER_SETTINGS,
   DEFAULT_SMTP_SETTINGS,
   DEFAULT_GEMINI_SETTINGS,
+  DEFAULT_MANUAL_SETTINGS,
   type TenantSettings,
   type FontSizePreference,
 } from "@/features/identity";
@@ -27,12 +28,13 @@ import { PortalContentSettingsTab } from "./portal-content-settings-tab";
 import { FooterSettingsTab } from "./footer-settings-tab";
 import { SmtpSettingsTab } from "./smtp-settings-tab";
 import { GeminiSettingsTab } from "./gemini-settings-tab";
+import { ManualSettingsTab } from "./manual-settings-tab";
 
 export function SettingsForm({ initial }: { initial: TenantSettings }) {
   const t = useT();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<
-    "general" | "hero" | "services" | "content" | "footer" | "smtp" | "gemini"
+    "general" | "hero" | "services" | "content" | "footer" | "manual" | "smtp" | "gemini"
   >("general");
   const [form, setForm] = useState({
     nameTh: initial.nameTh,
@@ -47,6 +49,7 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
     footer: initial.footer ?? DEFAULT_FOOTER_SETTINGS,
     smtp: initial.smtp ?? DEFAULT_SMTP_SETTINGS,
     gemini: initial.gemini ?? DEFAULT_GEMINI_SETTINGS,
+    manual: initial.manual ?? DEFAULT_MANUAL_SETTINGS,
   });
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [pending, start] = useTransition();
@@ -141,6 +144,19 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
         </button>
         <button
           type="button"
+          onClick={() => setActiveTab("manual")}
+          className={cn(
+            "px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2",
+            activeTab === "manual"
+              ? "bg-primary text-primary-foreground shadow-xs font-bold"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
+          )}
+        >
+          <BookOpen className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          <span>จัดการคู่มือการใช้งานระบบ</span>
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab("smtp")}
           className={cn(
             "px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2",
@@ -189,6 +205,11 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
           <FooterSettingsTab
             value={form.footer}
             onChange={(f) => setForm((prev) => ({ ...prev, footer: f }))}
+          />
+        ) : activeTab === "manual" ? (
+          <ManualSettingsTab
+            value={form.manual}
+            onChange={(m) => setForm((prev) => ({ ...prev, manual: m }))}
           />
         ) : activeTab === "smtp" ? (
           <SmtpSettingsTab

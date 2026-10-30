@@ -26,6 +26,7 @@ export type {
   FooterLink,
   SmtpSettings,
   GeminiSettings,
+  ManualSettings,
 } from "./_internal/validations/settings";
 export {
   FONT_SIZES,
@@ -40,8 +41,10 @@ export {
   DEFAULT_FOOTER_SYSTEM_LINKS,
   DEFAULT_SMTP_SETTINGS,
   DEFAULT_GEMINI_SETTINGS,
+  DEFAULT_MANUAL_SETTINGS,
   smtpSettingsSchema,
   geminiSettingsSchema,
+  manualSettingsSchema,
 } from "./_internal/validations/settings";
 export type { HeroToneConfig } from "./_internal/hero-tones";
 export { HERO_TONE_CONFIGS, getHeroToneConfig } from "./_internal/hero-tones";

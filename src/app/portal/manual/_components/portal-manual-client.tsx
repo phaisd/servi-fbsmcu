@@ -27,6 +27,8 @@ import {
   EyeOff,
 } from "lucide-react";
 import { useAppSession } from "@/hooks/use-session";
+import type { ManualSettings } from "@/features/identity";
+import { DEFAULT_MANUAL_SETTINGS } from "@/features/identity";
 
 interface ManualSection {
   id: string;
@@ -35,7 +37,7 @@ interface ManualSection {
   title: string;
   desc: string;
   icon: React.ComponentType<{ className?: string }>;
-  enabled?: boolean; // ปิดการแสดงผลคู่มือนี้โดยเด็ดขาด (true = เปิด, false = ปิด)
+  enabled?: boolean; // ปิดการแสดงผลคู่มือนี้ (fallback)
   adminOnly?: boolean; // แสดงเฉพาะแอดมิน (true = เฉพาะแอดมิน, false = ทุกคนเห็น)
   steps: {
     title: string;
@@ -50,7 +52,6 @@ const MANUAL_SECTIONS: ManualSection[] = [
   // ── ๑. ระบบทำเนียบคณาจารย์และผู้บริหาร ──
   {
     id: "personnel-search",
-    enabled: false, // 👈 ปิดการแสดงผลคู่มือนี้
     category: "PORTAL",
     categoryLabel: "หน้าเว็บสาธารณะ & ทำเนียบ",
     title: "๑. ระบบทำเนียบคณาจารย์ บุคลากร และผู้บริหาร",
@@ -288,7 +289,6 @@ const MANUAL_SECTIONS: ManualSection[] = [
   // ── ๗. ระบบข่าวสาร ประชาสัมพันธ์ และปฏิทินกิจกรรม ──
   {
     id: "news-and-events",
-    enabled: false, // 👈 ปิดการแสดงผลคู่มือนี้
     category: "ADMINISTRATION",
     categoryLabel: "งานสื่อสารองค์กร",
     title: "๗. ระบบข่าวสาร ประชาสัมพันธ์ และกิจกรรมคณะ (News & Events)",
@@ -372,7 +372,13 @@ const MANUAL_SECTIONS: ManualSection[] = [
   },
 ];
 
-export function PortalManualClient() {
+interface PortalManualClientProps {
+  manualSettings?: ManualSettings;
+}
+
+export function PortalManualClient({
+  manualSettings = DEFAULT_MANUAL_SETTINGS,
+}: PortalManualClientProps) {
   const { isAuthenticated, isSuperAdmin, roles } = useAppSession();
   const isAdminUser = isAuthenticated && (isSuperAdmin || roles.some((r) => r.code === "SUPER_ADMIN" || r.code === "ADMIN"));
 
@@ -381,11 +387,35 @@ export function PortalManualClient() {
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [adminOnlyFilter, setAdminOnlyFilter] = useState<"ALL" | "GENERAL" | "ADMIN">("ALL");
 
+  // ตรวจสอบสถานะเปิด/ปิดของแต่ละระบบตามการตั้งค่าในหน้า /settings
+  const isSectionEnabled = (id: string): boolean => {
+    if (!manualSettings.enabled) return false;
+    switch (id) {
+      case "personnel-search":
+        return manualSettings.showPersonnel ?? false;
+      case "admin-personnel":
+        return manualSettings.showPersonnelAdmin ?? true;
+      case "students-and-curriculum":
+        return manualSettings.showCurriculum ?? true;
+      case "attendance-system":
+        return manualSettings.showAttendance ?? true;
+      case "meeting-rooms":
+        return manualSettings.showMeetings ?? true;
+      case "certificates-and-documents":
+        return manualSettings.showCertificates ?? true;
+      case "news-and-events":
+        return manualSettings.showNews ?? false;
+      case "admin-settings":
+        return manualSettings.showSystemSettings ?? true;
+      default:
+        return true;
+    }
+  };
+
   // กรองเฉพาะคู่มือที่อนุญาตให้ผู้ใช้ปัจจุบันเห็น
-  // 1. ถ้า enabled === false จะถูกปิดซ่อน ไม่แสดงให้ใครเห็นเลย
-  // 2. ถ้า adminOnly === true จะแสดงเฉพาะเมื่อผู้ใช้ล็อกอินเป็น Admin
   const accessibleSections = MANUAL_SECTIONS.filter((s) => {
     if (s.enabled === false) return false;
+    if (!isSectionEnabled(s.id)) return false;
     if (s.adminOnly && !isAdminUser) return false;
     return true;
   });
@@ -414,6 +444,29 @@ export function PortalManualClient() {
       );
     return matchesCat && matchesAdminFilter && matchesQuery;
   });
+
+  if (!manualSettings.enabled) {
+    return (
+      <div className="p-12 text-center rounded-3xl border border-dashed bg-card space-y-4 max-w-2xl mx-auto my-12">
+        <EyeOff className="w-12 h-12 text-muted-foreground mx-auto" />
+        <h2 className="text-xl font-bold text-foreground">ศูนย์คู่มือการใช้งานระบบถูกปิดการแสดงผลชั่วคราว</h2>
+        <p className="text-sm text-muted-foreground">
+          ขณะนี้ผู้ดูแลระบบได้ปิดการแสดงผลศูนย์คู่มือการใช้งานระบบไว้
+        </p>
+        {isAdminUser && (
+          <div className="pt-2">
+            <Link
+              href="/settings"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+              <span>ไปที่หน้าตั้งค่าระบบเพื่อเปิดใช้งาน (Settings)</span>
+            </Link>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -584,94 +637,106 @@ export function PortalManualClient() {
 
         {/* Right Detail Steps */}
         <div className="lg:col-span-8 space-y-6">
-          <div className="p-6 sm:p-8 rounded-3xl border bg-card shadow-xs space-y-6">
-            {/* Section Header */}
-            <div className="border-b pb-4 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                  {activeSection.categoryLabel}
-                </span>
+          {activeSection ? (
+            <div className="p-6 sm:p-8 rounded-3xl border bg-card shadow-xs space-y-6">
+              {/* Section Header */}
+              <div className="border-b pb-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                    {activeSection.categoryLabel}
+                  </span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-extrabold text-foreground">
+                  {activeSection.title}
+                </h3>
+                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                  {activeSection.desc}
+                </p>
               </div>
-              <h3 className="text-xl sm:text-2xl font-extrabold text-foreground">
-                {activeSection.title}
-              </h3>
-              <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-                {activeSection.desc}
-              </p>
-            </div>
 
-            {/* Steps Container */}
-            <div className="space-y-6">
-              {activeSection.steps.map((step, idx) => (
-                <div
-                  key={idx}
-                  className="p-5 rounded-2xl border bg-muted/20 hover:bg-muted/30 transition-all space-y-3"
-                >
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
-                        {idx + 1}
-                      </span>
-                      <h4 className="text-sm sm:text-base font-bold text-foreground">
-                        {step.title}
-                      </h4>
+              {/* Steps Container */}
+              <div className="space-y-6">
+                {activeSection.steps.map((step, idx) => (
+                  <div
+                    key={idx}
+                    className="p-5 rounded-2xl border bg-muted/20 hover:bg-muted/30 transition-all space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground font-bold text-xs flex items-center justify-center shrink-0 shadow-xs">
+                          {idx + 1}
+                        </span>
+                        <h4 className="text-sm sm:text-base font-bold text-foreground">
+                          {step.title}
+                        </h4>
+                      </div>
+
+                      {step.path && (
+                        <Link
+                          href={step.path}
+                          target="_blank"
+                          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-colors cursor-pointer"
+                        >
+                          <span>เปิดหน้านี้ในระบบ ({step.path})</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </Link>
+                      )}
                     </div>
 
-                    {step.path && (
-                      <Link
-                        href={step.path}
-                        target="_blank"
-                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold transition-colors cursor-pointer"
-                      >
-                        <span>เปิดหน้านี้ในระบบ ({step.path})</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </Link>
+                    <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed pl-8">
+                      {step.description}
+                    </p>
+
+                    {step.bullets && step.bullets.length > 0 && (
+                      <div className="pl-8 space-y-1.5 pt-1">
+                        {step.bullets.map((b, bIdx) => (
+                          <div key={bIdx} className="flex items-start gap-2 text-xs text-foreground font-medium">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
+                            <span className="leading-relaxed">{b}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {step.tip && (
+                      <div className="ml-8 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                        <span>
+                          <strong>คำแนะนำ: </strong>
+                          {step.tip}
+                        </span>
+                      </div>
                     )}
                   </div>
+                ))}
+              </div>
 
-                  <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed pl-8">
-                    {step.description}
-                  </p>
-
-                  {step.bullets && step.bullets.length > 0 && (
-                    <div className="pl-8 space-y-1.5 pt-1">
-                      {step.bullets.map((b, bIdx) => (
-                        <div key={bIdx} className="flex items-start gap-2 text-xs text-foreground font-medium">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0" />
-                          <span className="leading-relaxed">{b}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {step.tip && (
-                    <div className="ml-8 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-                      <span>
-                        <strong>คำแนะนำ: </strong>
-                        {step.tip}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ))}
+              {/* Quick Actions Footer */}
+              <div className="pt-4 border-t flex flex-wrap items-center justify-between gap-4 text-xs">
+                <span className="text-muted-foreground">
+                  อัปเดตล่าสุด: ตุลาคม ๒๕๖๙ | คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย
+                </span>
+                <button
+                  type="button"
+                  onClick={() => typeof window !== "undefined" && window.print()}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border bg-background hover:bg-muted text-foreground font-semibold cursor-pointer shadow-xs"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>พิมพ์คู่มือหน้านี้</span>
+                </button>
+              </div>
             </div>
-
-            {/* Quick Actions Footer */}
-            <div className="pt-4 border-t flex flex-wrap items-center justify-between gap-4 text-xs">
-              <span className="text-muted-foreground">
-                อัปเดตล่าสุด: ตุลาคม ๒๕๖๙ | คณะพุทธศาสตร์ มหาวิทยาลัยมหาจุฬาลงกรณราชวิทยาลัย
-              </span>
-              <button
-                type="button"
-                onClick={() => typeof window !== "undefined" && window.print()}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border bg-background hover:bg-muted text-foreground font-semibold cursor-pointer shadow-xs"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>พิมพ์คู่มือหน้านี้</span>
-              </button>
+          ) : (
+            <div className="p-12 text-center rounded-3xl border border-dashed bg-card space-y-3">
+              <EyeOff className="w-8 h-8 text-muted-foreground mx-auto" />
+              <h3 className="text-base font-bold text-foreground">
+                ไม่พบคู่มือที่ตรงกับเงื่อนไข หรือคู่มือถูกปิดการแสดงผล
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                กรุณาเลือกหมวดหมู่อื่น หรือปรับการตั้งค่าการแสดงผลในหน้าตั้งค่าระบบ
+              </p>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

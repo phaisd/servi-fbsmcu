@@ -1,5 +1,7 @@
 import { BookOpen } from "lucide-react";
 import { getLocale } from "@/shared/lib/i18n/server";
+import { resolveTenantSettings } from "@/features/identity/server";
+import { DEFAULT_MANUAL_SETTINGS } from "@/features/identity";
 import { PortalManualClient } from "./_components/portal-manual-client";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +13,8 @@ export const metadata = {
 
 export default async function PublicManualPage() {
   const locale = await getLocale();
+  const settings = await resolveTenantSettings().catch(() => null);
+  const manualSettings = settings?.manual ?? DEFAULT_MANUAL_SETTINGS;
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -31,7 +35,7 @@ export default async function PublicManualPage() {
         </p>
       </div>
 
-      <PortalManualClient />
+      <PortalManualClient manualSettings={manualSettings} />
     </div>
   );
 }

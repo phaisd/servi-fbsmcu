@@ -359,6 +359,34 @@ export const geminiSettingsSchema = z.object({
   model: z.string().trim().default("gemini-2.5-flash"),
 });
 
+export const manualSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  // สวิตช์เปิด/ปิด แต่ละระบบในคู่มือ
+  showPersonnel: z.boolean().default(false), // ๑. ระบบทำเนียบคณาจารย์ (ค่าเริ่มต้นปิดตามที่ขอ)
+  showPersonnelAdmin: z.boolean().default(true), // ๒. จัดการข้อมูลอาจารย์ (Admin)
+  showCurriculum: z.boolean().default(true), // ๓. ทะเบียนนิสิตและตารางสอน
+  showAttendance: z.boolean().default(true), // ๔. เช็คชื่อเข้าชั้นเรียน QR
+  showMeetings: z.boolean().default(true), // ๕. จองห้องประชุม
+  showCertificates: z.boolean().default(true), // ๖. คำร้องและหนังสือรับรอง
+  showNews: z.boolean().default(false), // ๗. ข่าวสารและกิจกรรม (ค่าเริ่มต้นปิดตามที่ขอ)
+  showSystemSettings: z.boolean().default(true), // ๘. ตั้งค่าระบบและความปลอดภัย
+});
+
+export type ManualSettingsInput = z.infer<typeof manualSettingsSchema>;
+export type ManualSettings = ManualSettingsInput;
+
+export const DEFAULT_MANUAL_SETTINGS: ManualSettings = {
+  enabled: true,
+  showPersonnel: false,
+  showPersonnelAdmin: true,
+  showCurriculum: true,
+  showAttendance: true,
+  showMeetings: true,
+  showCertificates: true,
+  showNews: false,
+  showSystemSettings: true,
+};
+
 export type GeminiSettingsInput = z.infer<typeof geminiSettingsSchema>;
 export type GeminiSettings = GeminiSettingsInput;
 
@@ -391,6 +419,7 @@ export const updateSettingsSchema = z.object({
   footer: footerSchema.optional(),
   smtp: smtpSettingsSchema.optional(),
   gemini: geminiSettingsSchema.optional(),
+  manual: manualSettingsSchema.optional(),
 });
 export const updateProfileSchema = z.object({ name: z.string().trim().min(1).max(255), locale: z.enum(["th", "en"]) });
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
@@ -633,6 +662,7 @@ export interface TenantSettings {
   footer: FooterSettings;
   smtp: SmtpSettings;
   gemini: GeminiSettings;
+  manual?: ManualSettings;
 }
 
 
