@@ -45,6 +45,10 @@ export async function PortalFooter() {
   const quickLinksTitle = locale === "th" ? footer.quickLinksTitleTh : footer.quickLinksTitleEn;
   const systemsTitle = locale === "th" ? footer.systemsTitleTh : footer.systemsTitleEn;
   const mainWebsiteText = locale === "th" ? footer.mainWebsiteTextTh : footer.mainWebsiteTextEn;
+  const facultyWebsiteText =
+    locale === "th"
+      ? footer.facultyWebsiteTextTh || "เว็บไซต์หลัก คณะพุทธศาสตร์"
+      : footer.facultyWebsiteTextEn || "Faculty of Buddhism Website";
 
   const rawQuickLinks = (footer.quickLinks ?? DEFAULT_FOOTER_QUICK_LINKS).filter(
     (l) => l.enabled !== false
@@ -152,6 +156,20 @@ export async function PortalFooter() {
                 >
                   <Globe className="h-3.5 w-3.5 opacity-80" />
                   <span>{mainWebsiteText}</span>
+                  <ExternalLink className="h-3 w-3 opacity-60" />
+                </a>
+              </li>
+            )}
+            {footer.facultyWebsiteUrl && (
+              <li>
+                <a
+                  href={footer.facultyWebsiteUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 transition-colors hover:underline text-primary dark:text-primary font-medium"
+                >
+                  <Globe className="h-3.5 w-3.5 opacity-80" />
+                  <span>{facultyWebsiteText}</span>
                   <ExternalLink className="h-3 w-3 opacity-60" />
                 </a>
               </li>

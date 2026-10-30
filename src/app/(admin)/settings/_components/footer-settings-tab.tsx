@@ -331,7 +331,7 @@ export function FooterSettingsTab({ value, onChange }: FooterSettingsTabProps) {
                 </LiyonField>
               </div>
               <div>
-                <LiyonField label="ชื่อปุ่มเว็บไซต์หลัก (TH)">
+                <LiyonField label="ชื่อปุ่มเว็บไซต์หลัก มจร (TH)">
                   <input
                     type="text"
                     className="input"
@@ -341,12 +341,47 @@ export function FooterSettingsTab({ value, onChange }: FooterSettingsTabProps) {
                 </LiyonField>
               </div>
               <div>
-                <LiyonField label="ชื่อปุ่มเว็บไซต์หลัก (EN)">
+                <LiyonField label="ชื่อปุ่มเว็บไซต์หลัก มจร (EN)">
                   <input
                     type="text"
                     className="input"
                     value={value.mainWebsiteTextEn}
                     onChange={(e) => update("mainWebsiteTextEn", e.target.value)}
+                  />
+                </LiyonField>
+              </div>
+            </div>
+
+            {/* แถวเว็บไซต์หลัก คณะพุทธศาสตร์ */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 border-t border-border/50">
+              <div className="md:col-span-1">
+                <LiyonField label="URL เว็บไซต์หลัก คณะพุทธศาสตร์" hint="ลิงก์ภายนอก เช่น https://fb.mcu.ac.th">
+                  <input
+                    type="url"
+                    className="input"
+                    value={value.facultyWebsiteUrl ?? "https://fb.mcu.ac.th"}
+                    onChange={(e) => update("facultyWebsiteUrl", e.target.value)}
+                    placeholder="https://fb.mcu.ac.th"
+                  />
+                </LiyonField>
+              </div>
+              <div>
+                <LiyonField label="ชื่อปุ่มเว็บไซต์คณะ (TH)">
+                  <input
+                    type="text"
+                    className="input"
+                    value={value.facultyWebsiteTextTh ?? "เว็บไซต์หลัก คณะพุทธศาสตร์"}
+                    onChange={(e) => update("facultyWebsiteTextTh", e.target.value)}
+                  />
+                </LiyonField>
+              </div>
+              <div>
+                <LiyonField label="ชื่อปุ่มเว็บไซต์คณะ (EN)">
+                  <input
+                    type="text"
+                    className="input"
+                    value={value.facultyWebsiteTextEn ?? "Faculty of Buddhism Website"}
+                    onChange={(e) => update("facultyWebsiteTextEn", e.target.value)}
                   />
                 </LiyonField>
               </div>
