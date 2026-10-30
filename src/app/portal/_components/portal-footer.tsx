@@ -50,15 +50,6 @@ export async function PortalFooter() {
     (l) => l.enabled !== false
   );
   const quickLinks = [...rawQuickLinks];
-  if (!quickLinks.some((l) => l.href === "/portal/manual")) {
-    quickLinks.push({
-      id: "link-manual",
-      labelTh: "คู่มือการใช้งานระบบ",
-      labelEn: "User Manual",
-      href: "/portal/manual",
-      enabled: true,
-    });
-  }
   if (!quickLinks.some((l) => l.href === "/portal/executives")) {
     const pIdx = quickLinks.findIndex((l) => l.href === "/portal/personnel");
     const execLink = {

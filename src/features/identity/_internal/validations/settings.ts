@@ -263,6 +263,13 @@ export const DEFAULT_FOOTER_QUICK_LINKS: FooterLink[] = [
     href: "/portal/certificates/request",
     enabled: true,
   },
+  {
+    id: "link-manual",
+    labelTh: "คู่มือการใช้งานระบบ",
+    labelEn: "User Manual",
+    href: "/portal/manual",
+    enabled: true,
+  },
 ];
 
 export const DEFAULT_FOOTER_SYSTEM_LINKS: FooterLink[] = [
