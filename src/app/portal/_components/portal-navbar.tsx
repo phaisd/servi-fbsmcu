@@ -60,23 +60,7 @@ export function PortalNavbar({ tenantSettings }: PortalNavbarProps) {
   const headerSettings = tenantSettings?.hero?.header;
   const rawConfiguredNavLinks = (headerSettings?.navLinks ?? []).filter((l) => l.enabled !== false);
 
-  // ตรวจสอบให้มีเมนู "ทำเนียบผู้บริหาร" แยกออกจาก "คณาจารย์และบุคลากร" อย่างชัดเจน
   const configuredNavLinks = [...rawConfiguredNavLinks];
-  if (configuredNavLinks.length > 0 && !configuredNavLinks.some((l) => l.href === "/portal/executives")) {
-    const personnelIdx = configuredNavLinks.findIndex((l) => l.href === "/portal/personnel");
-    const execLink = {
-      id: "executives",
-      labelTh: "ทำเนียบผู้บริหาร",
-      labelEn: "Executives",
-      href: "/portal/executives",
-      enabled: true,
-    };
-    if (personnelIdx >= 0) {
-      configuredNavLinks.splice(personnelIdx, 0, execLink);
-    } else {
-      configuredNavLinks.push(execLink);
-    }
-  }
 
   const navItems =
     configuredNavLinks.length > 0

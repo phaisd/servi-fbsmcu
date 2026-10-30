@@ -18,6 +18,7 @@ export default async function PersonnelAdminPage() {
       departmentList={departments}
       canManage={canManage}
       initialPublicationYearsLimit={portalConfig.publicationYearsLimit}
+      initialShowAllAffiliationsTab={portalConfig.showAllAffiliationsTab ?? true}
     />
   );
 }

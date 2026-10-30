@@ -569,6 +569,7 @@ export async function importPersonnelBatch(
 
 export interface PersonnelPortalConfig {
   publicationYearsLimit: number;
+  showAllAffiliationsTab?: boolean;
 }
 
 export async function getPersonnelPortalConfig(tenantId: string): Promise<PersonnelPortalConfig> {
@@ -581,6 +582,7 @@ export async function getPersonnelPortalConfig(tenantId: string): Promise<Person
   if (rawConfig && typeof rawConfig.publicationYearsLimit === "number") {
     return {
       publicationYearsLimit: Math.max(0, Math.floor(rawConfig.publicationYearsLimit)),
+      showAllAffiliationsTab: rawConfig.showAllAffiliationsTab !== false,
     };
   }
 
@@ -593,10 +595,11 @@ export async function getPersonnelPortalConfig(tenantId: string): Promise<Person
   if (mcuConfig && typeof mcuConfig.publicationYearsLimit === "number") {
     return {
       publicationYearsLimit: Math.max(0, Math.floor(mcuConfig.publicationYearsLimit)),
+      showAllAffiliationsTab: mcuConfig.showAllAffiliationsTab !== false,
     };
   }
 
-  return { publicationYearsLimit: 5 };
+  return { publicationYearsLimit: 5, showAllAffiliationsTab: true };
 }
 
 export async function updatePersonnelPortalConfig(
@@ -605,7 +608,10 @@ export async function updatePersonnelPortalConfig(
   data: PersonnelPortalConfig
 ): Promise<PersonnelPortalConfig> {
   const cleanLimit = Math.max(0, Math.min(50, Math.floor(Number(data.publicationYearsLimit) || 0)));
-  const config: PersonnelPortalConfig = { publicationYearsLimit: cleanLimit };
+  const config: PersonnelPortalConfig = {
+    publicationYearsLimit: cleanLimit,
+    showAllAffiliationsTab: data.showAllAffiliationsTab !== false,
+  };
 
   const t = await db.tenant.findUnique({
     where: { id: tenantId },

@@ -164,6 +164,51 @@ export async function uploadPersonnelImageAction(formData: FormData) {
   return { url, fileName: file.name, fileSize: file.size };
 }
 
+export async function uploadPersonnelAttachmentAction(formData: FormData) {
+  await requireSession();
+  await requirePermission(PERSONNEL_P.manage);
+
+  const file = formData.get("file");
+  const folder = (formData.get("folder") as string) || "documents";
+  if (!file || !(file instanceof File) || file.size === 0) {
+    throw new Error("กรุณาเลือกไฟล์เอกสารหลักฐาน");
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  const validation = validateUploadFile(file.name, buffer, {
+    allowedExtensions: ["pdf", "jpg", "jpeg", "png", "webp"],
+    maxSizeBytes: 15 * 1024 * 1024,
+  });
+
+  if (!validation.valid) {
+    throw new Error(validation.error || "ไฟล์ไม่ถูกต้อง (รองรับเฉพาะ PDF, JPG, PNG ขนาดไม่เกิน 15MB)");
+  }
+
+  const safeFolder = folder === "appointments" ? "appointments" : folder === "research" ? "research" : "documents";
+  const uploadsDir = path.join(process.cwd(), "public", "uploads", "personnel", safeFolder);
+  await fs.mkdir(uploadsDir, { recursive: true });
+
+  const safeBaseName = path
+    .basename(file.name, `.${validation.ext}`)
+    .replace(/[^a-zA-Z0-9_\u0E00-\u0E7F-]/g, "_")
+    .slice(0, 40);
+
+  const uniqueId = crypto.randomUUID().slice(0, 8);
+  const filename = `${safeFolder}-${Date.now()}-${uniqueId}-${safeBaseName || "doc"}.${validation.ext}`;
+  const filePath = path.join(uploadsDir, filename);
+
+  await fs.writeFile(filePath, buffer);
+
+  const url = `/uploads/personnel/${safeFolder}/${filename}`;
+  return {
+    url,
+    fileName: file.name,
+    fileType: validation.ext.toLowerCase(),
+    fileSize: file.size,
+  };
+}
+
 export async function syncTeacherCoursesFromTimetablesAction(
   teacherName: string,
   personnelId?: string,
@@ -255,7 +300,10 @@ import {
 import { personnelPortalConfigSchema } from "./_internal/validations";
 export type { PersonnelPortalConfig };
 
-export async function updatePersonnelPortalConfigAction(data: { publicationYearsLimit: number }) {
+export async function updatePersonnelPortalConfigAction(data: {
+  publicationYearsLimit: number;
+  showAllAffiliationsTab?: boolean;
+}) {
   const session = await requireSession();
   await requirePermission(PERSONNEL_P.manage);
   const parsed = personnelPortalConfigSchema.parse(data);

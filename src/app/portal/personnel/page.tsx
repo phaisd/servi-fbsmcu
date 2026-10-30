@@ -38,6 +38,7 @@ export default async function PublicPersonnelPage(props: {
         initialDept={searchParams?.dept}
         initialView={searchParams?.view}
         publicationYearsLimit={portalConfig.publicationYearsLimit}
+        showAllAffiliationsTab={portalConfig.showAllAffiliationsTab ?? true}
       />
     </div>
   );

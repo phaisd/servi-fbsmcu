@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Sarabun } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
+import { CookieConsentBanner } from "@/components/layout/cookie-consent-banner";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { I18nProvider } from "@/shared/lib/i18n/client";
@@ -38,6 +39,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <ThemeProvider attribute={["class", "data-theme"]} defaultTheme="light" enableSystem={false}>
               {children}
               <Toaster />
+              <CookieConsentBanner />
             </ThemeProvider>
           </SessionProvider>
         </I18nProvider>

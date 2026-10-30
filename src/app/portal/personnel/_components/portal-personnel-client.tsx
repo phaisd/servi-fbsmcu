@@ -90,6 +90,7 @@ interface Props {
   initialDept?: string;
   initialView?: string;
   publicationYearsLimit?: number;
+  showAllAffiliationsTab?: boolean;
 }
 
 /** ฟังก์ชันแปลงเลขปีไทย (เช่น ๒๕๖๗, 2567) ให้อยู่ในรูปแบบตัวเลขสากล 4 หลัก เพื่อการจัดกลุ่มและกรองที่แม่นยำ */
@@ -170,6 +171,7 @@ export function PortalPersonnelClient({
   initialDept,
   initialView,
   publicationYearsLimit = 5,
+  showAllAffiliationsTab = true,
 }: Props) {
   // Navigation & View Mode
   const [viewMode, setViewMode] = useState<"directory" | "research">(
@@ -178,12 +180,14 @@ export function PortalPersonnelClient({
 
   // Directory Filters
   const computedInitialDept = useMemo(() => {
-    if (!initialDept) return "ALL";
-    if (initialDept.toLowerCase().includes("buddhism") || initialDept.includes("พระพุทธศาสนา")) {
-      return "ภาควิชาพระพุทธศาสนา";
+    if (initialDept) {
+      if (initialDept.toLowerCase().includes("buddhism") || initialDept.includes("พระพุทธศาสนา")) {
+        return "ภาควิชาพระพุทธศาสนา";
+      }
+      return initialDept;
     }
-    return initialDept;
-  }, [initialDept]);
+    return showAllAffiliationsTab ? "ALL" : "คณะผู้บริหารคณะพุทธศาสตร์";
+  }, [initialDept, showAllAffiliationsTab]);
 
   // Selection & Modal State
   const [selectedPerson, setSelectedPerson] = useState<PersonnelItem | null>(null);
@@ -203,18 +207,28 @@ export function PortalPersonnelClient({
 
   // Get unique departments sorted with ภาควิชาพระพุทธศาสนา first
   const departments = useMemo(() => {
-    const hasExecutives = items.some((i) => i.type !== "SPECIAL" && (!i.department || !i.department.nameTh));
-    const set = new Set(items.map((i) => i.department?.nameTh).filter(Boolean) as string[]);
+    const hasExecutives = items.some((i) => i.type !== "SPECIAL" && i.type !== "SUPPORT" && i.department?.nameTh !== "สำนักงานคณบดี" && (!i.department || !i.department.nameTh));
+    const hasStaff = items.some((i) => i.type === "SUPPORT" || i.department?.nameTh === "สำนักงานคณบดี");
+    const set = new Set(
+      items
+        .map((i) => i.department?.nameTh)
+        .filter((d): d is string => Boolean(d) && d !== "สำนักงานคณบดี")
+    );
     if (hasExecutives) {
       set.add("คณะผู้บริหารคณะพุทธศาสตร์");
     }
+    if (hasStaff) {
+      set.add("เจ้าหน้าที่และบุคลากรสายสนับสนุน");
+    }
     const list = Array.from(set);
     const getDeptPriority = (d: string) => {
-      if (d.includes("ผู้บริหาร") || d.includes("สำนักงานคณบดี")) return 1;
+      if (d.includes("ผู้บริหาร")) return 1;
       if (d.includes("พระพุทธศาสนา")) return 2;
       if (d.includes("ศาสนา") || d.includes("ปรัชญา")) return 3;
       if (d.includes("บาลี") || d.includes("สันสกฤต")) return 4;
-      return 5;
+      if (d.includes("อาจารย์พิเศษ") || d.includes("ทรงคุณวุฒิ")) return 5;
+      if (d.includes("เจ้าหน้าที่") || d.includes("สำนักงานคณบดี") || d.includes("สนับสนุน")) return 6;
+      return 7;
     };
     list.sort((a, b) => {
       const pA = getDeptPriority(a);
@@ -308,13 +322,18 @@ export function PortalPersonnelClient({
         const q = search.toLowerCase().trim();
 
         const matchesSearch = !q || fullNameTh.includes(q) || fullNameEn.includes(q) || pos.includes(q);
+        const isStaff = person.type === "SUPPORT" || person.department?.nameTh === "สำนักงานคณบดี";
+        const isExec = !isStaff && person.type !== "SPECIAL" && (!person.department || !person.department.nameTh);
+
         const matchesDept =
           selectedDept === "ALL" ||
           (selectedDept === "อาจารย์พิเศษและผู้ทรงคุณวุฒิ"
             ? person.type === "SPECIAL"
-            : (selectedDept === "คณะผู้บริหารคณะพุทธศาสตร์" || selectedDept.includes("ผู้บริหาร") || selectedDept.includes("สำนักงานคณบดี"))
-              ? person.type !== "SPECIAL" && (!person.department || !person.department.nameTh)
-              : person.type !== "SPECIAL" && person.department?.nameTh === selectedDept);
+            : selectedDept === "เจ้าหน้าที่และบุคลากรสายสนับสนุน" || selectedDept === "สำนักงานคณบดี"
+              ? isStaff
+              : (selectedDept === "คณะผู้บริหารคณะพุทธศาสตร์" || selectedDept.includes("ผู้บริหาร"))
+                ? isExec
+                : person.type !== "SPECIAL" && !isStaff && person.department?.nameTh === selectedDept);
 
         return matchesSearch && matchesDept;
       })
@@ -325,13 +344,16 @@ export function PortalPersonnelClient({
       });
   }, [items, search, selectedDept]);
 
-  // Group directory by department (ภาควิชาพระพุทธศาสนา is sorted to the very top!)
+  // Group directory by department
   const groupedPersonnel = useMemo(() => {
     const raw = filteredPersonnel.reduce((acc, item) => {
+      const isStaff = item.type === "SUPPORT" || item.department?.nameTh === "สำนักงานคณบดี";
       const dept =
         item.type === "SPECIAL"
           ? "อาจารย์พิเศษและผู้ทรงคุณวุฒิ"
-          : item.department?.nameTh || "คณะผู้บริหารคณะพุทธศาสตร์";
+          : isStaff
+            ? "เจ้าหน้าที่และบุคลากรสายสนับสนุน"
+            : item.department?.nameTh || "คณะผู้บริหารคณะพุทธศาสตร์";
       if (!acc[dept]) acc[dept] = [];
       acc[dept].push(item);
       return acc;
@@ -347,15 +369,16 @@ export function PortalPersonnelClient({
     });
 
     const getDeptPriority = (d: string) => {
-      if (d.includes("ผู้บริหาร") || d.includes("สำนักงานคณบดี")) return 1;
+      if (d.includes("ผู้บริหาร")) return 1;
       if (d.includes("พระพุทธศาสนา")) return 2;
       if (d.includes("ศาสนา") || d.includes("ปรัชญา")) return 3;
       if (d.includes("บาลี") || d.includes("สันสกฤต")) return 4;
-      if (d.includes("อาจารย์พิเศษ")) return 5;
-      return 6;
+      if (d.includes("อาจารย์พิเศษ") || d.includes("ทรงคุณวุฒิ")) return 5;
+      if (d.includes("เจ้าหน้าที่") || d.includes("สำนักงานคณบดี") || d.includes("สนับสนุน")) return 6;
+      return 7;
     };
 
-    // เรียงลำดับ: ภาควิชาพระพุทธศาสนา ขึ้นก่อนเสมอ -> ภาควิชาศาสนาและปรัชญา -> ภาควิชาบาลีและสันสกฤต -> สำนักงานคณบดี -> อาจารย์พิเศษ
+    // เรียงลำดับ: คณะผู้บริหาร -> ภาควิชาพระพุทธศาสนา -> ภาควิชาศาสนาและปรัชญา -> ภาควิชาบาลีและสันสกฤต -> อาจารย์พิเศษ -> เจ้าหน้าที่
     const sorted = Object.entries(raw).sort(([a], [b]) => {
       const pA = getDeptPriority(a);
       const pB = getDeptPriority(b);
@@ -366,15 +389,16 @@ export function PortalPersonnelClient({
     return Object.fromEntries(sorted);
   }, [filteredPersonnel]);
 
-  // Counts by department (exclude "พระพุทธศาสนา" from philosophyCount so it doesn't double-count "ศาสนา")
+  // Counts by department
   const buddhismCount = useMemo(() => {
-    return items.filter((p) => p.type !== "SPECIAL" && p.department?.nameTh?.includes("พระพุทธศาสนา")).length;
+    return items.filter((p) => p.type !== "SPECIAL" && p.type !== "SUPPORT" && p.department?.nameTh?.includes("พระพุทธศาสนา")).length;
   }, [items]);
 
   const philosophyCount = useMemo(() => {
     return items.filter(
       (p) =>
         p.type !== "SPECIAL" &&
+        p.type !== "SUPPORT" &&
         !p.department?.nameTh?.includes("พระพุทธศาสนา") &&
         (p.department?.nameTh?.includes("ปรัชญา") || p.department?.nameTh?.includes("ศาสนา"))
     ).length;
@@ -382,16 +406,26 @@ export function PortalPersonnelClient({
 
   const paliSanskritCount = useMemo(() => {
     return items.filter(
-      (p) => p.type !== "SPECIAL" && (p.department?.nameTh?.includes("บาลี") || p.department?.nameTh?.includes("สันสกฤต"))
+      (p) => p.type !== "SPECIAL" && p.type !== "SUPPORT" && (p.department?.nameTh?.includes("บาลี") || p.department?.nameTh?.includes("สันสกฤต"))
     ).length;
   }, [items]);
 
   const execCount = useMemo(() => {
-    return items.filter((p) => p.type !== "SPECIAL" && (!p.department || !p.department.nameTh)).length;
+    return items.filter(
+      (p) =>
+        p.type !== "SPECIAL" &&
+        p.type !== "SUPPORT" &&
+        p.department?.nameTh !== "สำนักงานคณบดี" &&
+        (!p.department || !p.department.nameTh)
+    ).length;
   }, [items]);
 
   const specialCount = useMemo(() => {
     return items.filter((p) => p.type === "SPECIAL").length;
+  }, [items]);
+
+  const staffCount = useMemo(() => {
+    return items.filter((p) => p.type === "SUPPORT" || p.department?.nameTh === "สำนักงานคณบดี").length;
   }, [items]);
 
   // Filter Research Publications in "Research by Year" view
@@ -624,7 +658,9 @@ export function PortalPersonnelClient({
                   className="w-full px-3.5 py-2.5 text-xs font-semibold rounded-xl border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all cursor-pointer"
                   aria-label="เลือกกรองตามภาควิชา"
                 >
-                  <option value="ALL">🏛️ ทุกภาควิชา / สังกัดทั้งหมด ({items.length} ท่าน)</option>
+                  {showAllAffiliationsTab && (
+                    <option value="ALL">🏛️ ทุกภาควิชา / สังกัดทั้งหมด ({items.length} ท่าน)</option>
+                  )}
                   {execCount > 0 && (
                     <option value="คณะผู้บริหารคณะพุทธศาสตร์">🏛️ คณะผู้บริหารคณะพุทธศาสตร์ ({execCount} ท่าน)</option>
                   )}
@@ -635,6 +671,9 @@ export function PortalPersonnelClient({
                   )}
                   {specialCount > 0 && (
                     <option value="อาจารย์พิเศษและผู้ทรงคุณวุฒิ">🎓 อาจารย์พิเศษและผู้ทรงคุณวุฒิ ({specialCount} ท่าน)</option>
+                  )}
+                  {staffCount > 0 && (
+                    <option value="เจ้าหน้าที่และบุคลากรสายสนับสนุน">💼 เจ้าหน้าที่สำนักงานและสายสนับสนุน ({staffCount} ท่าน)</option>
                   )}
                 </select>
               </div>
@@ -648,54 +687,22 @@ export function PortalPersonnelClient({
               </span>
 
               <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 w-full scrollbar-thin">
-                <button
-                  type="button"
-                  onClick={() => setSelectedDept("ALL")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                    selectedDept === "ALL"
-                      ? "bg-primary text-primary-foreground shadow-xs ring-2 ring-primary/30"
-                      : "bg-muted/80 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  ทุกสังกัด ({items.length})
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSelectedDept("ภาควิชาพระพุทธศาสนา")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-                    selectedDept === "ภาควิชาพระพุทธศาสนา"
-                      ? "bg-amber-500 text-white shadow-md ring-2 ring-amber-400/50"
-                      : "bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/20"
-                  }`}
-                >
-                  <span>🪷 ภาควิชาพระพุทธศาสนา</span>
-                  <span
-                    className={`px-1.5 py-0.2 rounded-full text-[10px] ${
-                      selectedDept === "ภาควิชาพระพุทธศาสนา"
-                        ? "bg-white/30 text-white"
-                        : "bg-amber-500/20 text-amber-800 dark:text-amber-300"
+                {/* 0. ทุกสังกัด (เปิด/ปิด ได้ตาม Admin Config) */}
+                {showAllAffiliationsTab && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDept("ALL")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                      selectedDept === "ALL"
+                        ? "bg-primary text-primary-foreground shadow-xs ring-2 ring-primary/30"
+                        : "bg-muted/80 text-muted-foreground hover:bg-muted hover:text-foreground"
                     }`}
                   >
-                    {buddhismCount} ท่าน
-                  </span>
-                </button>
+                    ทุกสังกัด ({items.length})
+                  </button>
+                )}
 
-                <button
-                  type="button"
-                  onClick={() => setSelectedDept("ภาควิชาศาสนาและปรัชญา")}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-                    selectedDept === "ภาควิชาศาสนาและปรัชญา"
-                      ? "bg-primary text-primary-foreground shadow-xs ring-2 ring-primary/30"
-                      : "bg-muted/80 text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  <span>📜 ภาควิชาศาสนาและปรัชญา</span>
-                  <span className="px-1.5 py-0.2 rounded-full bg-muted-foreground/15 text-[10px]">
-                    {philosophyCount} ท่าน
-                  </span>
-                </button>
-
+                {/* 1. คณะผู้บริหาร */}
                 {execCount > 0 && (
                   <button
                     type="button"
@@ -722,6 +729,45 @@ export function PortalPersonnelClient({
                   <ExternalLink className="w-3 h-3 opacity-70" />
                 </Link>
 
+                {/* 2. ภาควิชาพระพุทธศาสนา */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedDept("ภาควิชาพระพุทธศาสนา")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedDept === "ภาควิชาพระพุทธศาสนา"
+                      ? "bg-amber-500 text-white shadow-md ring-2 ring-amber-400/50"
+                      : "bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/20"
+                  }`}
+                >
+                  <span>🪷 ภาควิชาพระพุทธศาสนา</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                      selectedDept === "ภาควิชาพระพุทธศาสนา"
+                        ? "bg-white/30 text-white"
+                        : "bg-amber-500/20 text-amber-800 dark:text-amber-300"
+                    }`}
+                  >
+                    {buddhismCount} ท่าน
+                  </span>
+                </button>
+
+                {/* 3. ภาควิชาศาสนาและปรัชญา */}
+                <button
+                  type="button"
+                  onClick={() => setSelectedDept("ภาควิชาศาสนาและปรัชญา")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedDept === "ภาควิชาศาสนาและปรัชญา"
+                      ? "bg-primary text-primary-foreground shadow-xs ring-2 ring-primary/30"
+                      : "bg-muted/80 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  }`}
+                >
+                  <span>📜 ภาควิชาศาสนาและปรัชญา</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-muted-foreground/15 text-[10px]">
+                    {philosophyCount} ท่าน
+                  </span>
+                </button>
+
+                {/* 4. ภาควิชาบาลีและสันสกฤต */}
                 {paliSanskritCount > 0 && (
                   <button
                     type="button"
@@ -739,6 +785,7 @@ export function PortalPersonnelClient({
                   </button>
                 )}
 
+                {/* 5. อาจารย์พิเศษ */}
                 {specialCount > 0 && (
                   <button
                     type="button"
@@ -749,9 +796,27 @@ export function PortalPersonnelClient({
                         : "bg-muted/80 text-muted-foreground hover:bg-muted hover:text-foreground"
                     }`}
                   >
-                    <span>🎓 อาจารย์พิเศษและผู้ทรงคุณวุฒิ</span>
+                    <span>🎓 อาจารย์พิเศษ</span>
                     <span className="px-1.5 py-0.2 rounded-full bg-muted-foreground/15 text-[10px]">
                       {specialCount} ท่าน
+                    </span>
+                  </button>
+                )}
+
+                {/* 6. เจ้าหน้าที่ */}
+                {staffCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDept("เจ้าหน้าที่และบุคลากรสายสนับสนุน")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                      selectedDept === "เจ้าหน้าที่และบุคลากรสายสนับสนุน"
+                        ? "bg-primary text-primary-foreground shadow-xs ring-2 ring-primary/30"
+                        : "bg-muted/80 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    <span>💼 เจ้าหน้าที่</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-muted-foreground/15 text-[10px]">
+                      {staffCount} ท่าน
                     </span>
                   </button>
                 )}

@@ -68,6 +68,7 @@ export const updateResearchPublicationSchema = researchPublicationSchema.partial
 
 export const personnelPortalConfigSchema = z.object({
   publicationYearsLimit: z.number().int().min(0).max(50).default(5),
+  showAllAffiliationsTab: z.boolean().default(true),
 });
 
 export type PersonnelPortalConfigInput = z.infer<typeof personnelPortalConfigSchema>;

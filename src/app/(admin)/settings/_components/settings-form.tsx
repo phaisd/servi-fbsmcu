@@ -73,15 +73,15 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
       </header>
 
       {/* Tabs navigation */}
-      <div className="flex items-center gap-2 border-b border-border/80 mb-6 px-1 max-w-5xl overflow-x-auto scrollbar-thin">
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-muted/40 rounded-2xl border border-border/60 mb-6 max-w-5xl">
         <button
           type="button"
           onClick={() => setActiveTab("general")}
           className={cn(
-            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px shrink-0",
+            "px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2",
             activeTab === "general"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              ? "bg-primary text-primary-foreground shadow-xs font-bold"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
           )}
         >
           <Building className="w-4 h-4" />
@@ -91,10 +91,10 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
           type="button"
           onClick={() => setActiveTab("hero")}
           className={cn(
-            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px shrink-0",
+            "px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2",
             activeTab === "hero"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              ? "bg-primary text-primary-foreground shadow-xs font-bold"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
           )}
         >
           <Sparkles className="w-4 h-4" />
@@ -104,10 +104,10 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
           type="button"
           onClick={() => setActiveTab("services")}
           className={cn(
-            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px shrink-0",
+            "px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2",
             activeTab === "services"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              ? "bg-primary text-primary-foreground shadow-xs font-bold"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
           )}
         >
           <Grid className="w-4 h-4" />
@@ -117,10 +117,10 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
           type="button"
           onClick={() => setActiveTab("content")}
           className={cn(
-            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px shrink-0",
+            "px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2",
             activeTab === "content"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              ? "bg-primary text-primary-foreground shadow-xs font-bold"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
           )}
         >
           <Newspaper className="w-4 h-4" />
@@ -130,10 +130,10 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
           type="button"
           onClick={() => setActiveTab("footer")}
           className={cn(
-            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px shrink-0",
+            "px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2",
             activeTab === "footer"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              ? "bg-primary text-primary-foreground shadow-xs font-bold"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
           )}
         >
           <PanelBottom className="w-4 h-4" />
@@ -143,10 +143,10 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
           type="button"
           onClick={() => setActiveTab("smtp")}
           className={cn(
-            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px shrink-0",
+            "px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2",
             activeTab === "smtp"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              ? "bg-primary text-primary-foreground shadow-xs font-bold"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
           )}
         >
           <Mail className="w-4 h-4" />
@@ -156,10 +156,10 @@ export function SettingsForm({ initial }: { initial: TenantSettings }) {
           type="button"
           onClick={() => setActiveTab("gemini")}
           className={cn(
-            "px-4 py-2.5 text-sm font-semibold border-b-2 transition-all cursor-pointer flex items-center gap-2 -mb-px shrink-0",
+            "px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-xl transition-all cursor-pointer flex items-center gap-2",
             activeTab === "gemini"
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
+              ? "bg-primary text-primary-foreground shadow-xs font-bold"
+              : "text-muted-foreground hover:text-foreground hover:bg-muted/70"
           )}
         >
           <Sparkles className="w-4 h-4 text-amber-500" />

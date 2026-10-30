@@ -31,6 +31,7 @@ import {
   CheckCircle2,
   Award,
   MapPin,
+  Filter,
 } from "lucide-react";
 import { ExecutiveRoleManagerDialog } from "./executive-role-manager-dialog";
 import { useT } from "@/shared/lib/i18n/client";
@@ -48,6 +49,7 @@ import { Button } from "@/components/ui/button";
 import {
   createPersonnelAction,
   uploadPersonnelImageAction,
+  uploadPersonnelAttachmentAction,
   syncTeacherCoursesFromTimetablesAction,
   updatePersonnelAction,
   updatePersonnelOrderAction,
@@ -71,7 +73,13 @@ import {
   getCourseUniqueKey,
   upsertTeachingCourses,
 } from "@/features/personnel/teaching-courses";
-import { formatPersonnelName } from "@/features/personnel";
+import {
+  formatPersonnelName,
+  type AcademicPositionItem,
+  parseAcademicPositions,
+  serializeExperiencesWithPositions,
+  detectAttachmentType,
+} from "@/features/personnel";
 import type { Personnel, Department, ResearchPublication } from "@/generated/prisma";
 
 type PersonnelWithRelations = Personnel & {
@@ -84,6 +92,7 @@ interface Props {
   departmentList: Department[];
   canManage: boolean;
   initialPublicationYearsLimit?: number;
+  initialShowAllAffiliationsTab?: boolean;
 }
 
 export function PersonnelAdminClient({
@@ -91,6 +100,7 @@ export function PersonnelAdminClient({
   departmentList,
   canManage,
   initialPublicationYearsLimit = 5,
+  initialShowAllAffiliationsTab = true,
 }: Props) {
   const t = useT();
   const router = useRouter();
@@ -100,15 +110,40 @@ export function PersonnelAdminClient({
   const [deptFilter, setDeptFilter] = useState<string>("ALL");
   const [isPending, startTransition] = useTransition();
   const [pubYearsLimit, setPubYearsLimit] = useState<number>(initialPublicationYearsLimit);
+  const [showAllAffiliationsTab, setShowAllAffiliationsTab] = useState<boolean>(initialShowAllAffiliationsTab);
   const [isSavingPortalConfig, setIsSavingPortalConfig] = useState(false);
   const [executiveDialogOpen, setExecutiveDialogOpen] = useState(false);
+
+  const handleToggleShowAllAffiliations = async (enabled: boolean) => {
+    setShowAllAffiliationsTab(enabled);
+    try {
+      setIsSavingPortalConfig(true);
+      await updatePersonnelPortalConfigAction({
+        publicationYearsLimit: pubYearsLimit,
+        showAllAffiliationsTab: enabled,
+      });
+      toast.success(
+        enabled
+          ? "เปิดแสดงปุ่ม 'ทุกสังกัด' บนหน้าเว็บไซต์ Portal เรียบร้อยแล้ว"
+          : "ปิดการแสดงปุ่ม 'ทุกสังกัด' เรียบร้อยแล้ว (หน้า Portal จะเริ่มที่แท็บผู้บริหารอัตโนมัติ)"
+      );
+      router.refresh();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการบันทึกตั้งค่า");
+    } finally {
+      setIsSavingPortalConfig(false);
+    }
+  };
 
   const handleSavePortalYearsLimit = async (nextLimit: number) => {
     const clean = Math.max(0, Math.min(50, Math.floor(Number(nextLimit) || 0)));
     setPubYearsLimit(clean);
     try {
       setIsSavingPortalConfig(true);
-      await updatePersonnelPortalConfigAction({ publicationYearsLimit: clean });
+      await updatePersonnelPortalConfigAction({
+        publicationYearsLimit: clean,
+        showAllAffiliationsTab,
+      });
       if (clean === 0) {
         toast.success("บันทึกตั้งค่า: แสดงผลงานวิจัยทุกปี พ.ศ. ทั้งหมดบนหน้า Portal เรียบร้อยแล้ว");
       } else {
@@ -438,6 +473,95 @@ export function PersonnelAdminClient({
   const [newPubType, setNewPubType] = useState<"RESEARCH" | "ACADEMIC" | "DISSERTATION">("RESEARCH");
   const [newPubUrl, setNewPubUrl] = useState("");
 
+  // Positions & Appointments with Official Evidence
+  const [editingPositions, setEditingPositions] = useState<AcademicPositionItem[]>([]);
+  const [showAddPosForm, setShowAddPosForm] = useState(false);
+  const [newPosCategory, setNewPosCategory] = useState<"ACADEMIC_ADMIN" | "COMMITTEE">("ACADEMIC_ADMIN");
+  const [newPosTitle, setNewPosTitle] = useState("");
+  const [newPosOrderNo, setNewPosOrderNo] = useState("");
+  const [newPosYear, setNewPosYear] = useState("");
+  const [newPosFileUrl, setNewPosFileUrl] = useState("");
+  const [isUploadingPosFile, setIsUploadingPosFile] = useState(false);
+  const posFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Research Publication Attachment Upload
+  const [isUploadingResearchFile, setIsUploadingResearchFile] = useState(false);
+  const researchFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleResearchFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("ขนาดไฟล์ต้องไม่เกิน 15MB");
+      return;
+    }
+    try {
+      setIsUploadingResearchFile(true);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "research");
+      const res = await uploadPersonnelAttachmentAction(formData);
+      setNewPubUrl(res.url);
+      toast.success(`อัปโหลดไฟล์ "${res.fileName}" สำเร็จ`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการอัปโหลดไฟล์วิจัย");
+    } finally {
+      setIsUploadingResearchFile(false);
+      if (researchFileInputRef.current) researchFileInputRef.current.value = "";
+    }
+  };
+
+  const handlePosFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("ขนาดไฟล์ต้องไม่เกิน 15MB");
+      return;
+    }
+    try {
+      setIsUploadingPosFile(true);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "appointments");
+      const res = await uploadPersonnelAttachmentAction(formData);
+      setNewPosFileUrl(res.url);
+      toast.success(`อัปโหลดไฟล์คำสั่ง "${res.fileName}" สำเร็จ`);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการอัปโหลดไฟล์คำสั่ง");
+    } finally {
+      setIsUploadingPosFile(false);
+      if (posFileInputRef.current) posFileInputRef.current.value = "";
+    }
+  };
+
+  const handleAddPosition = () => {
+    if (!newPosTitle.trim()) {
+      toast.error("กรุณาระบุชื่อตำแหน่ง");
+      return;
+    }
+    const item: AcademicPositionItem = {
+      id: `pos-${Date.now()}`,
+      category: newPosCategory,
+      title: newPosTitle.trim(),
+      orderNo: newPosOrderNo.trim() || undefined,
+      year: newPosYear.trim() || undefined,
+      fileUrl: newPosFileUrl.trim() || undefined,
+      fileType: detectAttachmentType(newPosFileUrl) || undefined,
+    };
+    setEditingPositions((prev) => [...prev, item]);
+    setNewPosTitle("");
+    setNewPosOrderNo("");
+    setNewPosYear("");
+    setNewPosFileUrl("");
+    setShowAddPosForm(false);
+    toast.success("เพิ่มตำแหน่งและหลักฐานเรียบร้อยแล้ว");
+  };
+
+  const handleDeletePosition = (id: string) => {
+    setEditingPositions((prev) => prev.filter((p) => p.id !== id));
+    toast.success("ลบรายการตำแหน่งเรียบร้อย");
+  };
+
   // Import / Export State
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importPreviewItems, setImportPreviewItems] = useState<ImportPersonnelItem[]>([]);
@@ -473,6 +597,8 @@ export function PersonnelAdminClient({
     setFormOrderIndex(items.length + 1);
     setEditingResearchList([]);
     setEditingTeachingCourses([]);
+    setEditingPositions([]);
+    setShowAddPosForm(false);
     resetCourseForm();
     setCourseFilterLevel("ALL");
     setCourseFilterYear("ALL");
@@ -520,6 +646,9 @@ export function PersonnelAdminClient({
     setFormBioTh(item.bioTh || "");
     setFormIsActive(item.isActive);
     setFormOrderIndex(item.orderIndex);
+    const parsedPositions = parseAcademicPositions(item.experiencesTh);
+    setEditingPositions(parsedPositions);
+    setShowAddPosForm(false);
     setEditingResearchList(item.researchPublications || []);
     resetCourseForm();
     setCourseFilterLevel("ALL");
@@ -563,7 +692,7 @@ export function PersonnelAdminClient({
         googleScholarUrl: formGoogleScholarUrl.trim() || null,
         imageUrl: formImageUrl.trim() || null,
         educationTh: formEducationTh.trim() || null,
-        experiencesTh: editingTeachingCourses.length > 0 ? JSON.stringify(editingTeachingCourses) : (formExperiencesTh.trim() || null),
+        experiencesTh: serializeExperiencesWithPositions(editingTeachingCourses, editingPositions) || (formExperiencesTh.trim() || null),
         bioTh: formBioTh.trim() || null,
         isActive: formIsActive,
         orderIndex: Number(formOrderIndex) || 0,
@@ -1648,73 +1777,115 @@ export function PersonnelAdminClient({
 
       {/* Portal Publication Years Limit Setting Bar */}
       {canManage && (
-        <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2 text-sm font-bold text-foreground">
-              <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
-              <span>ตั้งค่าจำนวนปีที่แสดงในส่วน &ldquo;เลือกดูผลงาน&rdquo; หน้าเว็บไซต์ (Portal)</span>
+        <div className="space-y-3">
+          <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
+                <span>ตั้งค่าจำนวนปีที่แสดงในส่วน &ldquo;เลือกดูผลงาน&rdquo; หน้าเว็บไซต์ (Portal)</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {pubYearsLimit > 0 ? (
+                  <>
+                    กำลังแสดงผลย้อนหลัง <strong className="text-primary">{pubYearsLimit} ปี</strong>:{" "}
+                    <strong className="text-foreground">
+                      ตั้งแต่ พ.ศ. 2569 ถึงปี พ.ศ. {2569 - pubYearsLimit + 1}
+                    </strong>{" "}
+                    (เช่น 5 = พ.ศ. 2569 ถึง 2565, 7 = พ.ศ. 2569 ถึง 2563)
+                  </>
+                ) : (
+                  <>
+                    กำลังแสดงผล <strong className="text-primary">ทุกปี พ.ศ. ทั้งหมด (ไม่จำกัดจำนวนปี)</strong>
+                  </>
+                )}
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              {pubYearsLimit > 0 ? (
-                <>
-                  กำลังแสดงผลย้อนหลัง <strong className="text-primary">{pubYearsLimit} ปี</strong>:{" "}
-                  <strong className="text-foreground">
-                    ตั้งแต่ พ.ศ. 2569 ถึงปี พ.ศ. {2569 - pubYearsLimit + 1}
-                  </strong>{" "}
-                  (เช่น 5 = พ.ศ. 2569 ถึง 2565, 7 = พ.ศ. 2569 ถึง 2563)
-                </>
-              ) : (
-                <>
-                  กำลังแสดงผล <strong className="text-primary">ทุกปี พ.ศ. ทั้งหมด (ไม่จำกัดจำนวนปี)</strong>
-                </>
-              )}
-            </p>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {[
+                { label: "3 ปี (ถึง 2567)", val: 3 },
+                { label: "5 ปี (ถึง 2565)", val: 5 },
+                { label: "7 ปี (ถึง 2563)", val: 7 },
+                { label: "10 ปี (ถึง 2560)", val: 10 },
+                { label: "ทุกปี (ทั้งหมด)", val: 0 },
+              ].map((opt) => (
+                <button
+                  key={opt.val}
+                  type="button"
+                  disabled={isSavingPortalConfig}
+                  onClick={() => handleSavePortalYearsLimit(opt.val)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                    pubYearsLimit === opt.val
+                      ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                      : "bg-background text-muted-foreground hover:bg-muted border-border"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+
+              <div className="flex items-center gap-1.5 pl-2 border-l border-border">
+                <span className="text-xs text-muted-foreground">กำหนดเอง:</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={50}
+                  value={pubYearsLimit}
+                  onChange={(e) => setPubYearsLimit(Math.max(0, parseInt(e.target.value || "0", 10)))}
+                  className="w-16 px-2 py-1 text-xs font-bold text-center rounded-md border border-input bg-background"
+                  aria-label="จำนวนปีที่แสดงผลงานวิจัย"
+                />
+                <span className="text-xs text-muted-foreground">ปี</span>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isSavingPortalConfig}
+                  onClick={() => handleSavePortalYearsLimit(pubYearsLimit)}
+                  className="h-7 px-3 text-xs cursor-pointer"
+                >
+                  บันทึก
+                </Button>
+              </div>
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {[
-              { label: "3 ปี (ถึง 2567)", val: 3 },
-              { label: "5 ปี (ถึง 2565)", val: 5 },
-              { label: "7 ปี (ถึง 2563)", val: 7 },
-              { label: "10 ปี (ถึง 2560)", val: 10 },
-              { label: "ทุกปี (ทั้งหมด)", val: 0 },
-            ].map((opt) => (
+          {/* Portal "ทุกสังกัด" Tab Toggle Bar */}
+          <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2 text-sm font-bold text-foreground">
+                <Filter className="w-4 h-4 text-primary shrink-0" />
+                <span>การแสดงปุ่ม &ldquo;ทุกสังกัด&rdquo; ในแถบตัวกรองหน้า Portal</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                เมื่อปิดการแสดงผล ผู้เข้าชมจะไม่เห็นปุ่ม &ldquo;ทุกสังกัด&rdquo; และระบบจะเลือกแท็บแรก (ผู้บริหาร) ให้อัตโนมัติ
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
               <button
-                key={opt.val}
                 type="button"
                 disabled={isSavingPortalConfig}
-                onClick={() => handleSavePortalYearsLimit(opt.val)}
+                onClick={() => handleToggleShowAllAffiliations(true)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
-                  pubYearsLimit === opt.val
+                  showAllAffiliationsTab
                     ? "bg-primary text-primary-foreground border-primary shadow-xs"
                     : "bg-background text-muted-foreground hover:bg-muted border-border"
                 }`}
               >
-                {opt.label}
+                ✓ เปิดแสดง
               </button>
-            ))}
-
-            <div className="flex items-center gap-1.5 pl-2 border-l border-border">
-              <span className="text-xs text-muted-foreground">กำหนดเอง:</span>
-              <input
-                type="number"
-                min={0}
-                max={50}
-                value={pubYearsLimit}
-                onChange={(e) => setPubYearsLimit(Math.max(0, parseInt(e.target.value || "0", 10)))}
-                className="w-16 px-2 py-1 text-xs font-bold text-center rounded-md border border-input bg-background"
-                aria-label="จำนวนปีที่แสดงผลงานวิจัย"
-              />
-              <span className="text-xs text-muted-foreground">ปี</span>
-              <Button
+              <button
                 type="button"
-                size="sm"
                 disabled={isSavingPortalConfig}
-                onClick={() => handleSavePortalYearsLimit(pubYearsLimit)}
-                className="h-7 px-3 text-xs cursor-pointer"
+                onClick={() => handleToggleShowAllAffiliations(false)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
+                  !showAllAffiliationsTab
+                    ? "bg-destructive text-destructive-foreground border-destructive shadow-xs"
+                    : "bg-background text-muted-foreground hover:bg-muted border-border"
+                }`}
               >
-                บันทึก
-              </Button>
+                ✕ ปิดการแสดง
+              </button>
             </div>
           </div>
         </div>
@@ -2424,6 +2595,202 @@ export function PersonnelAdminClient({
                   )}
                 </div>
               </LiyonField>
+
+              {/* Positions and Appointments Section (ตรงตามแบบ มจร คณะสังคมศาสตร์) */}
+              <div className="p-4 rounded-xl border border-border bg-muted/20 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-2.5">
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                      <Award className="w-4 h-4 text-primary" />
+                      <span>ตำแหน่งปัจจุบันและคำสั่งแต่งตั้ง (ก. วิชาการ/บริหาร และ ข. กรรมการ)</span>
+                    </h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      ระบุตำแหน่งทางวิชาการ/บริหาร หรือตำแหน่งกรรมการ พร้อมแนบไฟล์สำเนาคำสั่งแต่งตั้ง (PDF/JPG)
+                    </p>
+                  </div>
+                  {!showAddPosForm && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => setShowAddPosForm(true)}
+                      className="gap-1.5 cursor-pointer text-xs h-8 shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>เพิ่มตำแหน่งและแนบคำสั่ง</span>
+                    </Button>
+                  )}
+                </div>
+
+                {/* Form to add position */}
+                {showAddPosForm && (
+                  <div className="p-3.5 bg-background rounded-lg border border-primary/30 space-y-3 shadow-xs">
+                    <div className="font-semibold text-xs text-primary flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>แบบฟอร์มเพิ่มตำแหน่งและแนบหลักฐาน</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <LiyonField label="หมวดหมู่ตำแหน่ง *" htmlFor="pos-cat">
+                        <LiyonSelect
+                          id="pos-cat"
+                          value={newPosCategory}
+                          onChange={(e) =>
+                            setNewPosCategory(e.target.value as "ACADEMIC_ADMIN" | "COMMITTEE")
+                          }
+                        >
+                          <option value="ACADEMIC_ADMIN">ก. ตำแหน่งทางวิชาการ / บริหาร</option>
+                          <option value="COMMITTEE">ข. ตำแหน่งกรรมการประจำหน่วยงาน</option>
+                        </LiyonSelect>
+                      </LiyonField>
+
+                      <div className="sm:col-span-2">
+                        <LiyonField label="ชื่อตำแหน่ง *" htmlFor="pos-title">
+                          <input
+                            id="pos-title"
+                            value={newPosTitle}
+                            onChange={(e) => setNewPosTitle(e.target.value)}
+                            placeholder="เช่น อาจารย์ประจำหลักสูตรพุทธศาสตรบัณฑิต, หัวหน้าภาควิชา..."
+                            className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                            required
+                          />
+                        </LiyonField>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <LiyonField label="เลขที่คำสั่ง / วันที่แต่งตั้ง (ถ้ามี)" htmlFor="pos-order">
+                        <input
+                          id="pos-order"
+                          value={newPosOrderNo}
+                          onChange={(e) => setNewPosOrderNo(e.target.value)}
+                          placeholder="เช่น คำสั่งที่ ๑๒/๒๕๖๗ หรือ ๑ พ.ย. ๒๕๖๗"
+                          className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                        />
+                      </LiyonField>
+
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label htmlFor="pos-file" className="text-xs font-medium text-foreground">
+                            ไฟล์สำเนาคำสั่งแต่งตั้ง (PDF / JPG)
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="file"
+                              ref={posFileInputRef}
+                              onChange={handlePosFileUpload}
+                              accept=".pdf,.jpg,.jpeg,.png,.webp"
+                              className="hidden"
+                            />
+                            <button
+                              type="button"
+                              disabled={isUploadingPosFile}
+                              onClick={() => posFileInputRef.current?.click()}
+                              className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <Upload className="w-3 h-3" />
+                              <span>{isUploadingPosFile ? "กำลังอัปโหลด..." : "อัปโหลดไฟล์ (PDF/JPG)"}</span>
+                            </button>
+                          </div>
+                        </div>
+                        <input
+                          id="pos-file"
+                          value={newPosFileUrl}
+                          onChange={(e) => setNewPosFileUrl(e.target.value)}
+                          placeholder="/uploads/personnel/appointments/... หรือ URL ลิงก์"
+                          className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/50">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowAddPosForm(false)}
+                        className="text-xs h-7 cursor-pointer"
+                      >
+                        ยกเลิก
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={handleAddPosition}
+                        className="text-xs h-7 cursor-pointer gap-1"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        <span>บันทึกตำแหน่ง</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Table of positions */}
+                {editingPositions.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-muted-foreground border border-dashed border-border rounded-lg bg-background">
+                    ยังไม่มีข้อมูลตำแหน่งและคำสั่งแต่งตั้ง กดปุ่ม &quot;+ เพิ่มตำแหน่งและแนบคำสั่ง&quot; ด้านบนเพื่อเพิ่มได้ทันที
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {editingPositions.map((pos) => {
+                      const fileType = detectAttachmentType(pos.fileUrl);
+                      return (
+                        <div
+                          key={pos.id}
+                          className="p-2.5 bg-background rounded-lg border border-border flex items-center justify-between gap-3 text-xs hover:border-primary/40 transition-colors"
+                        >
+                          <div className="space-y-0.5 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span
+                                className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                                  pos.category === "ACADEMIC_ADMIN"
+                                    ? "bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20"
+                                    : "bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20"
+                                }`}
+                              >
+                                {pos.category === "ACADEMIC_ADMIN" ? "ก. วิชาการ/บริหาร" : "ข. กรรมการ"}
+                              </span>
+                              <span className="font-semibold text-foreground">{pos.title}</span>
+                              {pos.orderNo && (
+                                <span className="text-muted-foreground text-[11px]">
+                                  ({pos.orderNo})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            {pos.fileUrl ? (
+                              <a
+                                href={pos.fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2.5 py-1 rounded-full text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-1 shadow-xs transition-colors"
+                                title="เปิดดูเอกสารหลักฐานคำสั่ง"
+                              >
+                                <span>{fileType === "pdf" ? "(PDF)" : fileType === "jpg" || fileType === "png" ? "(jpg.)" : "(ลิงก์)"}</span>
+                                <ExternalLink className="w-3 h-3 opacity-80" />
+                              </a>
+                            ) : (
+                              <span className="text-[11px] text-muted-foreground italic">ไม่มีไฟล์แนบ</span>
+                            )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeletePosition(pos.id)}
+                              className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive cursor-pointer"
+                              title="ลบตำแหน่งนี้"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
 
               <LiyonField
                 label="ประวัติย่อ / ความเชี่ยวชาญพิเศษ (Bio & Expertise)"
@@ -3262,15 +3629,52 @@ export function PersonnelAdminClient({
                             </LiyonSelect>
                           </LiyonField>
 
-                          <LiyonField label="URL ลิงก์บทความ (ThaiJO)" htmlFor="new-pub-url">
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <label htmlFor="new-pub-url" className="text-xs font-medium text-foreground">
+                                ไฟล์บทความวิจัย หรือ URL ลิงก์
+                              </label>
+                              <div className="flex items-center gap-1.5">
+                                <input
+                                  type="file"
+                                  ref={researchFileInputRef}
+                                  onChange={handleResearchFileUpload}
+                                  accept=".pdf,.jpg,.jpeg,.png,.webp"
+                                  className="hidden"
+                                />
+                                <button
+                                  type="button"
+                                  disabled={isUploadingResearchFile}
+                                  onClick={() => researchFileInputRef.current?.click()}
+                                  className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Upload className="w-3 h-3" />
+                                  <span>{isUploadingResearchFile ? "กำลังอัปโหลด..." : "อัปโหลดไฟล์ (PDF/JPG)"}</span>
+                                </button>
+                              </div>
+                            </div>
                             <input
                               id="new-pub-url"
                               value={newPubUrl}
                               onChange={(e) => setNewPubUrl(e.target.value)}
-                              placeholder="https://..."
-                              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                              placeholder="/uploads/personnel/research/... หรือ https://..."
+                              className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-ring font-mono"
                             />
-                          </LiyonField>
+                            {newPubUrl && (
+                              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-0.5">
+                                {detectAttachmentType(newPubUrl) === "pdf" ? (
+                                  <span className="font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800">(PDF)</span>
+                                ) : detectAttachmentType(newPubUrl) === "jpg" || detectAttachmentType(newPubUrl) === "png" ? (
+                                  <span className="font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">(JPG)</span>
+                                ) : (
+                                  <span className="font-medium text-purple-600 bg-purple-50 dark:bg-purple-950/40 px-1.5 py-0.5 rounded border border-purple-200 dark:border-purple-800">(Link)</span>
+                                )}
+                                <a href={newPubUrl} target="_blank" rel="noreferrer" className="hover:underline truncate max-w-xs text-primary font-medium">
+                                  เปิดดูไฟล์ที่แนบ
+                                </a>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -3334,10 +3738,16 @@ export function PersonnelAdminClient({
                                 href={pub.url}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="inline-flex items-center gap-1 text-primary hover:underline text-[11px] pt-0.5"
+                                className="inline-flex items-center gap-1.5 text-primary hover:underline text-[11px] pt-0.5"
                               >
-                                <span>เปิดดูบทความ ThaiJO</span>
-                                <ExternalLink className="w-2.5 h-2.5" />
+                                {detectAttachmentType(pub.url) === "pdf" ? (
+                                  <span className="font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.2 rounded border border-blue-200 dark:border-blue-800">(PDF) เอกสารวิจัย</span>
+                                ) : detectAttachmentType(pub.url) === "jpg" || detectAttachmentType(pub.url) === "png" ? (
+                                  <span className="font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.2 rounded border border-emerald-200 dark:border-emerald-800">(jpg.) ไฟล์ภาพ</span>
+                                ) : (
+                                  <span>เปิดดูบทความวิจัย (Link)</span>
+                                )}
+                                <ExternalLink className="w-2.5 h-2.5 opacity-80" />
                               </a>
                             )}
                           </div>

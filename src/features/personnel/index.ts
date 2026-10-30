@@ -9,6 +9,12 @@ export {
   type PersonnelNameInput,
 } from "./format-name";
 export {
+  type AcademicPositionItem,
+  detectAttachmentType,
+  parseAcademicPositions,
+  serializeExperiencesWithPositions,
+} from "./academic-positions";
+export {
   type TeachingCourse,
   type DegreeLevel,
   type CurriculumLanguage,

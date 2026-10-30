@@ -23,11 +23,16 @@ import {
   MapPin,
   Trophy,
   FileText,
+  Table as TableIcon,
+  LayoutGrid,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   type TeachingCourse,
   type DegreeLevel,
+  type AcademicPositionItem,
+  parseAcademicPositions,
+  detectAttachmentType,
   parseTeachingExperiences,
   getLatestTeachingSummary,
   getCurriculumLanguageInfo,
@@ -90,6 +95,30 @@ interface Props {
   publicationYearsLimit?: number;
 }
 
+/**
+ * ปุ่มแสดงสถานะเอกสารหลักฐานแนบ (PDF / JPG) ตามมาตรฐาน มจร
+ */
+function AttachmentLinkBadge({ url, className }: { url?: string | null; className?: string }) {
+  if (!url) return null;
+  const type = detectAttachmentType(url);
+  const label =
+    type === "pdf" ? "(PDF)" : type === "jpg" || type === "png" ? "(jpg.)" : "(เอกสาร)";
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`inline-flex items-center gap-1 font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline px-2 py-0.5 rounded transition-colors text-xs sm:text-sm cursor-pointer ${
+        className || ""
+      }`}
+      title="คลิกเพื่อเปิดดูเอกสารหลักฐานฉบับเต็ม"
+    >
+      <span>{label}</span>
+      <ExternalLink className="w-3 h-3 opacity-70" />
+    </a>
+  );
+}
+
 export function PersonnelProfileClient({ person, locale: _locale, publicationYearsLimit = 5 }: Props) {
   const [activeTab, setActiveTab] = useState<"teaching" | "research" | "education" | "honors">("teaching");
 
@@ -101,6 +130,7 @@ export function PersonnelProfileClient({ person, locale: _locale, publicationYea
   // Research Publications Filter State
   const [selectedResearchYear, setSelectedResearchYear] = useState<string>("ALL");
   const [researchSearch, setResearchSearch] = useState("");
+  const [researchViewMode, setResearchViewMode] = useState<"table" | "card">("table");
 
   // Parse structured teaching courses
   const teachingCourses: TeachingCourse[] = useMemo(() => {
@@ -227,6 +257,41 @@ export function PersonnelProfileClient({ person, locale: _locale, publicationYea
     const secularLines = lines.filter((l) => !dhamLines.includes(l));
     return { dhamLines, secularLines, allLines: lines };
   }, [person.educationTh]);
+
+  // Academic & Committee Positions with official appointment attachments
+  const academicPositions: AcademicPositionItem[] = useMemo(() => {
+    return parseAcademicPositions(person.experiencesTh);
+  }, [person.experiencesTh]);
+
+  const academicAdminPositions = useMemo(() => {
+    return academicPositions.filter((p) => p.category === "ACADEMIC_ADMIN");
+  }, [academicPositions]);
+
+  const committeePositions = useMemo(() => {
+    return academicPositions.filter((p) => p.category === "COMMITTEE");
+  }, [academicPositions]);
+
+  const sanghaPositions = useMemo(() => {
+    if (
+      !person.experiencesTh ||
+      person.experiencesTh.trim().startsWith("[") ||
+      person.experiencesTh.trim().startsWith("{")
+    ) {
+      return [];
+    }
+    return person.experiencesTh
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(
+        (l) =>
+          l &&
+          (l.includes("คณะสงฆ์") ||
+            l.includes("วัด") ||
+            l.includes("เจ้าอาวาส") ||
+            l.includes("เจ้าคณะ") ||
+            l.includes("พระสังฆาธิการ"))
+      );
+  }, [person.experiencesTh]);
 
   // Parse bio into expertise, awards, sangha roles
   const parsedBio = useMemo(() => {
@@ -891,15 +956,47 @@ export function PersonnelProfileClient({ person, locale: _locale, publicationYea
                 ))}
               </div>
 
-              <div className="relative sm:w-64">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="ค้นหาชื่อเรื่อง หรือวารสาร..."
-                  value={researchSearch}
-                  onChange={(e) => setResearchSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
-                />
+              <div className="flex items-center gap-2">
+                <div className="relative sm:w-56">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="ค้นหาชื่อเรื่อง หรือวารสาร..."
+                    value={researchSearch}
+                    onChange={(e) => setResearchSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+
+                {/* View Mode Toggle: MCU Standard Table vs Cards */}
+                <div className="flex items-center bg-muted/60 p-1 rounded-xl border border-border/50 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setResearchViewMode("table")}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      researchViewMode === "table"
+                        ? "bg-background text-foreground shadow-xs font-bold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    title="แสดงรูปแบบตารางมาตรฐาน มจร"
+                  >
+                    <TableIcon className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">ตาราง มจร</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setResearchViewMode("card")}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                      researchViewMode === "card"
+                        ? "bg-background text-foreground shadow-xs font-bold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                    title="แสดงมุมมองการ์ด"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">การ์ด</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -907,85 +1004,158 @@ export function PersonnelProfileClient({ person, locale: _locale, publicationYea
           {/* Publications List */}
           <div className="space-y-4">
             {filteredPublications.length > 0 ? (
-              filteredPublications.map((pub, idx) => (
-                <div
-                  key={pub.id}
-                  className="p-5 rounded-2xl border bg-card hover:shadow-md transition-all space-y-3"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="w-6 h-6 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-xs">
-                          {idx + 1}
-                        </span>
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                            pub.type === "RESEARCH"
-                              ? "bg-blue-500/10 text-blue-700 dark:text-blue-300"
+              researchViewMode === "table" ? (
+                /* MCU Standard Table View (ตามแบบฟอร์มคณะสังคมศาสตร์ และบัณฑิตวิทยาลัย มจร) */
+                <div className="p-6 rounded-2xl border bg-card space-y-4 shadow-xs">
+                  <div className="flex items-center justify-between border-b pb-3">
+                    <h3 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+                      <Award className="w-5 h-5 text-amber-500" />
+                      <span>๓. ผลงานวิจัย ผลงานทางวิชาการ และสิ่งตีพิมพ์</span>
+                    </h3>
+                    <span className="text-xs text-muted-foreground font-medium">
+                      รวม {filteredPublications.length} รายการ
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-bold text-primary flex items-center gap-2">
+                      <span>๑. ผลงานวิจัยและบทความวิชาการ</span>
+                    </h4>
+
+                    <div className="overflow-x-auto rounded-xl border border-border/80">
+                      <table className="w-full text-xs sm:text-sm text-left border-collapse">
+                        <thead className="bg-muted/60 text-muted-foreground uppercase text-[11px] font-semibold border-b">
+                          <tr>
+                            <th className="py-2.5 px-3 w-16 text-center">ลำดับ</th>
+                            <th className="py-2.5 px-4">รายละเอียดผลงานวิจัย / แหล่งตีพิมพ์เผยแพร่</th>
+                            <th className="py-2.5 px-3 w-32 text-center">เอกสารแนบ</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/60">
+                          {filteredPublications.map((pub, idx) => (
+                            <tr key={pub.id} className="hover:bg-muted/30 transition-colors">
+                              <td className="py-3 px-3 text-center text-muted-foreground font-semibold align-top">
+                                ๑.{toThaiDigits(idx + 1)}
+                              </td>
+                              <td className="py-3 px-4 text-foreground leading-relaxed align-top space-y-1">
+                                <div className="font-medium">
+                                  <span>{pub.authors}. </span>
+                                  <strong className="text-foreground">“{pub.titleTh}”. </strong>
+                                  <span className="text-muted-foreground">{pub.journalName}. </span>
+                                  {pub.volume && <span>ปีที่ {pub.volume} </span>}
+                                  {pub.issue && <span>ฉบับที่ {pub.issue} </span>}
+                                  {pub.pages && <span>หน้า {pub.pages}. </span>}
+                                  {pub.publicationYear && (
+                                    <span>พ.ศ. {toThaiDigits(pub.publicationYear)}.</span>
+                                  )}
+                                </div>
+                                {pub.titleEn && (
+                                  <div className="text-xs text-muted-foreground italic">
+                                    {pub.titleEn}
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-2 pt-0.5 flex-wrap">
+                                  {pub.tier && (
+                                    <span className="px-2 py-0.2 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20">
+                                      ⭐ {pub.tier}
+                                    </span>
+                                  )}
+                                  {pub.issn && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      ISSN: {pub.issn}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-3 px-3 text-center align-top">
+                                {pub.url ? (
+                                  <AttachmentLinkBadge url={pub.url} />
+                                ) : (
+                                  <span className="text-muted-foreground/50 text-xs">-</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Card View with Attachment Badges */
+                filteredPublications.map((pub, idx) => (
+                  <div
+                    key={pub.id}
+                    className="p-5 rounded-2xl border bg-card hover:shadow-md transition-all space-y-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="w-6 h-6 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center text-xs">
+                            {idx + 1}
+                          </span>
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                              pub.type === "RESEARCH"
+                                ? "bg-blue-500/10 text-blue-700 dark:text-blue-300"
+                                : pub.type === "DISSERTATION"
+                                ? "bg-purple-500/10 text-purple-700 dark:text-purple-300"
+                                : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                            }`}
+                          >
+                            {pub.type === "RESEARCH"
+                              ? "งานวิจัย"
                               : pub.type === "DISSERTATION"
-                              ? "bg-purple-500/10 text-purple-700 dark:text-purple-300"
-                              : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                          }`}
-                        >
-                          {pub.type === "RESEARCH"
-                            ? "งานวิจัย"
-                            : pub.type === "DISSERTATION"
-                            ? "ดุษฎีนิพนธ์"
-                            : "บทความวิชาการ/หนังสือ"}
-                        </span>
-                        {pub.tier && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20">
-                            ⭐ {pub.tier}
+                              ? "ดุษฎีนิพนธ์"
+                              : "บทความวิชาการ/หนังสือ"}
                           </span>
-                        )}
-                        {pub.publicationYear && (
-                          <span className="px-2 py-0.5 rounded text-[11px] bg-muted text-muted-foreground font-medium">
-                            พ.ศ. {pub.publicationYear}
-                          </span>
+                          {pub.tier && (
+                            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20">
+                              ⭐ {pub.tier}
+                            </span>
+                          )}
+                          {pub.publicationYear && (
+                            <span className="px-2 py-0.5 rounded text-[11px] bg-muted text-muted-foreground font-medium">
+                              พ.ศ. {pub.publicationYear}
+                            </span>
+                          )}
+                        </div>
+
+                        <h4 className="text-base font-bold text-foreground leading-snug pt-1">
+                          {pub.titleTh}
+                        </h4>
+                        {pub.titleEn && (
+                          <p className="text-xs text-muted-foreground font-medium italic">
+                            {pub.titleEn}
+                          </p>
                         )}
                       </div>
-
-                      <h4 className="text-base font-bold text-foreground leading-snug pt-1">
-                        {pub.titleTh}
-                      </h4>
-                      {pub.titleEn && (
-                        <p className="text-xs text-muted-foreground font-medium italic">
-                          {pub.titleEn}
-                        </p>
-                      )}
                     </div>
-                  </div>
 
-                  <p className="text-xs text-muted-foreground">
-                    <strong className="text-foreground">ผู้วิจัย/ผู้แต่ง: </strong>
-                    {pub.authors}
-                  </p>
+                    <p className="text-xs text-muted-foreground">
+                      <strong className="text-foreground">ผู้วิจัย/ผู้แต่ง: </strong>
+                      {pub.authors}
+                    </p>
 
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground bg-muted/30 p-3 rounded-xl border border-border/50">
-                    <span>
-                      <strong className="text-foreground">วารสาร/แหล่งตีพิมพ์: </strong> {pub.journalName}
-                    </span>
-                    {pub.volume && <span>{pub.volume}</span>}
-                    {pub.issue && <span>{pub.issue}</span>}
-                    {pub.pages && <span>หน้า {pub.pages}</span>}
-                    {pub.issn && <span>ISSN: {pub.issn}</span>}
-                  </div>
-
-                  {pub.url && (
-                    <div className="pt-1 print:hidden">
-                      <a
-                        href={pub.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary font-bold text-xs transition-colors"
-                      >
-                        <span>เปิดดูแหล่งอ้างอิงต้นฉบับ</span>
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground bg-muted/30 p-3 rounded-xl border border-border/50">
+                      <span>
+                        <strong className="text-foreground">วารสาร/แหล่งตีพิมพ์: </strong> {pub.journalName}
+                      </span>
+                      {pub.volume && <span>{pub.volume}</span>}
+                      {pub.issue && <span>{pub.issue}</span>}
+                      {pub.pages && <span>หน้า {pub.pages}</span>}
+                      {pub.issn && <span>ISSN: {pub.issn}</span>}
                     </div>
-                  )}
-                </div>
-              ))
+
+                    {pub.url && (
+                      <div className="pt-2 flex items-center justify-between border-t border-border/50 print:hidden">
+                        <span className="text-xs text-muted-foreground font-medium">เอกสารแนบหลักฐาน:</span>
+                        <AttachmentLinkBadge url={pub.url} />
+                      </div>
+                    )}
+                  </div>
+                ))
+              )
             ) : (
               <div className="text-center py-16 border rounded-2xl bg-card">
                 <Award className="w-10 h-10 text-muted-foreground/40 mx-auto mb-2" />
@@ -1002,24 +1172,173 @@ export function PersonnelProfileClient({ person, locale: _locale, publicationYea
       {/* ── TAB 3: ประวัติการศึกษาและตำแหน่ง (EDUCATION & POSITIONS) ── */}
       {activeTab === "education" && (
         <div className="space-y-6 animate-in fade-in-50 duration-300">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Education: Dham & Secular */}
-            <div className="p-6 rounded-2xl border bg-card space-y-4">
-              <h3 className="text-base font-bold text-foreground flex items-center gap-2 border-b pb-3">
-                <GraduationCap className="w-5 h-5 text-primary" />
-                <span>ประวัติการศึกษา (ทางธรรมและทางโลก)</span>
+          {/* ๒. ตำแหน่งปัจจุบัน (ตามแบบฟอร์มคณะสังคมศาสตร์ และบัณฑิตวิทยาลัย มจร) */}
+          <div className="p-6 rounded-2xl border bg-card space-y-6 shadow-xs">
+            <div className="flex items-center justify-between border-b pb-3">
+              <h3 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+                <Briefcase className="w-5 h-5 text-primary" />
+                <span>๒. ตำแหน่งปัจจุบัน (คำสั่งแต่งตั้งและภาระหน้าที่)</span>
               </h3>
+              <span className="text-xs text-muted-foreground font-medium">
+                รวม {academicPositions.length} ตำแหน่ง
+              </span>
+            </div>
 
-              {parsedEducation.allLines.length > 0 ? (
+            {/* ก. ตำแหน่งทางวิชาการ/บริหาร */}
+            <div className="space-y-3">
+              <h4 className="text-sm font-bold text-primary flex items-center gap-2">
+                <span>ก. ตำแหน่งทางวิชาการ/บริหาร</span>
+                <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                  {academicAdminPositions.length} ตำแหน่ง
+                </span>
+              </h4>
+
+              {academicAdminPositions.length > 0 ? (
+                <div className="overflow-x-auto rounded-xl border border-border/80">
+                  <table className="w-full text-xs sm:text-sm text-left border-collapse">
+                    <thead className="bg-muted/60 text-muted-foreground uppercase text-[11px] font-semibold border-b">
+                      <tr>
+                        <th className="py-2.5 px-3 w-14 text-center">ลำดับ</th>
+                        <th className="py-2.5 px-4">ชื่อตำแหน่งทางวิชาการ / บริหาร</th>
+                        <th className="py-2.5 px-3 w-40 text-center">คำสั่งแต่งตั้ง</th>
+                        <th className="py-2.5 px-3 w-32 text-center">เอกสารแนบ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {academicAdminPositions.map((pos, idx) => (
+                        <tr key={pos.id || idx} className="hover:bg-muted/30 transition-colors">
+                          <td className="py-3 px-3 text-center text-muted-foreground font-medium">
+                            {idx + 1}
+                          </td>
+                          <td className="py-3 px-4 text-foreground font-medium leading-relaxed">
+                            {pos.title}
+                            {pos.year && (
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                (พ.ศ. {pos.year})
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-center text-xs text-muted-foreground">
+                            {pos.orderNo ? pos.orderNo : "-"}
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            {pos.fileUrl ? (
+                              <AttachmentLinkBadge url={pos.fileUrl} />
+                            ) : (
+                              <span className="text-muted-foreground/60 text-xs">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl border border-dashed border-border/80 text-center text-xs text-muted-foreground">
+                  ไม่มีข้อมูลตำแหน่งทางวิชาการ/บริหารเพิ่มเติม
+                </div>
+              )}
+            </div>
+
+            {/* ข. ตำแหน่งกรรมการประจำหน่วยงานใน มจร และภายนอก */}
+            <div className="space-y-3 pt-2">
+              <h4 className="text-sm font-bold text-primary flex items-center gap-2">
+                <span>ข. ตำแหน่งกรรมการประจำหน่วยงานใน มจร และภายนอก</span>
+                <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-semibold">
+                  {committeePositions.length} ตำแหน่ง
+                </span>
+              </h4>
+
+              {committeePositions.length > 0 ? (
+                <div className="overflow-x-auto rounded-xl border border-border/80">
+                  <table className="w-full text-xs sm:text-sm text-left border-collapse">
+                    <thead className="bg-muted/60 text-muted-foreground uppercase text-[11px] font-semibold border-b">
+                      <tr>
+                        <th className="py-2.5 px-3 w-14 text-center">ลำดับ</th>
+                        <th className="py-2.5 px-4">ชื่อตำแหน่งกรรมการ / ภาระหน้าที่</th>
+                        <th className="py-2.5 px-3 w-40 text-center">คำสั่งแต่งตั้ง</th>
+                        <th className="py-2.5 px-3 w-32 text-center">เอกสารแนบ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {committeePositions.map((pos, idx) => (
+                        <tr key={pos.id || idx} className="hover:bg-muted/30 transition-colors">
+                          <td className="py-3 px-3 text-center text-muted-foreground font-medium">
+                            {idx + 1}
+                          </td>
+                          <td className="py-3 px-4 text-foreground font-medium leading-relaxed">
+                            {pos.title}
+                            {pos.year && (
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                (พ.ศ. {pos.year})
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-center text-xs text-muted-foreground">
+                            {pos.orderNo ? pos.orderNo : "-"}
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            {pos.fileUrl ? (
+                              <AttachmentLinkBadge url={pos.fileUrl} />
+                            ) : (
+                              <span className="text-muted-foreground/60 text-xs">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl border border-dashed border-border/80 text-center text-xs text-muted-foreground">
+                  ไม่มีข้อมูลตำแหน่งกรรมการประจำหน่วยงานเพิ่มเติม
+                </div>
+              )}
+            </div>
+
+            {/* ค. ตำแหน่งทางคณะสงฆ์และงานพระพุทธศาสนา (ถ้ามี) */}
+            {sanghaPositions.length > 0 && (
+              <div className="space-y-3 pt-2">
+                <h4 className="text-sm font-bold text-amber-700 dark:text-amber-400 flex items-center gap-2">
+                  <span>ค. ตำแหน่งทางคณะสงฆ์และงานพระพุทธศาสนา</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  {sanghaPositions.map((line, idx) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-xs text-foreground flex items-start gap-2.5"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 shrink-0" />
+                      <span className="font-semibold leading-relaxed">{line}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ประวัติการศึกษา (ทางธรรมและทางโลก) */}
+          <div className="p-6 rounded-2xl border bg-card space-y-4 shadow-xs">
+            <h3 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2 border-b pb-3">
+              <GraduationCap className="w-5 h-5 text-primary" />
+              <span>ประวัติการศึกษา (ทางธรรมและทางโลก)</span>
+            </h3>
+
+            {parsedEducation.allLines.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* ทางธรรม */}
                 <div className="space-y-3">
-                  {parsedEducation.dhamLines.length > 0 && (
+                  <h4 className="text-xs sm:text-sm font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4" />
+                    <span>การศึกษาทางธรรม (พระปริยัติธรรม)</span>
+                  </h4>
+                  {parsedEducation.dhamLines.length > 0 ? (
                     <div className="space-y-2">
-                      <h4 className="text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>การศึกษาทางธรรม (พระปริยัติธรรม)</span>
-                      </h4>
                       {parsedEducation.dhamLines.map((line, idx) => (
-                        <div key={idx} className="flex items-start gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs">
+                        <div
+                          key={idx}
+                          className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs sm:text-sm"
+                        >
                           <span className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 shrink-0" />
                           <span className="text-foreground font-semibold leading-relaxed">
                             {line.replace(/^การศึกษาทางธรรม:\s*/, "")}
@@ -1027,16 +1346,26 @@ export function PersonnelProfileClient({ person, locale: _locale, publicationYea
                         </div>
                       ))}
                     </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground p-3 border rounded-xl bg-muted/20">
+                      ไม่มีข้อมูลการศึกษาทางธรรม
+                    </p>
                   )}
+                </div>
 
-                  {parsedEducation.secularLines.length > 0 && (
-                    <div className="space-y-2 pt-2">
-                      <h4 className="text-xs font-bold text-primary flex items-center gap-1.5">
-                        <GraduationCap className="w-3.5 h-3.5" />
-                        <span>การศึกษาทางโลก (อุดมศึกษา)</span>
-                      </h4>
+                {/* ทางโลก */}
+                <div className="space-y-3">
+                  <h4 className="text-xs sm:text-sm font-bold text-primary flex items-center gap-1.5">
+                    <GraduationCap className="w-4 h-4" />
+                    <span>การศึกษาทางโลก (อุดมศึกษา)</span>
+                  </h4>
+                  {parsedEducation.secularLines.length > 0 ? (
+                    <div className="space-y-2">
                       {parsedEducation.secularLines.map((line, idx) => (
-                        <div key={idx} className="flex items-start gap-2 p-2.5 rounded-xl bg-muted/40 text-xs border border-border/50">
+                        <div
+                          key={idx}
+                          className="flex items-start gap-2 p-3 rounded-xl bg-muted/40 text-xs sm:text-sm border border-border/50"
+                        >
                           <span className="w-2 h-2 rounded-full bg-primary mt-1.5 shrink-0" />
                           <span className="text-foreground font-medium leading-relaxed">
                             {line.replace(/^การศึกษาทางโลก:\s*/, "")}
@@ -1044,50 +1373,18 @@ export function PersonnelProfileClient({ person, locale: _locale, publicationYea
                         </div>
                       ))}
                     </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground p-3 border rounded-xl bg-muted/20">
+                      ไม่มีข้อมูลการศึกษาทางโลก
+                    </p>
                   )}
                 </div>
-              ) : (
-                <p className="text-xs text-muted-foreground py-6 text-center">
-                  ยังไม่มีข้อมูลประวัติการศึกษาบันทึกไว้ในระบบ
-                </p>
-              )}
-            </div>
-
-            {/* Positions & Appointments */}
-            <div className="p-6 rounded-2xl border bg-card space-y-4">
-              <h3 className="text-base font-bold text-foreground flex items-center gap-2 border-b pb-3">
-                <Briefcase className="w-5 h-5 text-amber-500" />
-                <span>ตำแหน่งทางบริหารและคณะสงฆ์</span>
-              </h3>
-
-              {person.experiencesTh && !person.experiencesTh.trim().startsWith("[") && !person.experiencesTh.trim().startsWith("{") ? (
-                <div className="space-y-2.5">
-                  {person.experiencesTh.split("\n").map((line, idx) => {
-                    const isSangha = line.includes("คณะสงฆ์") || line.includes("วัด");
-                    const isAdmin = line.includes("บริหาร") || line.includes("คณบดี") || line.includes("อธิการบดี") || line.includes("ผู้อำนวยการ");
-                    return (
-                      <div
-                        key={idx}
-                        className={`flex items-start gap-2.5 p-3 rounded-xl text-xs border ${
-                          isSangha
-                            ? "bg-amber-500/10 border-amber-500/30 text-foreground"
-                            : isAdmin
-                            ? "bg-primary/5 border-primary/20 text-foreground"
-                            : "bg-muted/30 border-border/50 text-muted-foreground"
-                        }`}
-                      >
-                        <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${isSangha ? "bg-amber-500" : "bg-primary"}`} />
-                        <span className="leading-relaxed font-medium">{line}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-xs text-muted-foreground py-6 text-center">
-                  ยังไม่มีข้อมูลประสบการณ์บันทึกไว้ในระบบ
-                </p>
-              )}
-            </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground py-6 text-center">
+                ยังไม่มีข้อมูลประวัติการศึกษาบันทึกไว้ในระบบ
+              </p>
+            )}
           </div>
         </div>
       )}
