@@ -49,12 +49,12 @@ interface ManualSection {
 }
 
 const MANUAL_SECTIONS: ManualSection[] = [
-  // ── ๑. ระบบทำเนียบคณาจารย์และผู้บริหาร ──
+  // ── ระบบทำเนียบคณาจารย์และผู้บริหาร ──
   {
     id: "personnel-search",
     category: "PORTAL",
     categoryLabel: "หน้าเว็บสาธารณะ & ทำเนียบ",
-    title: "๑. ระบบทำเนียบคณาจารย์ บุคลากร และผู้บริหาร",
+    title: "ระบบทำเนียบคณาจารย์ บุคลากร และผู้บริหาร",
     desc: "การค้นหาข้อมูลอาจารย์ คัดกรองตามภาควิชา ตรวจสอบตารางสอน งานวิจัย และเปิดดูไฟล์คำสั่งแต่งตั้ง (PDF/JPG)",
     icon: Users,
     steps: [
@@ -88,12 +88,12 @@ const MANUAL_SECTIONS: ManualSection[] = [
     ],
   },
 
-  // ── ๒. ระบบจัดการข้อมูลอาจารย์ คำสั่งแต่งตั้ง และงานวิจัย (สำหรับ Admin) ──
+  // ── ระบบจัดการข้อมูลอาจารย์ คำสั่งแต่งตั้ง และงานวิจัย (สำหรับ Admin) ──
   {
     id: "admin-personnel",
     category: "ACADEMIC",
     categoryLabel: "ระบบบริหารจัดการบุคคล",
-    title: "๒. ระบบจัดการข้อมูลอาจารย์ คำสั่งแต่งตั้ง และงานวิจัย (Admin)",
+    title: "ระบบจัดการข้อมูลอาจารย์ คำสั่งแต่งตั้ง และงานวิจัย (Admin)",
     desc: "สำหรับเจ้าหน้าที่/แอดมิน: เพิ่มแก้ไขข้อมูลอาจารย์ อัปโหลดคำสั่งแต่งตั้ง (PDF/JPG) เพิ่มผลงานวิจัย และตั้งค่าหน้า Portal",
     icon: FolderOpen,
     adminOnly: true,
@@ -144,12 +144,12 @@ const MANUAL_SECTIONS: ManualSection[] = [
     ],
   },
 
-  // ── ๓. ระบบทะเบียนนิสิตและตารางสอน ──
+  // ── ระบบทะเบียนนิสิตและตารางสอน ──
   {
     id: "students-and-curriculum",
     category: "ACADEMIC",
     categoryLabel: "งานบริการการศึกษา",
-    title: "๓. ระบบทะเบียนนิสิต หลักสูตร และตารางสอน",
+    title: "ระบบทะเบียนนิสิต หลักสูตร และตารางสอน",
     desc: "การตรวจสอบรายชื่อนิสิต ๕๒๗ รูป/คน จัดการหลักสูตร ๑๓ หลักสูตร และตารางสอนรายภาคการศึกษา",
     icon: GraduationCap,
     steps: [
@@ -184,12 +184,12 @@ const MANUAL_SECTIONS: ManualSection[] = [
     ],
   },
 
-  // ── ๔. ระบบเช็คชื่อเข้าชั้นเรียนและการมาเรียน ──
+  // ── ระบบเช็คชื่อเข้าชั้นเรียนและการมาเรียน ──
   {
     id: "attendance-system",
     category: "ACADEMIC",
     categoryLabel: "งานบริการการศึกษา",
-    title: "๔. ระบบเช็คชื่อเข้าชั้นเรียน (Smart Attendance & QR Code)",
+    title: "ระบบเช็คชื่อเข้าชั้นเรียน (Smart Attendance & QR Code)",
     desc: "การบันทึกเวลาเรียน การสแกน QR Code เข้าเรียน การส่งใบลา และรายงานสถิติการเข้าเรียน",
     icon: Clock,
     steps: [
@@ -216,12 +216,12 @@ const MANUAL_SECTIONS: ManualSection[] = [
     ],
   },
 
-  // ── ๕. ระบบจองห้องประชุมและขอใช้สถานที่ ──
+  // ── ระบบจองห้องประชุมและขอใช้สถานที่ ──
   {
     id: "meeting-rooms",
     category: "ADMINISTRATION",
     categoryLabel: "งานบริหารทั่วไป",
-    title: "๕. ระบบจองห้องประชุมและขอใช้สถานที่ (Meeting Rooms)",
+    title: "ระบบจองห้องประชุมและขอใช้สถานที่ (Meeting Rooms)",
     desc: "การตรวจสอบปฏิทินห้องว่าง ยื่นคำขอจองห้องประชุม อนุมัติการใช้งาน และฉายหน้าจอ Projector Display",
     icon: Building2,
     steps: [
@@ -254,12 +254,12 @@ const MANUAL_SECTIONS: ManualSection[] = [
     ],
   },
 
-  // ── ๖. ระบบคำร้องและหนังสือรับรองออนไลน์ ──
+  // ── ระบบคำร้องและหนังสือรับรองออนไลน์ ──
   {
     id: "certificates-and-documents",
     category: "ADMINISTRATION",
     categoryLabel: "งานบริหารทั่วไป",
-    title: "๖. ระบบคำร้องและขอหนังสือรับรองออนไลน์ (Certificates & Forms)",
+    title: "ระบบคำร้องและขอหนังสือรับรองออนไลน์ (Certificates & Forms)",
     desc: "การขอใบรับรองการเป็นนิสิต/อาจารย์ การตรวจสอบสถานะคำร้อง และศูนย์ดาวน์โหลดแบบฟอร์ม",
     icon: FileText,
     steps: [
@@ -286,12 +286,12 @@ const MANUAL_SECTIONS: ManualSection[] = [
     ],
   },
 
-  // ── ๗. ระบบข่าวสาร ประชาสัมพันธ์ และปฏิทินกิจกรรม ──
+  // ── ระบบข่าวสาร ประชาสัมพันธ์ และปฏิทินกิจกรรม ──
   {
     id: "news-and-events",
     category: "ADMINISTRATION",
     categoryLabel: "งานสื่อสารองค์กร",
-    title: "๗. ระบบข่าวสาร ประชาสัมพันธ์ และกิจกรรมคณะ (News & Events)",
+    title: "ระบบข่าวสาร ประชาสัมพันธ์ และกิจกรรมคณะ (News & Events)",
     desc: "การเผยแพร่ข่าวประชาสัมพันธ์ ข่าวกิจกรรมวิชาการ การแนบภาพ/เอกสาร และปฏิทินกิจกรรม",
     icon: Newspaper,
     steps: [
@@ -318,12 +318,12 @@ const MANUAL_SECTIONS: ManualSection[] = [
     ],
   },
 
-  // ── ๘. ระบบตั้งค่าองค์กรและสิทธิ์ผู้ใช้งาน ──
+  // ── ระบบตั้งค่าองค์กรและสิทธิ์ผู้ใช้งาน ──
   {
     id: "admin-settings",
     category: "SYSTEM",
     categoryLabel: "การจัดการระบบและความปลอดภัย",
-    title: "๘. ระบบตั้งค่าองค์กร เมนูนำทาง และสิทธิ์ผู้ใช้ (Settings & RBAC)",
+    title: "ระบบตั้งค่าองค์กร เมนูนำทาง และสิทธิ์ผู้ใช้ (Settings & RBAC)",
     desc: "การปรับแต่งหน้าแรก (Hero Section) เมนูนำทาง ข้อมูลติดต่อ สีของระบบ และการกำหนดสิทธิ์ผู้ใช้งาน",
     icon: Settings,
     adminOnly: true,
@@ -478,7 +478,7 @@ export function PortalManualClient({
             <span>ศูนย์คู่มือการใช้งานระบบสารสนเทศ (Comprehensive System Manual)</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
-            คู่มือการใช้งานระบบทั้ง ๘ ระบบ คณะพุทธศาสตร์ มจร
+            คู่มือการใช้งานระบบสารสนเทศ คณะพุทธศาสตร์ มจร
           </h2>
           <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
             รวบรวมวิธีใช้งานระบบสารสนเทศทั้งหมดของคณะ ครอบคลุมทั้งส่วนหน้าเว็บสาธารณะ (Portal) ระบบบริการการศึกษา (ทะเบียนนิสิต ตารางสอน เช็คชื่อ) ระบบบริหารทั่วไป (จองห้อง คำร้อง ข่าวสาร) และระบบตั้งค่าความปลอดภัย
@@ -640,15 +640,26 @@ export function PortalManualClient({
           {activeSection ? (
             <div className="p-6 sm:p-8 rounded-3xl border bg-card shadow-xs space-y-6">
               {/* Section Header */}
-              <div className="border-b pb-4 space-y-2">
+              <div className="border-b pb-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                     {activeSection.categoryLabel}
                   </span>
+                  {activeSection.adminOnly && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/20">
+                      <Lock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                      <span>เฉพาะผู้ดูแลระบบ (Admin)</span>
+                    </span>
+                  )}
                 </div>
-                <h3 className="text-xl sm:text-2xl font-extrabold text-foreground">
-                  {activeSection.title}
-                </h3>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0">
+                    <activeSection.icon className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-xl sm:text-2xl font-extrabold text-foreground">
+                    {activeSection.title}
+                  </h3>
+                </div>
                 <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
                   {activeSection.desc}
                 </p>

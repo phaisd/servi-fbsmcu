@@ -1,6 +1,22 @@
 "use client";
 
-import { BookOpen, CheckCircle2, Lock, Eye, EyeOff, ShieldCheck, HelpCircle } from "lucide-react";
+import {
+  BookOpen,
+  CheckCircle2,
+  Lock,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  HelpCircle,
+  Users,
+  FolderOpen,
+  GraduationCap,
+  Clock,
+  Building2,
+  FileText,
+  Newspaper,
+  Settings,
+} from "lucide-react";
 import { LiyonCard, LiyonSwitch } from "@/shared/components/liyon";
 import type { ManualSettings } from "@/features/identity";
 
@@ -18,48 +34,57 @@ export function ManualSettingsTab({ value, onChange }: ManualSettingsTabProps) {
     key: keyof Omit<ManualSettings, "enabled">;
     title: string;
     desc: string;
+    icon: React.ComponentType<{ className?: string }>;
     adminOnlyNote?: string;
   }> = [
     {
       key: "showPersonnel",
-      title: "๑. ระบบทำเนียบคณาจารย์ บุคลากร และผู้บริหาร (Portal)",
+      title: "ระบบทำเนียบคณาจารย์ บุคลากร และผู้บริหาร (Portal)",
       desc: "คู่มือการสืบค้นข้อมูลอาจารย์ คัดกรองตามภาควิชา ตรวจสอบตารางสอน งานวิจัย และเปิดดูไฟล์คำสั่งแต่งตั้ง (PDF/JPG)",
+      icon: Users,
     },
     {
       key: "showPersonnelAdmin",
-      title: "๒. ระบบจัดการข้อมูลอาจารย์ คำสั่งแต่งตั้ง และงานวิจัย (Admin)",
+      title: "ระบบจัดการข้อมูลอาจารย์ คำสั่งแต่งตั้ง และงานวิจัย (Admin)",
       desc: "คู่มือสำหรับเจ้าหน้าที่: เพิ่มแก้ไขข้อมูลอาจารย์ อัปโหลดคำสั่งแต่งตั้ง (PDF/JPG) เพิ่มผลงานวิจัย และตั้งค่าหน้า Portal",
+      icon: FolderOpen,
       adminOnlyNote: "เฉพาะผู้ดูแลระบบและเจ้าหน้าที่",
     },
     {
       key: "showCurriculum",
-      title: "๓. ระบบทะเบียนนิสิต หลักสูตร และตารางสอน",
+      title: "ระบบทะเบียนนิสิต หลักสูตร และตารางสอน",
       desc: "คู่มือตรวจสอบรายชื่อนิสิต ๕๒๗ รูป/คน จัดการหลักสูตร ๑๓ หลักสูตร และการดึงตารางสอนอัตโนมัติ (Sync Timetable)",
+      icon: GraduationCap,
     },
     {
       key: "showAttendance",
-      title: "๔. ระบบเช็คชื่อเข้าชั้นเรียน (Smart Attendance & QR Code)",
+      title: "ระบบเช็คชื่อเข้าชั้นเรียน (Smart Attendance & QR Code)",
       desc: "คู่มือการบันทึกเวลาเรียน การเปิดคาบเรียนฉาย Dynamic QR Code ให้นิสิตสแกน และรายงานสถิติสิทธิ์สอบ ๘๐%",
+      icon: Clock,
     },
     {
       key: "showMeetings",
-      title: "๕. ระบบจองห้องประชุมและขอใช้สถานที่ (Meeting Rooms)",
+      title: "ระบบจองห้องประชุมและขอใช้สถานที่ (Meeting Rooms)",
       desc: "คู่มือตรวจสอบปฏิทินห้องว่าง ยื่นขอจองห้องประชุม การอนุมัติของเจ้าหน้าที่ และหน้าจอฉายผล Smart Projector View",
+      icon: Building2,
     },
     {
       key: "showCertificates",
-      title: "๖. ระบบคำร้องและขอหนังสือรับรองออนไลน์ (Certificates & Forms)",
+      title: "ระบบคำร้องและขอหนังสือรับรองออนไลน์ (Certificates & Forms)",
       desc: "คู่มือการดาวน์โหลดแบบฟอร์มคำร้องทั่วไป และการติดตามสถานะขอหนังสือรับรองนิสิต/อาจารย์",
+      icon: FileText,
     },
     {
       key: "showNews",
-      title: "๗. ระบบข่าวสาร ประชาสัมพันธ์ และกิจกรรมคณะ (News & Events)",
+      title: "ระบบข่าวสาร ประชาสัมพันธ์ และกิจกรรมคณะ (News & Events)",
       desc: "คู่มือการเผยแพร่ข่าวประชาสัมพันธ์ แนบภาพ/เอกสารประกาศ และปฏิทินกิจกรรมคณะ",
+      icon: Newspaper,
     },
     {
       key: "showSystemSettings",
-      title: "๘. ระบบตั้งค่าองค์กร เมนูนำทาง และสิทธิ์ผู้ใช้ (Settings & RBAC)",
+      title: "ระบบตั้งค่าองค์กร เมนูนำทาง และสิทธิ์ผู้ใช้ (Settings & RBAC)",
       desc: "คู่มือการปรับแต่งหน้าแรก (Hero Section) เมนูนำทาง ข้อมูลติดต่อ สีของระบบ และการกำหนดสิทธิ์ผู้ใช้งาน",
+      icon: Settings,
       adminOnlyNote: "เฉพาะผู้ดูแลระบบและเจ้าหน้าที่",
     },
   ];
@@ -107,8 +132,9 @@ export function ManualSettingsTab({ value, onChange }: ManualSettingsTabProps) {
         </div>
 
         <div className="space-y-3">
-          {manualItems.map((item, idx) => {
+          {manualItems.map((item) => {
             const isEnabled = Boolean(value[item.key]);
+            const Icon = item.icon;
             return (
               <div
                 key={item.key}
@@ -118,21 +144,31 @@ export function ManualSettingsTab({ value, onChange }: ManualSettingsTabProps) {
                     : "bg-muted/30 border-dashed border-muted-foreground/30 opacity-70"
                 }`}
               >
-                <div className="space-y-1 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-bold text-muted-foreground">#{idx + 1}</span>
-                    <h3 className="text-sm font-bold text-foreground">{item.title}</h3>
-                    {item.adminOnlyNote && (
-                      <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20">
-                        <Lock className="w-2.5 h-2.5" />
-                        <span>{item.adminOnlyNote}</span>
-                      </span>
-                    )}
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors mt-0.5 ${
+                      isEnabled
+                        ? "bg-primary/10 text-primary border border-primary/20"
+                        : "bg-muted text-muted-foreground border border-border"
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed pl-5">{item.desc}</p>
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-sm font-bold text-foreground">{item.title}</h3>
+                      {item.adminOnlyNote && (
+                        <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20">
+                          <Lock className="w-2.5 h-2.5" />
+                          <span>{item.adminOnlyNote}</span>
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{item.desc}</p>
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center pl-5 sm:pl-0">
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center pl-12 sm:pl-0">
                   <LiyonSwitch
                     checked={isEnabled}
                     onCheckedChange={(checked) => update(item.key, checked)}

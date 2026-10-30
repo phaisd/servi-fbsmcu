@@ -361,15 +361,15 @@ export const geminiSettingsSchema = z.object({
 
 export const manualSettingsSchema = z.object({
   enabled: z.boolean().default(true),
-  // สวิตช์เปิด/ปิด แต่ละระบบในคู่มือ
-  showPersonnel: z.boolean().default(false), // ๑. ระบบทำเนียบคณาจารย์ (ค่าเริ่มต้นปิดตามที่ขอ)
-  showPersonnelAdmin: z.boolean().default(true), // ๒. จัดการข้อมูลอาจารย์ (Admin)
-  showCurriculum: z.boolean().default(true), // ๓. ทะเบียนนิสิตและตารางสอน
-  showAttendance: z.boolean().default(true), // ๔. เช็คชื่อเข้าชั้นเรียน QR
-  showMeetings: z.boolean().default(true), // ๕. จองห้องประชุม
-  showCertificates: z.boolean().default(true), // ๖. คำร้องและหนังสือรับรอง
-  showNews: z.boolean().default(false), // ๗. ข่าวสารและกิจกรรม (ค่าเริ่มต้นปิดตามที่ขอ)
-  showSystemSettings: z.boolean().default(true), // ๘. ตั้งค่าระบบและความปลอดภัย
+  // สวิตช์เปิด/ปิด แต่ละระบบในคู่มือ (ค่าเริ่มต้นเปิดใช้งานทั้งหมด)
+  showPersonnel: z.boolean().default(true), // ระบบทำเนียบคณาจารย์
+  showPersonnelAdmin: z.boolean().default(true), // จัดการข้อมูลอาจารย์ (Admin)
+  showCurriculum: z.boolean().default(true), // ทะเบียนนิสิตและตารางสอน
+  showAttendance: z.boolean().default(true), // เช็คชื่อเข้าชั้นเรียน QR
+  showMeetings: z.boolean().default(true), // จองห้องประชุม
+  showCertificates: z.boolean().default(true), // คำร้องและหนังสือรับรอง
+  showNews: z.boolean().default(true), // ข่าวสารและกิจกรรม
+  showSystemSettings: z.boolean().default(true), // ตั้งค่าระบบและความปลอดภัย
 });
 
 export type ManualSettingsInput = z.infer<typeof manualSettingsSchema>;
@@ -377,13 +377,13 @@ export type ManualSettings = ManualSettingsInput;
 
 export const DEFAULT_MANUAL_SETTINGS: ManualSettings = {
   enabled: true,
-  showPersonnel: false,
+  showPersonnel: true,
   showPersonnelAdmin: true,
   showCurriculum: true,
   showAttendance: true,
   showMeetings: true,
   showCertificates: true,
-  showNews: false,
+  showNews: true,
   showSystemSettings: true,
 };
 
