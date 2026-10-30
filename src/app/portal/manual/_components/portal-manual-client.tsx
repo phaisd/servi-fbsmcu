@@ -50,6 +50,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
   // ── ๑. ระบบทำเนียบคณาจารย์และผู้บริหาร ──
   {
     id: "personnel-search",
+    enabled: false, // 👈 ปิดการแสดงผลคู่มือนี้
     category: "PORTAL",
     categoryLabel: "หน้าเว็บสาธารณะ & ทำเนียบ",
     title: "๑. ระบบทำเนียบคณาจารย์ บุคลากร และผู้บริหาร",
@@ -287,6 +288,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
   // ── ๗. ระบบข่าวสาร ประชาสัมพันธ์ และปฏิทินกิจกรรม ──
   {
     id: "news-and-events",
+    enabled: false, // 👈 ปิดการแสดงผลคู่มือนี้
     category: "ADMINISTRATION",
     categoryLabel: "งานสื่อสารองค์กร",
     title: "๗. ระบบข่าวสาร ประชาสัมพันธ์ และกิจกรรมคณะ (News & Events)",
