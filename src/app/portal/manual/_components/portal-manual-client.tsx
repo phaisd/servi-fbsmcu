@@ -14,11 +14,20 @@ import {
   FolderOpen,
   Printer,
   Sparkles,
+  GraduationCap,
+  Clock,
+  Building2,
+  Calendar,
+  Newspaper,
+  ShieldCheck,
+  LayoutDashboard,
+  Award,
 } from "lucide-react";
 
 interface ManualSection {
   id: string;
-  category: "GENERAL" | "ADMIN";
+  category: "PORTAL" | "ACADEMIC" | "ADMINISTRATION" | "SYSTEM";
+  categoryLabel: string;
   title: string;
   desc: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -32,151 +41,321 @@ interface ManualSection {
 }
 
 const MANUAL_SECTIONS: ManualSection[] = [
+  // ── ๑. ระบบทำเนียบคณาจารย์และผู้บริหาร ──
   {
     id: "personnel-search",
-    category: "GENERAL",
-    title: "๑. การสืบค้นทำเนียบคณาจารย์และบุคลากร",
-    desc: "ค้นหาข้อมูลอาจารย์ คัดกรองตามภาควิชา ตรวจสอบประวัติการศึกษา ตารางสอน และผลงานวิจัย",
+    category: "PORTAL",
+    categoryLabel: "หน้าเว็บสาธารณะ & ทำเนียบ",
+    title: "๑. ระบบทำเนียบคณาจารย์ บุคลากร และผู้บริหาร",
+    desc: "การค้นหาข้อมูลอาจารย์ คัดกรองตามภาควิชา ตรวจสอบตารางสอน งานวิจัย และเปิดดูไฟล์คำสั่งแต่งตั้ง (PDF/JPG)",
     icon: Users,
     steps: [
       {
-        title: "การเข้าสู่หน้าทำเนียบอาจารย์และบุคลากร",
-        description: "ผู้เข้าชมสามารถเข้าถึงหน้าทำเนียบอาจารย์ได้จากแถบเมนูหลักบนเว็บไซต์",
+        title: "การเข้าสู่หน้าทำเนียบคณาจารย์และบุคลากร",
+        description: "ผู้เข้าชมสามารถเข้าถึงทำเนียบอาจารย์และผู้บริหารได้จากหน้าพอร์ทัลหลัก",
         path: "/portal/personnel",
         bullets: [
-          "คลิกเมนู 'บริการออนไลน์' -> เลือก 'คณาจารย์และบุคลากร'",
-          "หรือคลิกที่ปุ่มลัด 'ทำเนียบคณาจารย์' บนหน้าแรกของเว็บไซต์",
+          "เข้าผ่าน URL: /portal/personnel",
+          "เลือกดูแท็บสังกัด: คณะผู้บริหาร, ภาควิชาพระพุทธศาสนา, ภาควิชาศาสนาและปรัชญา, ภาควิชาบาลีและสันสกฤต, อาจารย์พิเศษ, และเจ้าหน้าที่สำนักงานคณบดี",
+          "ใช้ช่องค้นหาชื่ออาจารย์ รหัส หรือตำแหน่งงานเพื่อกรองรายชื่อทันที",
         ],
       },
       {
-        title: "การคัดกรองตามสังกัด / ภาควิชา",
-        description: "สามารถเลือกดูรายชื่ออาจารย์เฉพาะกลุ่มได้โดยคลิกแท็บสังกัดด้านบน",
+        title: "การดูประวัติอาจารย์ ตารางสอน และผลงานวิจัยฉบับเต็ม",
+        description: "คลิกการ์ดอาจารย์ท่านใดก็ได้ เพื่อเข้าสู่หน้ารายละเอียด (/portal/personnel/[id])",
         bullets: [
-          "แท็บคณะผู้บริหาร: แสดงเฉพาะผู้บริหารระดับคณะและหัวหน้าภาควิชา",
-          "แท็บภาควิชา: ภาควิชาพระพุทธศาสนา, ภาควิชาศาสนาและปรัชญา, ภาควิชาบาลีและสันสกฤต",
-          "แท็บอาจารย์พิเศษ และเจ้าหน้าที่สำนักงานคณบดี",
+          "แท็บที่ ๑ (ตารางสอน): แสดงรายวิชาที่สอน ระดับ ป.ตรี, ป.โท, ป.เอก พร้อมหน่วยกิตและปีการศึกษา",
+          "แท็บที่ ๒ (ผลงานวิจัย): เลือกดูได้ทั้งแบบ 'ตาราง มจร' (เรียงลำดับ ๑.๑, ๑.๒) และแบบ 'การ์ด' พร้อมปุ่มเปิดดูเอกสารแนบ (PDF) หรือ (jpg.)",
+          "แท็บที่ ๓ (ตำแหน่งและประวัติการศึกษา): แสดงตารางตำแหน่งทางวิชาการ/บริหาร (ข้อ ก.) และตำแหน่งกรรมการ (ข้อ ข.) พร้อมปุ่มกดดูเอกสารคำสั่งแต่งตั้งฉบับเต็ม",
         ],
-        tip: "สามารถใช้ช่อง 'ค้นหาชื่ออาจารย์หรือตำแหน่ง...' ทางขวามือเพื่อค้นหาแบบรวดเร็วได้ทันที",
       },
       {
-        title: "การดูประวัติอาจารย์ฉบับเต็มและหลักฐานแนบ",
-        description: "คลิกที่การ์ดอาจารย์ท่านใดก็ได้ เพื่อเข้าสู่หน้ารายละเอียดประวัติส่วนบุคคล",
+        title: "การดูโครงสร้างผู้บริหารคณะเฉพาะ",
+        description: "เข้าสู่หน้าทำเนียบผู้บริหารระดับคณะและหัวหน้าภาควิชา",
+        path: "/portal/executives",
         bullets: [
-          "แท็บตารางสอน: แสดงรายวิชาที่สอน ระดับ ป.ตรี, ป.โท, ป.เอก พร้อมหน่วยกิตและปีการศึกษา",
-          "แท็บผลงานวิจัย: มีปุ่มเลือกดูแบบ 'ตาราง มจร' และ 'การ์ด' พร้อมปุ่มคลิกเปิดเอกสารแนบ (PDF) หรือ (jpg.)",
-          "แท็บประวัติการศึกษาและตำแหน่ง: แสดงตารางตำแหน่งทางวิชาการ/บริหาร (ก.) และตำแหน่งกรรมการ (ข.) พร้อมไฟล์คำสั่งแต่งตั้ง",
+          "แสดงแผนผังโครงสร้างผู้บริหาร คณบดี รองคณบดี ผู้ช่วยคณบดี และหัวหน้าภาควิชาอย่างเป็นระเบียบ",
         ],
       },
     ],
   },
-  {
-    id: "documents-download",
-    category: "GENERAL",
-    title: "๒. การดาวน์โหลดแบบฟอร์มและเอกสารคำร้อง",
-    desc: "ค้นหาและดาวน์โหลดเอกสารแบบฟอร์มคำร้องการศึกษาและบริการของคณะ",
-    icon: FileText,
-    steps: [
-      {
-        title: "การเข้าสู่ศูนย์บริการเอกสาร",
-        description: "เข้าสู่หน้ารายการหนังสือคำร้องและแบบฟอร์มต่างๆ",
-        path: "/portal/documents",
-        bullets: [
-          "คลิกเมนู 'รายการหนังสือคำร้อง' บนแถบนำทางด้านบน",
-          "สามารถเลือกดูตามหมวดหมู่ เช่น แบบฟอร์มงานทะเบียน, คำร้องทั่วไป, แบบฟอร์มวิจัย",
-        ],
-      },
-      {
-        title: "การดาวน์โหลดไฟล์เอกสาร",
-        description: "คลิกปุ่ม 'ดาวน์โหลด (PDF/DOCX)' เพื่อบันทึกไฟล์ลงในเครื่องหรือเปิดพิมพ์ได้ทันที",
-      },
-    ],
-  },
+
+  // ── ๒. ระบบจัดการข้อมูลอาจารย์ คำสั่งแต่งตั้ง และงานวิจัย (สำหรับ Admin) ──
   {
     id: "admin-personnel",
-    category: "ADMIN",
-    title: "๓. การจัดการข้อมูลอาจารย์ / คำสั่งแต่งตั้ง / วิจัย",
-    desc: "คู่มือสำหรับแอดมิน: เพิ่มแก้ไขข้อมูลอาจารย์ อัปโหลดคำสั่งแต่งตั้ง และผลงานวิจัย",
+    category: "ACADEMIC",
+    categoryLabel: "ระบบบริหารจัดการบุคคล",
+    title: "๒. ระบบจัดการข้อมูลอาจารย์ คำสั่งแต่งตั้ง และงานวิจัย (Admin)",
+    desc: "สำหรับเจ้าหน้าที่/แอดมิน: เพิ่มแก้ไขข้อมูลอาจารย์ อัปโหลดคำสั่งแต่งตั้ง (PDF/JPG) เพิ่มผลงานวิจัย และตั้งค่าหน้า Portal",
     icon: FolderOpen,
     steps: [
       {
         title: "การเข้าสู่ระบบจัดการบุคลากร (Admin Console)",
-        description: "เข้าสู่ระบบด้วยบัญชีแอดมิน/เจ้าหน้าที่ที่มีสิทธิ์",
+        description: "ล็อกอินเข้าสู่ระบบด้วยบัญชีแอดมิน/เจ้าหน้าที่",
         path: "/personnel",
         bullets: [
-          "เข้าสู่หน้า /personnel หรือคลิกเมนู 'ทำเนียบบุคลากร' บนแถบด้านซ้ายของ Admin Console",
-          "จะเห็นรายชื่ออาจารย์ทั้งหมด พร้อมปุ่ม 'เพิ่มอาจารย์ / บุคลากร' ด้านบนขวา",
+          "เข้าสู่หน้า /personnel จะพบรายชื่ออาจารย์ทั้งหมด ๘๗ ท่าน พร้อมตัวกรองสายงานและภาควิชา",
+          "ปุ่ม 'เพิ่มอาจารย์ / บุคลากร' (ด้านบนขวา) สำหรับสร้างข้อมูลอาจารย์ใหม่",
+          "ปุ่ม 'สลับตำแหน่งผู้บริหาร' สำหรับแต่งตั้งหรือปรับเปลี่ยนตำแหน่งบริหาร",
         ],
       },
       {
-        title: "การเปิด/ปิด ปุ่ม 'ทุกสังกัด' บนหน้า Portal",
-        description: "กำหนดว่าจะให้ผู้เข้าชมหน้า Portal เห็นปุ่ม 'ทุกสังกัด' หรือไม่",
+        title: "การตั้งค่าเปิด/ปิด ปุ่ม 'ทุกสังกัด' บนหน้า Portal",
+        description: "แถบควบคุมสีฟ้าด้านบน 'การแสดงปุ่ม ทุกสังกัด ในแถบตัวกรองหน้า Portal'",
         bullets: [
-          "บนแถบสีฟ้าด้านบน: 'การแสดงปุ่ม ทุกสังกัด ในแถบตัวกรองหน้า Portal'",
-          "คลิก [✓ เปิดแสดง]: หน้า Portal จะแสดงปุ่มทุกสังกัดเป็นปุ่มแรก",
-          "คลิก [✕ ปิดการแสดง]: หน้า Portal จะซ่อนปุ่มทุกสังกัด และเริ่มต้นที่แท็บผู้บริหารให้อัตโนมัติ",
+          "คลิก [✓ เปิดแสดง]: หน้า Portal จะมีปุ่ม 'ทุกสังกัด' ให้ผู้เข้าชมเลือกดูอาจารย์ทุกคนพร้อมกัน",
+          "คลิก [✕ ปิดการแสดง]: หน้า Portal จะซ่อนปุ่มทุกสังกัด และเริ่มต้นที่แท็บ 'คณะผู้บริหาร' ให้อัตโนมัติ",
         ],
         tip: "ระบบจะบันทึกการตั้งค่าทันทีที่คลิก โดยไม่ต้องกดปุ่มบันทึกเพิ่มเติม",
       },
       {
-        title: "การเพิ่มและแนบไฟล์คำสั่งแต่งตั้ง (PDF/JPG)",
-        description: "การระบุตำแหน่งทางวิชาการ/บริหาร หรือกรรมการ พร้อมหลักฐานคำสั่งแต่งตั้ง",
+        title: "การเพิ่มและแนบไฟล์คำสั่งแต่งตั้ง (ก. วิชาการ/บริหาร และ ข. กรรมการ)",
+        description: "ระบุตำแหน่งตามแบบฟอร์ม มจร พร้อมไฟล์หลักฐานคำสั่งแต่งตั้ง",
         bullets: [
-          "คลิกไอคอน 'แก้ไข (รูปดินสอ)' ที่อาจารย์ท่านที่ต้องการ",
-          "ไปที่แท็บ 'ตำแหน่ง & คำสั่งแต่งตั้ง' (แท็บที่ 2)",
+          "คลิกไอคอน 'แก้ไข (รูปดินสอ)' ที่อาจารย์ท่านที่ต้องการแก้ไข",
+          "ไปที่แท็บ 'ตำแหน่ง & คำสั่งแต่งตั้ง' (แท็บที่ ๒)",
           "คลิก '+ เพิ่มตำแหน่ง / คำสั่งแต่งตั้ง'",
-          "เลือกประเภท: 'ก. ตำแหน่งทางวิชาการ/บริหาร' หรือ 'ข. ตำแหน่งกรรมการ'",
+          "เลือกหมวดหมู่: 'ก. ตำแหน่งทางวิชาการ/บริหาร' หรือ 'ข. ตำแหน่งกรรมการ'",
           "กรอกชื่อตำแหน่ง เลขที่คำสั่งแต่งตั้ง และปี พ.ศ.",
-          "คลิกปุ่ม 'อัปโหลดไฟล์คำสั่ง (PDF/JPG)' เพื่อเลือกไฟล์หลักฐาน (ขนาดไม่เกิน 15MB)",
+          "คลิกปุ่ม 'อัปโหลดไฟล์คำสั่ง (PDF/JPG)' เลือกไฟล์ (ขนาดสูงสุด 15MB) ระบบจะจัดเก็บในโฟลเดอร์ appointments ให้อัตโนมัติ",
           "กด 'บันทึกตำแหน่งนี้' และกด 'บันทึกการแก้ไข' ด้านล่าง",
         ],
       },
       {
-        title: "การเพิ่มผลงานวิจัยและแนบไฟล์วิจัย",
-        description: "เพิ่มบทความวิจัย สิ่งตีพิมพ์ พร้อมไฟล์เอกสารฉบับเต็ม",
+        title: "การเพิ่มผลงานวิจัยและแนบไฟล์รายงานวิจัย",
+        description: "เพิ่มบทความวิจัย สิ่งตีพิมพ์ และหนังสือ",
         bullets: [
           "ในหน้าต่างแก้ไขอาจารย์ ไปที่แท็บ 'ผลงานวิจัย'",
           "คลิกปุ่ม '+ เพิ่มผลงานวิจัยให้อาจารย์'",
-          "กรอกชื่อเรื่องบทความวิจัย ชื่อวารสาร ปี พ.ศ. และระดับ TCI",
-          "คลิก 'อัปโหลดไฟล์ (PDF/JPG)' เพื่อแนบไฟล์รายงานวิจัยหรือบทความ",
+          "กรอกชื่อเรื่องบทความวิจัย ชื่อวารสาร ปี พ.ศ. และระดับ TCI (ถ้ามี)",
+          "คลิก 'อัปโหลดไฟล์ (PDF/JPG)' เพื่อแนบไฟล์รายงานวิจัยฉบับเต็ม",
           "กด 'บันทึกผลงานวิจัย'",
         ],
       },
     ],
   },
+
+  // ── ๓. ระบบทะเบียนนิสิตและตารางสอน ──
   {
-    id: "admin-settings",
-    category: "ADMIN",
-    title: "๔. การตั้งค่าระบบองค์กรและแถบเมนูเว็บไซต์",
-    desc: "การปรับแต่งหน้าแรก โลโก้ ข้อมูลติดต่อ และการเปิด/ปิดเมนูนำทาง",
-    icon: Settings,
+    id: "students-and-curriculum",
+    category: "ACADEMIC",
+    categoryLabel: "งานบริการการศึกษา",
+    title: "๓. ระบบทะเบียนนิสิต หลักสูตร และตารางสอน",
+    desc: "การตรวจสอบรายชื่อนิสิต ๕๒๗ รูป/คน จัดการหลักสูตร ๑๓ หลักสูตร และตารางสอนรายภาคการศึกษา",
+    icon: GraduationCap,
     steps: [
       {
-        title: "การเข้าสู่หน้าตั้งค่าองค์กร (Tenant Settings)",
-        description: "เข้าสู่หน้าตั้งค่าหลักของระบบ",
-        path: "/settings",
+        title: "การจัดการทะเบียนนิสิต (Students Management)",
+        description: "ตรวจสอบรายชื่อนิสิต ข้อมูลการศึกษา และประวัติการลงทะเบียน",
+        path: "/students",
         bullets: [
-          "คลิกเมนู 'ตั้งค่าองค์กร' ที่แถบเมนูด้านซ้ายล่างของระบบ Admin",
-          "หน้าต่างตั้งค่าประกอบด้วยแท็บต่างๆ จัดเรียงแบบหลายแถว (Pill Tabs) อ่านง่าย",
+          "เข้าที่หน้า /students เพื่อดูรายชื่อนิสิตทั้งหมด ๕๒๗ รูป/คน",
+          "ค้นหาด้วยรหัสนิสิต ชื่อ-นามสกุล หรือระดับการศึกษา (พธ.บ. / พธ.ม. / พธ.ด.)",
+          "สามารถนำเข้าข้อมูลนิสิตผ่านไฟล์ CSV / Excel ได้",
         ],
       },
       {
-        title: "การเปิด/ปิด หรือแก้ไขเมนูนำทางด้านบน (Navbar)",
-        description: "จัดการเมนูด้านบน เช่น ซ่อนหรือแสดงเมนู 'ทำเนียบผู้บริหาร'",
+        title: "การจัดการหลักสูตรและรายวิชา (Curriculum & Courses)",
+        description: "โครงสร้างหลักสูตรและรายวิชาที่เปิดสอนในคณะพุทธศาสตร์",
+        path: "/curriculum",
         bullets: [
-          "ไปที่แท็บ 'ปรับแต่ง Hero Section'",
+          "เข้าที่หน้า /curriculum เพื่อดูหลักสูตรทั้งหมด ๑๓ หลักสูตร",
+          "เข้าที่หน้า /curriculum/courses เพื่อดูรายวิชาทั้งหมด ๒๑๓ วิชา พร้อมหน่วยกิตและคำอธิบายรายวิชา",
+          "เข้าที่หน้า /curriculum/timetables เพื่อจัดตารางสอนและกำหนดห้องเรียน",
+        ],
+      },
+      {
+        title: "การดึงตารางสอนเข้าสู่อาจารย์ผู้สอนอัตโนมัติ (Sync Timetable)",
+        description: "ในหน้าแก้ไขอาจารย์ (/personnel) มีปุ่ม 'ดึงรายวิชาจากตารางสอนล่าสุด'",
+        bullets: [
+          "ระบบจะค้นหาชื่ออาจารย์ในตารางสอน ภาคการศึกษา ๑/๒๕๖๙",
+          "ดึงรายวิชาที่อาจารย์มีชื่อสอน เข้าสู่ตารางสอนของอาจารย์ให้อัตโนมัติโดยไม่ต้องพิมพ์เอง",
+        ],
+      },
+    ],
+  },
+
+  // ── ๔. ระบบเช็คชื่อเข้าชั้นเรียนและการมาเรียน ──
+  {
+    id: "attendance-system",
+    category: "ACADEMIC",
+    categoryLabel: "งานบริการการศึกษา",
+    title: "๔. ระบบเช็คชื่อเข้าชั้นเรียน (Smart Attendance & QR Code)",
+    desc: "การบันทึกเวลาเรียน การสแกน QR Code เข้าเรียน การส่งใบลา และรายงานสถิติการเข้าเรียน",
+    icon: Clock,
+    steps: [
+      {
+        title: "หน้าแดชบอร์ดการเข้าเรียน (Attendance Dashboard)",
+        description: "ภาพรวมสถิติการเข้าชั้นเรียนของแต่ละรายวิชา",
+        path: "/attendance",
+        bullets: [
+          "เข้าที่หน้า /attendance เพื่อดูสถิติการมาเรียน มาสาย ลา และขาดเรียน",
+          "ดูรายงานความเสี่ยง (Warning) สำหรับนิสิตที่มีเวลาเรียนไม่ถึง ๘๐% ของเกณฑ์สิทธิ์สอบ",
+        ],
+      },
+      {
+        title: "การเปิดคาบเรียนและสร้าง QR Code เช็คชื่อ",
+        description: "อาจารย์ผู้สอนสามารถเปิดคาบเรียนและฉาย QR Code ให้นิสิตสแกน",
+        path: "/attendance/classes",
+        bullets: [
+          "เลือกรายวิชาที่กำลังสอน แล้วกด 'เปิดคาบเรียนใหม่'",
+          "ระบบจะสร้างรหัส QR Code แบบ Dynamic ที่เปลี่ยนอัตโนมัติเพื่อป้องกันการส่งต่อ",
+          "นิสิตสามารถใช้มือถือสแกนเพื่อเช็คชื่อเข้าเรียนได้ทันที",
+          "อาจารย์สามารถแก้ไขสถานะ (มา / สาย / ลา / ขาด) แบบ Manual รายรูป/คนได้",
+        ],
+      },
+    ],
+  },
+
+  // ── ๕. ระบบจองห้องประชุมและขอใช้สถานที่ ──
+  {
+    id: "meeting-rooms",
+    category: "ADMINISTRATION",
+    categoryLabel: "งานบริหารทั่วไป",
+    title: "๕. ระบบจองห้องประชุมและขอใช้สถานที่ (Meeting Rooms)",
+    desc: "การตรวจสอบปฏิทินห้องว่าง ยื่นคำขอจองห้องประชุม อนุมัติการใช้งาน และฉายหน้าจอ Projector Display",
+    icon: Building2,
+    steps: [
+      {
+        title: "การตรวจสอบตารางการใช้ห้องประชุมและยื่นขอจอง",
+        description: "ดูปฏิทินการใช้ห้องประชุมของคณะพุทธศาสตร์",
+        path: "/meetings/bookings",
+        bullets: [
+          "เข้าที่หน้า /meetings/bookings เพื่อดูตารางการใช้ห้องประชุมในแต่ละวัน",
+          "คลิกปุ่ม 'จองห้องประชุม' เพื่อกรอกชื่อการประชุม วันที่ เวลา และจำนวนผู้เข้าร่วม",
+          "เลือกห้องประชุม เช่น ห้องประชุมคณบดี, ห้องประชุมภาควิชา, หรือห้องประชุมสัมมนา",
+        ],
+      },
+      {
+        title: "การจัดการห้องประชุมและอุปกรณ์ (สำหรับเจ้าหน้าที่)",
+        description: "กำหนดข้อมูลห้อง ความจุ อุปกรณ์โสตทัศนูปกรณ์",
+        path: "/meetings/rooms",
+        bullets: [
+          "เพิ่ม แก้ไข หรือปิดปรับปรุงห้องประชุม",
+          "ตรวจสอบคำขอจองและกด 'อนุมัติ (Approve)' หรือ 'ปฏิเสธ (Reject)' พร้อมระบุเหตุผล",
+        ],
+      },
+      {
+        title: "หน้าจอแสดงผลหน้าห้องประชุม (Smart Projector View)",
+        description: "เปิดแสดงสถานะห้องประชุมบนจอ TV หน้าห้อง",
+        bullets: [
+          "ระบบมีหน้า Projector Display แสดงหัวข้อประชุม ผู้จอง และเวลาประชุมแบบเรียลไทม์",
+        ],
+      },
+    ],
+  },
+
+  // ── ๖. ระบบคำร้องและหนังสือรับรองออนไลน์ ──
+  {
+    id: "certificates-and-documents",
+    category: "ADMINISTRATION",
+    categoryLabel: "งานบริหารทั่วไป",
+    title: "๖. ระบบคำร้องและขอหนังสือรับรองออนไลน์ (Certificates & Forms)",
+    desc: "การขอใบรับรองการเป็นนิสิต/อาจารย์ การตรวจสอบสถานะคำร้อง และศูนย์ดาวน์โหลดแบบฟอร์ม",
+    icon: FileText,
+    steps: [
+      {
+        title: "ศูนย์ดาวน์โหลดแบบฟอร์มคำร้องสาธารณะ",
+        description: "ผู้ใช้งานทั่วไปและนิสิตสามารถดาวน์โหลดเอกสารแบบฟอร์มได้โดยตรง",
+        path: "/portal/documents",
+        bullets: [
+          "เข้าสู่หน้า /portal/documents",
+          "ค้นหาแบบฟอร์ม เช่น คำร้องขอลงทะเบียนล่าช้า, คำร้องขอลาพักการเรียน, แบบฟอร์มขอสอบดุษฎีนิพนธ์",
+          "กดปุ่ม 'ดาวน์โหลด (PDF/DOCX)' เพื่อพิมพ์ใช้งานได้ทันที",
+        ],
+      },
+      {
+        title: "ระบบจัดการคำขอหนังสือรับรอง (Admin Console)",
+        description: "เจ้าหน้าที่ตรวจสอบและออกหนังสือรับรอง",
+        path: "/certificates",
+        bullets: [
+          "เข้าสู่หน้า /certificates เพื่อดูรายการคำขอหนังสือรับรองที่ส่งเข้ามา",
+          "อัปเดตสถานะ: รอดำเนินการ, กำลังจัดทำ, อนุมัติเรียบร้อย, พร้อมรับเอกสาร",
+          "หน้า /certificates/types สำหรับกำหนดประเภทหนังสือรับรองและค่าธรรมเนียม (ถ้ามี)",
+        ],
+      },
+    ],
+  },
+
+  // ── ๗. ระบบข่าวสาร ประชาสัมพันธ์ และปฏิทินกิจกรรม ──
+  {
+    id: "news-and-events",
+    category: "ADMINISTRATION",
+    categoryLabel: "งานสื่อสารองค์กร",
+    title: "๗. ระบบข่าวสาร ประชาสัมพันธ์ และกิจกรรมคณะ (News & Events)",
+    desc: "การเผยแพร่ข่าวประชาสัมพันธ์ ข่าวกิจกรรมวิชาการ การแนบภาพ/เอกสาร และปฏิทินกิจกรรม",
+    icon: Newspaper,
+    steps: [
+      {
+        title: "การเผยแพร่ข่าวสารและกิจกรรม (News Management)",
+        description: "เจ้าหน้าที่ประชาสัมพันธ์สร้างและเผยแพร่ข่าว",
+        path: "/news",
+        bullets: [
+          "เข้าสู่หน้า /news เพื่อจัดการบทความข่าวสารทั้งหมด",
+          "คลิก 'สร้างข่าวใหม่' ใส่หัวข้อ เนื้อหาข่าว ภาพหน้าปก และเอกสารแนบ",
+          "กำหนดสถานะการเผยแพร่ (ฉบับร่าง หรือ เผยแพร่ทันที)",
+          "ข่าวที่เผยแพร่จะไปปรากฏที่หน้าแรก (/) และหน้าศูนย์ข่าวสาร (/portal/news)",
+        ],
+      },
+      {
+        title: "การจัดการปฏิทินกิจกรรมคณะ (Events Management)",
+        description: "กำหนดการสัมมนา ปฏิบัติธรรม และงานประชุมวิชาการ",
+        path: "/events",
+        bullets: [
+          "เข้าสู่หน้า /events เพื่อสร้างกิจกรรมใหม่ พร้อมกำหนดวัน-เวลา และสถานที่",
+          "เปิดรับลงทะเบียนเข้าร่วมกิจกรรมผ่านหน้าเว็บไซต์ได้",
+        ],
+      },
+    ],
+  },
+
+  // ── ๘. ระบบตั้งค่าองค์กรและสิทธิ์ผู้ใช้งาน ──
+  {
+    id: "admin-settings",
+    category: "SYSTEM",
+    categoryLabel: "การจัดการระบบและความปลอดภัย",
+    title: "๘. ระบบตั้งค่าองค์กร เมนูนำทาง และสิทธิ์ผู้ใช้ (Settings & RBAC)",
+    desc: "การปรับแต่งหน้าแรก (Hero Section) เมนูนำทาง ข้อมูลติดต่อ สีของระบบ และการกำหนดสิทธิ์ผู้ใช้งาน",
+    icon: Settings,
+    steps: [
+      {
+        title: "การตั้งค่าองค์กรและหน้าแรก (Tenant Settings)",
+        description: "ปรับปรุงข้อมูลส่วนหัว โลโก้ และเนื้อหาหน้าแรก",
+        path: "/settings",
+        bullets: [
+          "เข้าที่หน้า /settings เมนูถูกจัดเป็นแท็บหลายแถว (Pill Tabs) เลือกง่าย",
+          "แท็บ 'ข้อมูลองค์กร & แบรนด์': เปลี่ยนชื่อคณะ โลโก้ และชุดสีของเว็บไซต์ (Palette)",
+          "แท็บ 'ปรับแต่ง Hero Section': ปรับเปลี่ยนภาพพื้นหลัง สไตล์เลย์เอาต์ และหัวข้อหน้าแรก",
+          "แท็บ 'ท้ายเว็บ (Portal Footer)': แก้ไขที่อยู่ เบอร์โทรศัพท์ อีเมล และเมนูลัด",
+        ],
+      },
+      {
+        title: "การเปิด/ปิด หรือแก้ไขเมนูนำทางด้านบน (Navbar Header)",
+        description: "ซ่อน แสดง หรือลบเมนูนำทาง เช่น เมนูทำเนียบผู้บริหาร",
+        bullets: [
+          "ในหน้า /settings -> ไปที่แท็บ 'ปรับแต่ง Hero Section'",
           "เลื่อนลงมาที่หมวด '4. แถบนำทางด้านบน (Header Navigation)'",
-          "คลิกที่ไอคอนรูปดวงตา (👁) ที่เมนู 'ทำเนียบผู้บริหาร' เพื่อปิด/ซ่อนเมนู (จะกลายเป็นดวงตาขีดฆ่า)",
-          "หรือคลิกรูปถังขยะ (🗑) เพื่อลบเมนูออกถาวร",
+          "คลิกรูปดวงตา (👁) ที่เมนู 'ทำเนียบผู้บริหาร' เพื่อซ่อนเมนู (จะกลายเป็นดวงตาขีดฆ่า)",
+          "หรือคลิกรูปถังขยะ (🗑) เพื่อลบเมนูออก",
           "เลื่อนลงล่างสุดแล้วกดปุ่ม 'บันทึกการตั้งค่า' สีน้ำเงิน",
         ],
       },
       {
-        title: "การแก้ไขข้อมูลการติดต่อและท้ายเว็บ (Footer)",
-        description: "ปรับปรุงเบอร์โทรศัพท์ อีเมล ที่อยู่ และเมนูลัดท้ายเว็บ",
+        title: "การจัดการบัญชีผู้ใช้และกำหนดสิทธิ์ (Users & Roles)",
+        description: "เพิ่ม ลบ หรือระงับการใช้งานบัญชีผู้ดูแลระบบและเจ้าหน้าที่",
+        path: "/users",
         bullets: [
-          "ไปที่แท็บ 'ท้ายเว็บ (Portal Footer)'",
-          "แก้ไขเบอร์โทรศัพท์ อีเมล ที่อยู่ของคณะ และลิงก์ระบบสารสนเทศ",
-          "กดปุ่ม 'บันทึกการตั้งค่า'",
+          "เข้าสู่หน้า /users เพื่อดูบัญชีผู้ใช้งานทั้งหมดในระบบ",
+          "สามารถระงับการใช้งาน (Deactivate) หรือลบบัญชีผู้ใช้ที่ไม่ได้ใช้งานแล้วได้",
+          "เข้าสู่หน้า /users/roles เพื่อกำหนดบทบาท (Super Admin, Academic Staff, Viewer) และสิทธิ์การเข้าถึงแต่ละโมดูล",
+        ],
+      },
+      {
+        title: "การตรวจสอบบันทึกความปลอดภัย (Audit Logs)",
+        description: "ตรวจสอบประวัติการแก้ไขข้อมูลและการล็อกอินของเจ้าหน้าที่",
+        path: "/audit-logs",
+        bullets: [
+          "เก็บบันทึกประวัติการกระทำสำคัญ เช่น การเพิ่ม/ลบอาจารย์ การแก้ไขเกรด/เวลาเรียน เพื่อความโปร่งใสและตรวจสอบได้",
         ],
       },
     ],
@@ -186,22 +365,25 @@ const MANUAL_SECTIONS: ManualSection[] = [
 export function PortalManualClient() {
   const [selectedSectionId, setSelectedSectionId] = useState<string>("personnel-search");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
 
   const activeSection = MANUAL_SECTIONS.find((s) => s.id === selectedSectionId) || MANUAL_SECTIONS[0];
 
   const filteredSections = MANUAL_SECTIONS.filter((s) => {
-    if (!searchQuery.trim()) return true;
+    const matchesCat = selectedCategory === "ALL" || s.category === selectedCategory;
+    if (!searchQuery.trim()) return matchesCat;
     const q = searchQuery.toLowerCase().trim();
-    return (
+    const matchesQuery =
       s.title.toLowerCase().includes(q) ||
       s.desc.toLowerCase().includes(q) ||
+      s.categoryLabel.toLowerCase().includes(q) ||
       s.steps.some(
         (st) =>
           st.title.toLowerCase().includes(q) ||
           st.description.toLowerCase().includes(q) ||
           st.bullets?.some((b) => b.toLowerCase().includes(q))
-      )
-    );
+      );
+    return matchesCat && matchesQuery;
   });
 
   return (
@@ -211,13 +393,13 @@ export function PortalManualClient() {
         <div className="max-w-3xl space-y-3">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>ศูนย์ช่วยเหลือ & คู่มือการใช้งานระบบ</span>
+            <span>ศูนย์คู่มือการใช้งานระบบสารสนเทศ (Comprehensive System Manual)</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
-            คู่มือการใช้งานระบบสารสนเทศและเว็บไซต์ คณะพุทธศาสตร์
+            คู่มือการใช้งานระบบทั้ง ๘ ระบบ คณะพุทธศาสตร์ มจร
           </h2>
           <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
-            แหล่งรวบรวมวิธีใช้งานระบบ ขั้นตอนการสืบค้นข้อมูล การแนบไฟล์คำสั่งแต่งตั้งอาจารย์ การจัดการผลงานวิจัย และการตั้งค่าระบบสำหรับเจ้าหน้าที่และผู้ใช้งานทั่วไป
+            รวบรวมวิธีใช้งานระบบสารสนเทศทั้งหมดของคณะ ครอบคลุมทั้งส่วนหน้าเว็บสาธารณะ (Portal) ระบบบริการการศึกษา (ทะเบียนนิสิต ตารางสอน เช็คชื่อ) ระบบบริหารทั่วไป (จองห้อง คำร้อง ข่าวสาร) และระบบตั้งค่าความปลอดภัย
           </p>
 
           {/* Search Box */}
@@ -225,13 +407,37 @@ export function PortalManualClient() {
             <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
-              placeholder="ค้นหาขั้นตอนการใช้งาน (เช่น อัปโหลดคำสั่ง, ผลงานวิจัย, ซ่อนสังกัด, ปรับเมนู)..."
+              placeholder="ค้นหาระบบหรือขั้นตอนการใช้งาน (เช่น เช็คชื่อ, จองห้อง, คำสั่งแต่งตั้ง, ทะเบียนนิสิต, ซ่อนเมนู)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 rounded-2xl border bg-background shadow-xs text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
         </div>
+      </div>
+
+      {/* Category Pills */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+        {[
+          { id: "ALL", label: `ทั้งหมด (๘ ระบบ)` },
+          { id: "PORTAL", label: "หน้าเว็บสาธารณะ & ทำเนียบ" },
+          { id: "ACADEMIC", label: "บริการการศึกษา & วิจัย" },
+          { id: "ADMINISTRATION", label: "บริหารทั่วไป & อาคารสถานที่" },
+          { id: "SYSTEM", label: "การจัดการระบบ & ความปลอดภัย" },
+        ].map((cat) => (
+          <button
+            key={cat.id}
+            type="button"
+            onClick={() => setSelectedCategory(cat.id)}
+            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+              selectedCategory === cat.id
+                ? "bg-primary text-primary-foreground shadow-xs"
+                : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/50"
+            }`}
+          >
+            {cat.label}
+          </button>
+        ))}
       </div>
 
       {/* Main Grid: Sidebar Menu + Detail Content */}
@@ -242,14 +448,11 @@ export function PortalManualClient() {
             <div className="flex items-center justify-between pb-2 border-b">
               <span className="text-xs font-bold uppercase text-muted-foreground tracking-wider flex items-center gap-1.5">
                 <BookOpen className="w-3.5 h-3.5 text-primary" />
-                <span>หมวดหมู่คู่มือ</span>
-              </span>
-              <span className="text-xs text-muted-foreground font-semibold">
-                {filteredSections.length} หมวด
+                <span>สารบัญระบบ ({filteredSections.length})</span>
               </span>
             </div>
 
-            <div className="space-y-1 pt-1">
+            <div className="space-y-1.5 pt-1">
               {filteredSections.map((sec) => {
                 const Icon = sec.icon;
                 const isSelected = sec.id === activeSection.id;
@@ -261,7 +464,7 @@ export function PortalManualClient() {
                     className={`w-full text-left p-3 rounded-xl transition-all flex items-start gap-3 cursor-pointer ${
                       isSelected
                         ? "bg-primary text-primary-foreground shadow-sm font-bold"
-                        : "hover:bg-muted/60 text-foreground"
+                        : "hover:bg-muted/60 text-foreground border border-transparent"
                     }`}
                   >
                     <div
@@ -274,23 +477,17 @@ export function PortalManualClient() {
                       <Icon className="w-4 h-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-1">
-                        <h4 className="text-xs sm:text-sm font-semibold truncate leading-tight">
-                          {sec.title}
-                        </h4>
-                      </div>
+                      <h4 className="text-xs sm:text-sm font-semibold truncate leading-tight">
+                        {sec.title}
+                      </h4>
                       <span
                         className={`inline-block mt-1 text-[10px] px-2 py-0.2 rounded-full font-semibold ${
-                          sec.category === "ADMIN"
-                            ? isSelected
-                              ? "bg-amber-400 text-stone-900"
-                              : "bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/20"
-                            : isSelected
+                          isSelected
                             ? "bg-white/20 text-white"
-                            : "bg-blue-500/10 text-blue-700 dark:text-blue-300"
+                            : "bg-muted text-muted-foreground border border-border/60"
                         }`}
                       >
-                        {sec.category === "ADMIN" ? "สำหรับผู้ดูแลระบบ (Admin)" : "สำหรับผู้ใช้งานทั่วไป"}
+                        {sec.categoryLabel}
                       </span>
                     </div>
                   </button>
@@ -314,16 +511,8 @@ export function PortalManualClient() {
             {/* Section Header */}
             <div className="border-b pb-4 space-y-2">
               <div className="flex items-center gap-2">
-                <span
-                  className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
-                    activeSection.category === "ADMIN"
-                      ? "bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30"
-                      : "bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20"
-                  }`}
-                >
-                  {activeSection.category === "ADMIN"
-                    ? "สำหรับผู้ดูแลระบบ (Admin Console)"
-                    : "สำหรับผู้ใช้งานทั่วไป (Public Portal)"}
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                  {activeSection.categoryLabel}
                 </span>
               </div>
               <h3 className="text-xl sm:text-2xl font-extrabold text-foreground">
