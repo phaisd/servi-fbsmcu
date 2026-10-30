@@ -22,7 +22,11 @@ import {
   ShieldCheck,
   LayoutDashboard,
   Award,
+  Lock,
+  Eye,
+  EyeOff,
 } from "lucide-react";
+import { useAppSession } from "@/hooks/use-session";
 
 interface ManualSection {
   id: string;
@@ -31,6 +35,7 @@ interface ManualSection {
   title: string;
   desc: string;
   icon: React.ComponentType<{ className?: string }>;
+  adminOnly?: boolean;
   steps: {
     title: string;
     description: string;
@@ -88,6 +93,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
     title: "๒. ระบบจัดการข้อมูลอาจารย์ คำสั่งแต่งตั้ง และงานวิจัย (Admin)",
     desc: "สำหรับเจ้าหน้าที่/แอดมิน: เพิ่มแก้ไขข้อมูลอาจารย์ อัปโหลดคำสั่งแต่งตั้ง (PDF/JPG) เพิ่มผลงานวิจัย และตั้งค่าหน้า Portal",
     icon: FolderOpen,
+    adminOnly: true,
     steps: [
       {
         title: "การเข้าสู่ระบบจัดการบุคลากร (Admin Console)",
@@ -317,6 +323,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
     title: "๘. ระบบตั้งค่าองค์กร เมนูนำทาง และสิทธิ์ผู้ใช้ (Settings & RBAC)",
     desc: "การปรับแต่งหน้าแรก (Hero Section) เมนูนำทาง ข้อมูลติดต่อ สีของระบบ และการกำหนดสิทธิ์ผู้ใช้งาน",
     icon: Settings,
+    adminOnly: true,
     steps: [
       {
         title: "การตั้งค่าองค์กรและหน้าแรก (Tenant Settings)",
@@ -363,15 +370,32 @@ const MANUAL_SECTIONS: ManualSection[] = [
 ];
 
 export function PortalManualClient() {
+  const { isAuthenticated, isSuperAdmin, roles } = useAppSession();
+  const isAdminUser = isAuthenticated && (isSuperAdmin || roles.some((r) => r.code === "SUPER_ADMIN" || r.code === "ADMIN"));
+
   const [selectedSectionId, setSelectedSectionId] = useState<string>("personnel-search");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [adminOnlyFilter, setAdminOnlyFilter] = useState<"ALL" | "GENERAL" | "ADMIN">("ALL");
 
-  const activeSection = MANUAL_SECTIONS.find((s) => s.id === selectedSectionId) || MANUAL_SECTIONS[0];
+  // กรองเฉพาะคู่มือที่อนุญาตให้ผู้ใช้ปัจจุบันเห็น
+  // หากไม่ใช่ Admin ผู้ใช้จะไม่เห็นคู่มือที่เป็น adminOnly: true
+  const accessibleSections = MANUAL_SECTIONS.filter((s) => {
+    if (s.adminOnly && !isAdminUser) return false;
+    return true;
+  });
 
-  const filteredSections = MANUAL_SECTIONS.filter((s) => {
+  const activeSection =
+    accessibleSections.find((s) => s.id === selectedSectionId) || accessibleSections[0];
+
+  const filteredSections = accessibleSections.filter((s) => {
     const matchesCat = selectedCategory === "ALL" || s.category === selectedCategory;
-    if (!searchQuery.trim()) return matchesCat;
+    const matchesAdminFilter =
+      adminOnlyFilter === "ALL" ||
+      (adminOnlyFilter === "ADMIN" && s.adminOnly) ||
+      (adminOnlyFilter === "GENERAL" && !s.adminOnly);
+
+    if (!searchQuery.trim()) return matchesCat && matchesAdminFilter;
     const q = searchQuery.toLowerCase().trim();
     const matchesQuery =
       s.title.toLowerCase().includes(q) ||
@@ -383,7 +407,7 @@ export function PortalManualClient() {
           st.description.toLowerCase().includes(q) ||
           st.bullets?.some((b) => b.toLowerCase().includes(q))
       );
-    return matchesCat && matchesQuery;
+    return matchesCat && matchesAdminFilter && matchesQuery;
   });
 
   return (
@@ -416,28 +440,62 @@ export function PortalManualClient() {
         </div>
       </div>
 
-      {/* Category Pills */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-        {[
-          { id: "ALL", label: `ทั้งหมด (๘ ระบบ)` },
-          { id: "PORTAL", label: "หน้าเว็บสาธารณะ & ทำเนียบ" },
-          { id: "ACADEMIC", label: "บริการการศึกษา & วิจัย" },
-          { id: "ADMINISTRATION", label: "บริหารทั่วไป & อาคารสถานที่" },
-          { id: "SYSTEM", label: "การจัดการระบบ & ความปลอดภัย" },
-        ].map((cat) => (
-          <button
-            key={cat.id}
-            type="button"
-            onClick={() => setSelectedCategory(cat.id)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-              selectedCategory === cat.id
-                ? "bg-primary text-primary-foreground shadow-xs"
-                : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/50"
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
+      {/* Category Pills & Admin Filter Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+          {[
+            { id: "ALL", label: `ทั้งหมด` },
+            { id: "PORTAL", label: "หน้าเว็บสาธารณะ & ทำเนียบ" },
+            { id: "ACADEMIC", label: "บริการการศึกษา & วิจัย" },
+            { id: "ADMINISTRATION", label: "บริหารทั่วไป & อาคารสถานที่" },
+            { id: "SYSTEM", label: "การจัดการระบบ & ความปลอดภัย" },
+          ].map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                selectedCategory === cat.id
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/50"
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Admin Quick Filter Toggle (Visible only when logged in as Admin) */}
+        {isAdminUser && (
+          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-amber-500/10 border border-amber-500/30 shrink-0 text-xs font-semibold">
+            <span className="text-[11px] text-amber-900 dark:text-amber-200 px-2 flex items-center gap-1">
+              <Lock className="w-3 h-3 text-amber-600" />
+              <span>โหมดแอดมิน:</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setAdminOnlyFilter("ALL")}
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                adminOnlyFilter === "ALL"
+                  ? "bg-amber-500 text-stone-900 font-bold shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              แสดงทั้งหมด
+            </button>
+            <button
+              type="button"
+              onClick={() => setAdminOnlyFilter("ADMIN")}
+              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                adminOnlyFilter === "ADMIN"
+                  ? "bg-amber-500 text-stone-900 font-bold shadow-xs"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              เฉพาะของแอดมิน
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Main Grid: Sidebar Menu + Detail Content */}
@@ -477,17 +535,31 @@ export function PortalManualClient() {
                       <Icon className="w-4 h-4" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h4 className="text-xs sm:text-sm font-semibold truncate leading-tight">
-                        {sec.title}
-                      </h4>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="text-xs sm:text-sm font-semibold truncate leading-tight">
+                          {sec.title}
+                        </h4>
+                        {sec.adminOnly && (
+                          <span
+                            className={`p-0.5 rounded ${
+                              isSelected ? "text-amber-200" : "text-amber-600 dark:text-amber-400"
+                            }`}
+                            title="คู่มือเฉพาะผู้ดูแลระบบ"
+                          >
+                            <Lock className="w-3 h-3" />
+                          </span>
+                        )}
+                      </div>
                       <span
                         className={`inline-block mt-1 text-[10px] px-2 py-0.2 rounded-full font-semibold ${
                           isSelected
                             ? "bg-white/20 text-white"
+                            : sec.adminOnly
+                            ? "bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/20"
                             : "bg-muted text-muted-foreground border border-border/60"
                         }`}
                       >
-                        {sec.categoryLabel}
+                        {sec.adminOnly ? "🔒 เฉพาะผู้ดูแลระบบ" : sec.categoryLabel}
                       </span>
                     </div>
                   </button>
