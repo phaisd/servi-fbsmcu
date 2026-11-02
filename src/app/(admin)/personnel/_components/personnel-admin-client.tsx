@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useRef, useMemo } from "react";
+import { useState, useTransition, useRef, useMemo, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -32,6 +32,8 @@ import {
   Award,
   MapPin,
   Filter,
+  Printer,
+  FileText,
 } from "lucide-react";
 import { ExecutiveRoleManagerDialog } from "./executive-role-manager-dialog";
 import { useT } from "@/shared/lib/i18n/client";
@@ -79,6 +81,7 @@ import {
   parseAcademicPositions,
   serializeExperiencesWithPositions,
   detectAttachmentType,
+  exportPersonnelDoc,
 } from "@/features/personnel";
 import type { Personnel, Department, ResearchPublication } from "@/generated/prisma";
 
@@ -702,6 +705,40 @@ export function PersonnelAdminClient({
         if (editingItem) {
           const updated = await updatePersonnelAction(editingItem.id, payload);
           if (updated) {
+            // Persist any newly imported research publications
+            const unsavedResearch = editingResearchList.filter((r) => r.id.startsWith("imp-pub-"));
+            const createdPubs: ResearchPublication[] = [];
+            if (unsavedResearch.length > 0) {
+              for (const pub of unsavedResearch) {
+                try {
+                  const res = await createResearchPublicationAction({
+                    personnelId: editingItem.id,
+                    titleTh: pub.titleTh,
+                    titleEn: pub.titleEn || null,
+                    authors: pub.authors || `${formFirstNameTh} ${formLastNameTh}`.trim(),
+                    journalName: pub.journalName,
+                    volume: pub.volume || null,
+                    issue: pub.issue || null,
+                    publicationYear: pub.publicationYear || null,
+                    pages: pub.pages || null,
+                    issn: pub.issn || null,
+                    tier: pub.tier || null,
+                    url: pub.url || null,
+                    type: pub.type || "RESEARCH",
+                    orderIndex: pub.orderIndex,
+                  });
+                  if (res) createdPubs.push(res as ResearchPublication);
+                } catch (e) {
+                  console.error("Failed to persist imported research:", e);
+                }
+              }
+            }
+
+            const finalResearchList = [
+              ...editingResearchList.filter((r) => !r.id.startsWith("imp-pub-")),
+              ...createdPubs,
+            ];
+
             toast.success("อัปเดตข้อมูลอาจารย์/บุคลากรเรียบร้อยแล้ว");
             setItems((prev) =>
               prev.map((p) =>
@@ -711,7 +748,7 @@ export function PersonnelAdminClient({
                       ...updated,
                       department:
                         departmentList.find((d) => d.id === updated.departmentId) || null,
-                      researchPublications: editingResearchList,
+                      researchPublications: finalResearchList,
                     }
                   : p
               )
@@ -722,11 +759,40 @@ export function PersonnelAdminClient({
         } else {
           const created = await createPersonnelAction(payload);
           if (created) {
+            // Persist any newly imported research publications for new teacher
+            const unsavedResearch = editingResearchList.filter((r) => r.id.startsWith("imp-pub-"));
+            const createdPubs: ResearchPublication[] = [];
+            if (unsavedResearch.length > 0) {
+              for (const pub of unsavedResearch) {
+                try {
+                  const res = await createResearchPublicationAction({
+                    personnelId: created.id,
+                    titleTh: pub.titleTh,
+                    titleEn: pub.titleEn || null,
+                    authors: pub.authors || `${formFirstNameTh} ${formLastNameTh}`.trim(),
+                    journalName: pub.journalName,
+                    volume: pub.volume || null,
+                    issue: pub.issue || null,
+                    publicationYear: pub.publicationYear || null,
+                    pages: pub.pages || null,
+                    issn: pub.issn || null,
+                    tier: pub.tier || null,
+                    url: pub.url || null,
+                    type: pub.type || "RESEARCH",
+                    orderIndex: pub.orderIndex,
+                  });
+                  if (res) createdPubs.push(res as ResearchPublication);
+                } catch (e) {
+                  console.error("Failed to persist imported research:", e);
+                }
+              }
+            }
+
             toast.success("เพิ่มข้อมูลอาจารย์/บุคลากรใหม่เรียบร้อยแล้ว");
             const newPersonnel: PersonnelWithRelations = {
               ...created,
               department: departmentList.find((d) => d.id === created.departmentId) || null,
-              researchPublications: [],
+              researchPublications: createdPubs,
             };
             setItems((prev) => [newPersonnel, ...prev]);
             setDialogOpen(false);
@@ -1099,6 +1165,7 @@ export function PersonnelAdminClient({
       '"อาจารย์, ดร."',
       '"ไชยา"',
       '"เสนแสนยา"',
+      '"Lecturer, Dr."',
       '"Chaiya"',
       '"Sensaenya"',
       '"อาจารย์ประจำหลักสูตรพุทธศาสตรบัณฑิต"',
@@ -1108,9 +1175,11 @@ export function PersonnelAdminClient({
       '"chaiya.sen@mcu.ac.th"',
       '"098-387-5997"',
       '"Line ID: 0983875997"',
+      '"อาคารเรียนรวม ชั้น 3 ห้อง 305"',
+      '"https://scholar.google.com/citations?user=sample"',
       '"พ.ศ. ๒๕๖๘ พธ.ด. (ปรัชญา) มจร"',
       '"อาจารย์ผู้สอนรายวิชาปรัชญาเบื้องต้น"',
-      '"ความเชี่ยวชาญด้านพุทธปรัชญาเถรวาท"',
+      '"ความเชี่ยวชาญด้านพุทธปรัชญาเถรวาทและจริยศาสตร์"',
       '""',
       '"1"',
       '"1"',
@@ -1208,8 +1277,58 @@ export function PersonnelAdminClient({
           // Header: คำนำหน้า, ชื่อ, นามสกุล, First Name, Last Name, ตำแหน่ง, Position, สายงาน, ภาควิชา, อีเมล, โทร, ข้อมูลติดต่อ, การศึกษา, ประสบการณ์, ประวัติย่อ, รูปภาพ, ลำดับ, สถานะ
           const dataRows = rows.slice(1);
           const parsedList: ImportPersonnelItem[] = dataRows
-            .filter((r) => r[1]?.trim() && r[5]?.trim())
+            .filter((r) => r[1]?.trim() && (r[6]?.trim() || r[5]?.trim()))
             .map((r) => {
+              if (r.length >= 20) {
+                const acadPos = r[0]?.trim() || null;
+                const fTh = r[1]?.trim() || "";
+                const lTh = r[2]?.trim() || "";
+                const acadPosEn = r[3]?.trim() || null;
+                const fEn = r[4]?.trim() || null;
+                const lEn = r[5]?.trim() || null;
+                const posTh = r[6]?.trim() || "";
+                const posEn = r[7]?.trim() || null;
+                const rawType = r[8]?.trim().toUpperCase();
+                const type = rawType === "SUPPORT" || rawType === "EXECUTIVE" || rawType === "SPECIAL" ? rawType : "ACADEMIC";
+                const deptName = r[9]?.trim() || null;
+                const email = r[10]?.trim() || null;
+                const phone = r[11]?.trim() || null;
+                const contact = r[12]?.trim() || null;
+                const office = r[13]?.trim() || null;
+                const scholar = r[14]?.trim() || null;
+                const edu = r[15]?.trim() || null;
+                const exp = r[16]?.trim() || null;
+                const bio = r[17]?.trim() || null;
+                const img = r[18]?.trim() || null;
+                const order = parseInt(r[19] || "0", 10) || 0;
+                const isActive = r[20] !== "0";
+
+                return {
+                  academicPosition: acadPos,
+                  academicPositionEn: acadPosEn,
+                  firstNameTh: fTh,
+                  lastNameTh: lTh,
+                  firstNameEn: fEn,
+                  lastNameEn: lEn,
+                  positionTh: posTh,
+                  positionEn: posEn,
+                  type,
+                  departmentName: deptName,
+                  email,
+                  phoneNumber: phone,
+                  contactInfo: contact,
+                  officeLocation: office,
+                  googleScholarUrl: scholar,
+                  educationTh: edu,
+                  experiencesTh: exp,
+                  bioTh: bio,
+                  imageUrl: img,
+                  orderIndex: order,
+                  isActive,
+                };
+              }
+
+              // Fallback for older 18-19 column CSV
               const acadPos = r[0]?.trim() || null;
               const fTh = r[1]?.trim() || "";
               const lTh = r[2]?.trim() || "";
@@ -1317,6 +1436,20 @@ export function PersonnelAdminClient({
   // SINGLE PERSONNEL EXPORT & IMPORT (เฉพาะข้อมูลอาจารย์ท่านนี้)
   // ─────────────────────────────────────────────────────────
   const singleImportInputRef = useRef<HTMLInputElement>(null);
+  const [singleExportOpen, setSingleExportOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setSingleExportOpen(false);
+      }
+    }
+    if (singleExportOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [singleExportOpen]);
 
   const handleExportSinglePersonnelJson = () => {
     const teacherName = `${formAcademicPosition ? formAcademicPosition + " " : ""}${formFirstNameTh} ${formLastNameTh}`.trim() || "personnel";
@@ -1324,10 +1457,12 @@ export function PersonnelAdminClient({
 
     const exportData = {
       _format: "ums_fbm_personnel_single",
-      version: "1.0",
+      version: "1.1",
       exportedAt: new Date().toISOString(),
       personnel: {
         academicPosition: formAcademicPosition || null,
+        academicPositionEn: formAcademicPositionEn || null,
+        titlePlacement: formTitlePlacement,
         firstNameTh: formFirstNameTh,
         lastNameTh: formLastNameTh || "",
         firstNameEn: formFirstNameEn || null,
@@ -1340,6 +1475,8 @@ export function PersonnelAdminClient({
         email: formEmail || null,
         phoneNumber: formPhoneNumber || null,
         contactInfo: formContactInfo || null,
+        officeLocation: formOfficeLocation || null,
+        googleScholarUrl: formGoogleScholarUrl || null,
         imageUrl: formImageUrl || null,
         educationTh: formEducationTh || null,
         experiencesTh: editingTeachingCourses.length > 0 ? JSON.stringify(editingTeachingCourses) : (formExperiencesTh || null),
@@ -1349,6 +1486,7 @@ export function PersonnelAdminClient({
       },
       teachingCourses: editingTeachingCourses,
       researchPublications: editingResearchList.map((r, idx) => ({
+        id: r.id,
         titleTh: r.titleTh,
         titleEn: r.titleEn || null,
         authors: r.authors,
@@ -1376,7 +1514,7 @@ export function PersonnelAdminClient({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success(`ส่งออกไฟล์ JSON ของ "${teacherName}" เรียบร้อยแล้ว`);
+    toast.success(`ส่งออกไฟล์ JSON ครบถ้วนของ "${teacherName}" เรียบร้อยแล้ว`);
   };
 
   const handleExportSinglePersonnelCsv = () => {
@@ -1403,6 +1541,7 @@ export function PersonnelAdminClient({
       "ประสบการณ์สอน/ภาระงาน",
       "ประวัติย่อ/ความเชี่ยวชาญ",
       "URL รูปภาพ",
+      "จำนวนผลงานวิจัย",
       "ลำดับ",
       "สถานะ",
     ];
@@ -1417,6 +1556,7 @@ export function PersonnelAdminClient({
       escapeCsv(formAcademicPosition || ""),
       escapeCsv(formFirstNameTh || ""),
       escapeCsv(formLastNameTh || ""),
+      escapeCsv(formAcademicPositionEn || ""),
       escapeCsv(formFirstNameEn || ""),
       escapeCsv(formLastNameEn || ""),
       escapeCsv(formPositionTh || ""),
@@ -1426,10 +1566,13 @@ export function PersonnelAdminClient({
       escapeCsv(formEmail || ""),
       escapeCsv(formPhoneNumber || ""),
       escapeCsv(formContactInfo || ""),
+      escapeCsv(formOfficeLocation || ""),
+      escapeCsv(formGoogleScholarUrl || ""),
       escapeCsv(formEducationTh || ""),
       escapeCsv(editingTeachingCourses.length > 0 ? JSON.stringify(editingTeachingCourses) : (formExperiencesTh || "")),
       escapeCsv(formBioTh || ""),
       escapeCsv(formImageUrl || ""),
+      escapeCsv(editingResearchList.length),
       escapeCsv(formOrderIndex),
       escapeCsv(formIsActive ? "1" : "0"),
     ];
@@ -1445,7 +1588,189 @@ export function PersonnelAdminClient({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    toast.success(`ส่งออกไฟล์ CSV ของ "${teacherName}" เรียบร้อยแล้ว`);
+    toast.success(`ส่งออกไฟล์ CSV ข้อมูลของ "${teacherName}" เรียบร้อยแล้ว`);
+  };
+
+  const handleExportSingleTeacherResearchCsv = () => {
+    const teacherName = `${formAcademicPosition ? formAcademicPosition + " " : ""}${formFirstNameTh} ${formLastNameTh}`.trim() || "personnel";
+    if (editingResearchList.length === 0) {
+      toast.error("อาจารย์ท่านนี้ยังไม่มีข้อมูลผลงานวิจัยสำหรับส่งออก");
+      return;
+    }
+
+    const headers = [
+      "ลำดับ",
+      "ชื่อบทความวิจัย / บทความวิชาการ (ไทย)",
+      "ชื่อภาษาอังกฤษ (English Title)",
+      "คณะผู้วิจัย / ผู้แต่ง",
+      "ชื่อวารสารที่ตีพิมพ์ / แหล่งเผยแพร่",
+      "ประเภทผลงาน (RESEARCH/ACADEMIC/DISSERTATION)",
+      "ปีที่ตีพิมพ์ (พ.ศ.)",
+      "ระดับกลุ่มวารสาร / ฐานข้อมูล (Tier)",
+      "ปีที่ (Volume)",
+      "ฉบับที่ (Issue)",
+      "เลขหน้า (Pages)",
+      "เลข ISSN",
+      "ลิงก์ไฟล์หรือบทความวิจัย (URL/PDF)",
+    ];
+
+    const escapeCsv = (v: unknown): string => {
+      if (v === null || v === undefined) return '""';
+      const str = String(v).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const rows = editingResearchList.map((r, idx) => [
+      escapeCsv(idx + 1),
+      escapeCsv(r.titleTh || ""),
+      escapeCsv(r.titleEn || ""),
+      escapeCsv(r.authors || `${formFirstNameTh} ${formLastNameTh}`.trim()),
+      escapeCsv(r.journalName || ""),
+      escapeCsv(r.type || "RESEARCH"),
+      escapeCsv(r.publicationYear || ""),
+      escapeCsv(r.tier || ""),
+      escapeCsv(r.volume || ""),
+      escapeCsv(r.issue || ""),
+      escapeCsv(r.pages || ""),
+      escapeCsv(r.issn || ""),
+      escapeCsv(r.url || ""),
+    ]);
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((row) => row.join(","))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const cleanFileName = (formFirstNameTh || "teacher").replace(/[\/\\:*?"<>|]/g, "_");
+    a.download = `research_${cleanFileName}_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`ส่งออกผลงานวิจัยของ "${teacherName}" (${editingResearchList.length} รายการ) เรียบร้อยแล้ว`);
+  };
+
+  const downloadResearchCsvTemplate = () => {
+    const headers = [
+      "ลำดับ",
+      "ชื่อบทความวิจัย / บทความวิชาการ (ไทย)",
+      "ชื่อภาษาอังกฤษ (English Title)",
+      "คณะผู้วิจัย / ผู้แต่ง",
+      "ชื่อวารสารที่ตีพิมพ์ / แหล่งเผยแพร่",
+      "ประเภทผลงาน (RESEARCH/ACADEMIC/DISSERTATION)",
+      "ปีที่ตีพิมพ์ (พ.ศ.)",
+      "ระดับกลุ่มวารสาร / ฐานข้อมูล (Tier)",
+      "ปีที่ (Volume)",
+      "ฉบับที่ (Issue)",
+      "เลขหน้า (Pages)",
+      "เลข ISSN",
+      "ลิงก์ไฟล์หรือบทความวิจัย (URL/PDF)",
+    ];
+
+    const sampleAuthor = `${formAcademicPosition ? formAcademicPosition + " " : ""}${formFirstNameTh} ${formLastNameTh}`.trim() || "อาจารย์, ดร. สมัคร ปุญฺญสิริ";
+
+    const sampleRows = [
+      [
+        '"1"',
+        '"การพัฒนาตัวแบบการจัดการเรียนรู้วิปัสสนากรรมฐานสำหรับนิสิตระดับปริญญาตรี คณะพุทธศาสตร์"',
+        '"The Development of a Vipassana Meditation Learning Management Model for Undergraduate Students"',
+        `"${sampleAuthor}"`,
+        '"วารสาร มจร พุทธปัญญาปริทรรศน์"',
+        '"RESEARCH"',
+        '"๒๕๖๙"',
+        '"TCI กลุ่ม 1"',
+        '"11"',
+        '"2"',
+        '"125-140"',
+        '"2651-1681"',
+        '"https://so03.tci-thaijo.org/index.php/jmp/article/view/sample"',
+      ],
+      [
+        '"2"',
+        '"พุทธธรรมกับการเสริมสร้างคุณธรรมจริยธรรมของเยาวชนในยุคดิจิทัล"',
+        '"Buddhadhamma and Moral-Ethical Cultivation for Youths in the Digital Era"',
+        `"${sampleAuthor}"`,
+        '"วารสาร มจร สังคมศาสตร์ปริทรรศน์"',
+        '"ACADEMIC"',
+        '"๒๕๖๘"',
+        '"TCI กลุ่ม 2"',
+        '"10"',
+        '"1"',
+        '"45-58"',
+        '"2287-013X"',
+        '""',
+      ],
+    ];
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...sampleRows.map((r) => r.join(","))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "template_teacher_research.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("ดาวน์โหลดแม่แบบ CSV สำหรับกรอกผลงานวิจัยเรียบร้อยแล้ว");
+  };
+
+  const handleExportFullProfileDoc = () => {
+    const deptName = departmentList.find((d) => d.id === formDepartmentId)?.nameTh || "";
+    exportPersonnelDoc(
+      {
+        id: editingItem?.id,
+        academicPosition: formAcademicPosition || null,
+        academicPositionEn: formAcademicPositionEn || null,
+        titlePlacement: formTitlePlacement,
+        firstNameTh: formFirstNameTh,
+        lastNameTh: formLastNameTh || null,
+        firstNameEn: formFirstNameEn || null,
+        lastNameEn: formLastNameEn || null,
+        positionTh: formPositionTh,
+        positionEn: formPositionEn || null,
+        type: formType,
+        departmentName: deptName,
+        email: formEmail || null,
+        phoneNumber: formPhoneNumber || null,
+        contactInfo: formContactInfo || null,
+        imageUrl: formImageUrl || null,
+        educationTh: formEducationTh || null,
+        experiencesTh: formExperiencesTh || null,
+        bioTh: formBioTh || null,
+        researchPublications: editingResearchList,
+      },
+      "full"
+    );
+  };
+
+  const handleExportOnePageDoc = () => {
+    const deptName = departmentList.find((d) => d.id === formDepartmentId)?.nameTh || "";
+    exportPersonnelDoc(
+      {
+        id: editingItem?.id,
+        academicPosition: formAcademicPosition || null,
+        academicPositionEn: formAcademicPositionEn || null,
+        titlePlacement: formTitlePlacement,
+        firstNameTh: formFirstNameTh,
+        lastNameTh: formLastNameTh || null,
+        firstNameEn: formFirstNameEn || null,
+        lastNameEn: formLastNameEn || null,
+        positionTh: formPositionTh,
+        positionEn: formPositionEn || null,
+        type: formType,
+        departmentName: deptName,
+        email: formEmail || null,
+        phoneNumber: formPhoneNumber || null,
+        contactInfo: formContactInfo || null,
+        imageUrl: formImageUrl || null,
+        educationTh: formEducationTh || null,
+        experiencesTh: formExperiencesTh || null,
+        bioTh: formBioTh || null,
+        researchPublications: editingResearchList,
+      },
+      "one-page"
+    );
   };
 
   const handleSingleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1462,6 +1787,8 @@ export function PersonnelAdminClient({
 
           interface ImportRecord {
             academicPosition?: string | null;
+            academicPositionEn?: string | null;
+            titlePlacement?: "PREFIX" | "SUFFIX" | string | null;
             firstNameTh?: string;
             lastNameTh?: string | null;
             firstNameEn?: string | null;
@@ -1475,6 +1802,8 @@ export function PersonnelAdminClient({
             email?: string | null;
             phoneNumber?: string | null;
             contactInfo?: string | null;
+            officeLocation?: string | null;
+            googleScholarUrl?: string | null;
             imageUrl?: string | null;
             educationTh?: string | null;
             experiencesTh?: string | null;
@@ -1515,6 +1844,10 @@ export function PersonnelAdminClient({
           if (pObj.firstNameEn !== undefined) setFormFirstNameEn(pObj.firstNameEn || "");
           if (pObj.lastNameEn !== undefined) setFormLastNameEn(pObj.lastNameEn || "");
           if (pObj.academicPosition !== undefined) setFormAcademicPosition(pObj.academicPosition || "");
+          if (pObj.academicPositionEn !== undefined) setFormAcademicPositionEn(pObj.academicPositionEn || "");
+          if (pObj.titlePlacement !== undefined) {
+            setFormTitlePlacement(pObj.titlePlacement === "SUFFIX" ? "SUFFIX" : "PREFIX");
+          }
           if (pObj.positionTh !== undefined) setFormPositionTh(pObj.positionTh || "");
           if (pObj.positionEn !== undefined) setFormPositionEn(pObj.positionEn || "");
           if (pObj.type && ["EXECUTIVE", "ACADEMIC", "SUPPORT", "SPECIAL"].includes(pObj.type)) {
@@ -1534,6 +1867,8 @@ export function PersonnelAdminClient({
           if (pObj.email !== undefined) setFormEmail(pObj.email || "");
           if (pObj.phoneNumber !== undefined) setFormPhoneNumber(pObj.phoneNumber || "");
           if (pObj.contactInfo !== undefined) setFormContactInfo(pObj.contactInfo || "");
+          if (pObj.officeLocation !== undefined) setFormOfficeLocation(pObj.officeLocation || "");
+          if (pObj.googleScholarUrl !== undefined) setFormGoogleScholarUrl(pObj.googleScholarUrl || "");
           if (pObj.imageUrl !== undefined) setFormImageUrl(pObj.imageUrl || "");
           if (pObj.educationTh !== undefined) setFormEducationTh(pObj.educationTh || "");
           if (pObj.bioTh !== undefined) setFormBioTh(pObj.bioTh || "");
@@ -1602,66 +1937,203 @@ export function PersonnelAdminClient({
             return;
           }
 
+          const headerRow = rows[0].map((h) => h.toLowerCase());
+          const isResearchCsv = headerRow.some(
+            (h) =>
+              h.includes("ชื่อบทความ") ||
+              h.includes("ผลงานวิจัย") ||
+              h.includes("journal") ||
+              h.includes("วารสาร") ||
+              h.includes("titleth")
+          );
+
+          if (isResearchCsv) {
+            // Import Research Publications CSV
+            const dataRows = rows.slice(1);
+            const newPubs: ResearchPublication[] = dataRows
+              .filter((r) => r[1]?.trim() || r[0]?.trim())
+              .map((r, idx) => {
+                const titleTh = r[1]?.trim() || r[0]?.trim() || "";
+                const titleEn = r[2]?.trim() || null;
+                const authors = r[3]?.trim() || `${formFirstNameTh} ${formLastNameTh}`.trim();
+                const journalName = r[4]?.trim() || "วารสารวิชาการ";
+                const rawType = r[5]?.trim().toUpperCase();
+                const type: "RESEARCH" | "ACADEMIC" | "DISSERTATION" =
+                  rawType === "ACADEMIC" || rawType?.includes("วิชาการ")
+                    ? "ACADEMIC"
+                    : rawType === "DISSERTATION" || rawType?.includes("วิทยานิพนธ์") || rawType?.includes("ดุษฎี")
+                    ? "DISSERTATION"
+                    : "RESEARCH";
+                const pubYear = r[6]?.trim() || null;
+                const tier = r[7]?.trim() || null;
+                const volume = r[8]?.trim() || null;
+                const issue = r[9]?.trim() || null;
+                const pages = r[10]?.trim() || null;
+                const issn = r[11]?.trim() || null;
+                const url = r[12]?.trim() || null;
+
+                return {
+                  id: `imp-pub-${Date.now()}-${idx}`,
+                  tenantId: editingItem?.tenantId || "",
+                  personnelId: editingItem?.id || null,
+                  titleTh,
+                  titleEn,
+                  authors,
+                  journalName,
+                  volume,
+                  issue,
+                  publicationYear: pubYear,
+                  pages,
+                  issn,
+                  tier,
+                  url,
+                  type,
+                  orderIndex: editingResearchList.length + idx + 1,
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
+                };
+              });
+
+            if (newPubs.length > 0) {
+              setEditingResearchList((prev) => [...prev, ...newPubs]);
+              setActiveTab("research");
+              toast.success(`นำเข้าผลงานวิจัยสำเร็จ ${newPubs.length} รายการ (ตรวจสอบในแท็บผลงานวิจัยและกดบันทึก)`);
+            } else {
+              toast.error("ไม่พบข้อมูลผลงานวิจัยในไฟล์ CSV");
+            }
+            return;
+          }
+
+          // Otherwise parse as Personnel Profile CSV
           const dataRow = rows[1];
-          const [
-            academicPos,
-            fTh,
-            lTh,
-            academicPosEn,
-            fEn,
-            lEn,
-            posTh,
-            posEn,
-            typeVal,
-            deptName,
-            emailVal,
-            phoneVal,
-            contactVal,
-            eduVal,
-            expVal,
-            bioVal,
-            imgVal,
-            orderVal,
-            activeVal,
-          ] = dataRow;
+          if (dataRow.length >= 20) {
+            const [
+              academicPos,
+              fTh,
+              lTh,
+              academicPosEn,
+              fEn,
+              lEn,
+              posTh,
+              posEn,
+              typeVal,
+              deptName,
+              emailVal,
+              phoneVal,
+              contactVal,
+              officeVal,
+              scholarVal,
+              eduVal,
+              expVal,
+              bioVal,
+              imgVal,
+              _col19,
+              col20,
+              col21,
+            ] = dataRow;
 
-          if (academicPos !== undefined) setFormAcademicPosition(academicPos);
-          if (academicPosEn !== undefined) setFormAcademicPositionEn(academicPosEn);
-          if (fTh) setFormFirstNameTh(fTh);
-          if (lTh !== undefined) setFormLastNameTh(lTh);
-          if (fEn !== undefined) setFormFirstNameEn(fEn);
-          if (lEn !== undefined) setFormLastNameEn(lEn);
-          if (posTh) setFormPositionTh(posTh);
-          if (posEn !== undefined) setFormPositionEn(posEn);
-          if (typeVal && ["EXECUTIVE", "ACADEMIC", "SUPPORT", "SPECIAL"].includes(typeVal)) {
-            setFormType(typeVal as "EXECUTIVE" | "ACADEMIC" | "SUPPORT" | "SPECIAL");
-          }
-          if (deptName) {
-            const found = departmentList.find((d) => d.nameTh.includes(deptName) || deptName.includes(d.nameTh));
-            if (found) setFormDepartmentId(found.id);
-          }
-          if (emailVal !== undefined) setFormEmail(emailVal);
-          if (phoneVal !== undefined) setFormPhoneNumber(phoneVal);
-          if (contactVal !== undefined) setFormContactInfo(contactVal);
-          if (eduVal !== undefined) setFormEducationTh(eduVal);
-          if (bioVal !== undefined) setFormBioTh(bioVal);
-          if (imgVal !== undefined) setFormImageUrl(imgVal);
-          if (orderVal && !isNaN(Number(orderVal))) setFormOrderIndex(Number(orderVal));
-          if (activeVal !== undefined) setFormIsActive(activeVal === "1" || activeVal.toLowerCase() === "true");
+            if (academicPos !== undefined) setFormAcademicPosition(academicPos);
+            if (academicPosEn !== undefined) setFormAcademicPositionEn(academicPosEn);
+            if (fTh) setFormFirstNameTh(fTh);
+            if (lTh !== undefined) setFormLastNameTh(lTh);
+            if (fEn !== undefined) setFormFirstNameEn(fEn);
+            if (lEn !== undefined) setFormLastNameEn(lEn);
+            if (posTh) setFormPositionTh(posTh);
+            if (posEn !== undefined) setFormPositionEn(posEn);
+            if (typeVal && ["EXECUTIVE", "ACADEMIC", "SUPPORT", "SPECIAL"].includes(typeVal)) {
+              setFormType(typeVal as "EXECUTIVE" | "ACADEMIC" | "SUPPORT" | "SPECIAL");
+            }
+            if (deptName) {
+              const found = departmentList.find((d) => d.nameTh.includes(deptName) || deptName.includes(d.nameTh));
+              if (found) setFormDepartmentId(found.id);
+            }
+            if (emailVal !== undefined) setFormEmail(emailVal);
+            if (phoneVal !== undefined) setFormPhoneNumber(phoneVal);
+            if (contactVal !== undefined) setFormContactInfo(contactVal);
+            if (officeVal !== undefined) setFormOfficeLocation(officeVal);
+            if (scholarVal !== undefined) setFormGoogleScholarUrl(scholarVal);
+            if (eduVal !== undefined) setFormEducationTh(eduVal);
+            if (bioVal !== undefined) setFormBioTh(bioVal);
+            if (imgVal !== undefined) setFormImageUrl(imgVal);
 
-          if (expVal) {
-            const parsedCourses = parseTeachingExperiences(expVal, {
-              id: editingItem?.id,
-              firstNameTh: fTh,
-              lastNameTh: lTh,
-            });
-            setEditingTeachingCourses(parsedCourses);
-            const isRawJson = expVal.trim().startsWith("[") || expVal.trim().startsWith("{");
-            setFormExperiencesTh(isRawJson ? formatTeachingCoursesToText(parsedCourses) : expVal);
+            const orderVal = col20 !== undefined && col21 !== undefined ? col20 : _col19;
+            const activeVal = col21 !== undefined ? col21 : col20;
+
+            if (orderVal && !isNaN(Number(orderVal))) setFormOrderIndex(Number(orderVal));
+            if (activeVal !== undefined) setFormIsActive(activeVal === "1" || activeVal.toLowerCase() === "true");
+
+            if (expVal) {
+              const parsedCourses = parseTeachingExperiences(expVal, {
+                id: editingItem?.id,
+                firstNameTh: fTh,
+                lastNameTh: lTh,
+              });
+              setEditingTeachingCourses(parsedCourses);
+              const isRawJson = expVal.trim().startsWith("[") || expVal.trim().startsWith("{");
+              setFormExperiencesTh(isRawJson ? formatTeachingCoursesToText(parsedCourses) : expVal);
+            }
+          } else {
+            // Legacy 19-column CSV support
+            const [
+              academicPos,
+              fTh,
+              lTh,
+              academicPosEn,
+              fEn,
+              lEn,
+              posTh,
+              posEn,
+              typeVal,
+              deptName,
+              emailVal,
+              phoneVal,
+              contactVal,
+              eduVal,
+              expVal,
+              bioVal,
+              imgVal,
+              orderVal,
+              activeVal,
+            ] = dataRow;
+
+            if (academicPos !== undefined) setFormAcademicPosition(academicPos);
+            if (academicPosEn !== undefined) setFormAcademicPositionEn(academicPosEn);
+            if (fTh) setFormFirstNameTh(fTh);
+            if (lTh !== undefined) setFormLastNameTh(lTh);
+            if (fEn !== undefined) setFormFirstNameEn(fEn);
+            if (lEn !== undefined) setFormLastNameEn(lEn);
+            if (posTh) setFormPositionTh(posTh);
+            if (posEn !== undefined) setFormPositionEn(posEn);
+            if (typeVal && ["EXECUTIVE", "ACADEMIC", "SUPPORT", "SPECIAL"].includes(typeVal)) {
+              setFormType(typeVal as "EXECUTIVE" | "ACADEMIC" | "SUPPORT" | "SPECIAL");
+            }
+            if (deptName) {
+              const found = departmentList.find((d) => d.nameTh.includes(deptName) || deptName.includes(d.nameTh));
+              if (found) setFormDepartmentId(found.id);
+            }
+            if (emailVal !== undefined) setFormEmail(emailVal);
+            if (phoneVal !== undefined) setFormPhoneNumber(phoneVal);
+            if (contactVal !== undefined) setFormContactInfo(contactVal);
+            if (eduVal !== undefined) setFormEducationTh(eduVal);
+            if (bioVal !== undefined) setFormBioTh(bioVal);
+            if (imgVal !== undefined) setFormImageUrl(imgVal);
+            if (orderVal && !isNaN(Number(orderVal))) setFormOrderIndex(Number(orderVal));
+            if (activeVal !== undefined) setFormIsActive(activeVal === "1" || activeVal.toLowerCase() === "true");
+
+            if (expVal) {
+              const parsedCourses = parseTeachingExperiences(expVal, {
+                id: editingItem?.id,
+                firstNameTh: fTh,
+                lastNameTh: lTh,
+              });
+              setEditingTeachingCourses(parsedCourses);
+              const isRawJson = expVal.trim().startsWith("[") || expVal.trim().startsWith("{");
+              setFormExperiencesTh(isRawJson ? formatTeachingCoursesToText(parsedCourses) : expVal);
+            }
           }
 
           setActiveTab("general");
-          toast.success(`นำเข้าข้อมูลจาก CSV ของ "${fTh || "อาจารย์"}" สำเร็จ ตรวจสอบและกดบันทึก`);
+          toast.success(`นำเข้าข้อมูลจาก CSV ของ "${formFirstNameTh || "อาจารย์"}" สำเร็จ ตรวจสอบและกดบันทึก`);
         } catch {
           toast.error("ไม่สามารถอ่านไฟล์ CSV ได้ กรุณาตรวจสอบความถูกต้องของไฟล์");
         }
@@ -2303,35 +2775,113 @@ export function PersonnelAdminClient({
                 <span>นำเข้าไฟล์</span>
               </Button>
 
-              <div className="relative group">
+              <div className="relative" ref={exportMenuRef}>
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-7 px-2.5 text-xs gap-1.5 cursor-pointer bg-muted/40 hover:bg-muted font-medium"
-                  title="ส่งออกข้อมูลอาจารย์ท่านนี้เป็นไฟล์ JSON หรือ CSV"
+                  onClick={() => setSingleExportOpen((prev) => !prev)}
+                  className="h-7 px-2.5 text-xs gap-1.5 cursor-pointer bg-muted/40 hover:bg-muted font-medium text-foreground"
+                  title="คลิกเพื่อส่งออกข้อมูลอาจารย์ท่านนี้เป็นไฟล์ JSON, CSV หรือพิมพ์เอกสารรายงาน"
                 >
                   <Download className="w-3.5 h-3.5 text-primary" />
                   <span>ส่งออกไฟล์ ▾</span>
                 </Button>
-                <div className="absolute right-0 top-full mt-1 hidden group-hover:flex flex-col bg-popover text-popover-foreground border border-border rounded-lg shadow-lg z-30 py-1 min-w-[185px]">
-                  <button
-                    type="button"
-                    onClick={handleExportSinglePersonnelJson}
-                    className="px-3 py-1.5 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2 cursor-pointer"
-                  >
-                    <FileJson className="w-3.5 h-3.5 text-amber-600" />
-                    <span>ส่งออกเป็น JSON (ครบถ้วน)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleExportSinglePersonnelCsv}
-                    className="px-3 py-1.5 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2 cursor-pointer"
-                  >
-                    <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>ส่งออกเป็น CSV / Excel</span>
-                  </button>
-                </div>
+                {singleExportOpen && (
+                  <div className="absolute right-0 top-full mt-1 flex flex-col bg-popover text-popover-foreground border border-border rounded-lg shadow-xl z-50 py-1.5 min-w-[285px]">
+                    <div className="px-3 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/50">
+                      ส่งออกข้อมูลอาจารย์ / ผลงานวิจัย
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleExportSinglePersonnelJson();
+                        setSingleExportOpen(false);
+                      }}
+                      className="px-3 py-2 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <FileJson className="w-4 h-4 text-amber-600 shrink-0" />
+                      <div>
+                        <div className="font-medium text-foreground">ส่งออกเป็น JSON (ครบถ้วนทุกส่วน)</div>
+                        <div className="text-[11px] text-muted-foreground">รวมผลงานวิจัย, วารสาร, ประวัติ และรายวิชาสอน</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleExportSinglePersonnelCsv();
+                        setSingleExportOpen(false);
+                      }}
+                      className="px-3 py-2 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <div>
+                        <div className="font-medium text-foreground">ส่งออกข้อมูลอาจารย์เป็น CSV / Excel</div>
+                        <div className="text-[11px] text-muted-foreground">ข้อมูลโปรไฟล์ วุฒิการศึกษา ตำแหน่งงาน และช่องทางติดต่อ</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleExportSingleTeacherResearchCsv();
+                        setSingleExportOpen(false);
+                      }}
+                      className="px-3 py-2 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <BookOpen className="w-4 h-4 text-indigo-600 shrink-0" />
+                      <div>
+                        <div className="font-medium text-foreground">ส่งออกผลงานวิจัยและวิชาการ (CSV / Excel)</div>
+                        <div className="text-[11px] text-muted-foreground">รายการผลงานวิจัยทั้งหมด ({editingResearchList.length} รายการ)</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        downloadResearchCsvTemplate();
+                        setSingleExportOpen(false);
+                      }}
+                      className="px-3 py-2 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <Download className="w-4 h-4 text-blue-600 shrink-0" />
+                      <div>
+                        <div className="font-medium text-foreground">ดาวน์โหลดแม่แบบ CSV สำหรับกรอกผลงานวิจัย</div>
+                        <div className="text-[11px] text-muted-foreground">เทมเพลตมาตรฐานสำหรับนำเข้าผลงานวิจัยอาจารย์</div>
+                      </div>
+                    </button>
+                    <div className="my-1 border-t border-border/50" />
+                    <div className="px-3 py-1 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      เอกสารทางการ / พิมพ์ (PDF & A4)
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleExportFullProfileDoc();
+                        setSingleExportOpen(false);
+                      }}
+                      className="px-3 py-2 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <Printer className="w-4 h-4 text-primary shrink-0" />
+                      <div>
+                        <div className="font-medium text-foreground">พิมพ์ / ส่งออกรายงานประวัติและผลงานฉบับเต็ม</div>
+                        <div className="text-[11px] text-muted-foreground">รายงานทางการพร้อมผลงานวิชาการและภาระงานสอน</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleExportOnePageDoc();
+                        setSingleExportOpen(false);
+                      }}
+                      className="px-3 py-2 text-xs text-left hover:bg-muted transition-colors flex items-center gap-2.5 cursor-pointer"
+                    >
+                      <FileText className="w-4 h-4 text-primary shrink-0" />
+                      <div>
+                        <div className="font-medium text-foreground">พิมพ์ / ส่งออกสรุปประวัติ 1 หน้า (One-Page)</div>
+                        <div className="text-[11px] text-muted-foreground">เอกสารแนะนำตัวย่อขนาด 1 หน้า A4</div>
+                      </div>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -3342,9 +3892,9 @@ export function PersonnelAdminClient({
               </LiyonField>
 
               <LiyonField
-                label="ลิงก์โปรไฟล์ผลงาน Google Scholar (Google Scholar Profile URL)"
+                label="ลิงก์โปรไฟล์รวม Google Scholar (Google Scholar Profile URL)"
                 htmlFor="field-google-scholar"
-                hint="เช่น https://scholar.google.com/citations?user=... หรือลิงก์หน้าคลังผลงานวิจัย"
+                hint="ลิงก์หน้าบัญชีผู้เขียนของอาจารย์ เช่น https://scholar.google.com/citations?user=... (ลิงก์เดียวจะแสดงผลงานวิจัยทั้งหมดทุกเรื่องของอาจารย์พร้อมสถิติอ้างอิง)"
               >
                 <div className="relative">
                   <input
@@ -3359,7 +3909,7 @@ export function PersonnelAdminClient({
                 {(formFirstNameTh || formFirstNameEn) && (
                   <div className="flex items-center justify-between gap-2 pt-1.5 text-xs">
                     <span className="text-[11px] text-muted-foreground">
-                      หากมีบัญชีทางการ ให้คัดลอกลิงก์มาวางในช่องนี้
+                      💡 ใส่ลิงก์โปรไฟล์เพื่อให้นิสิต/ผู้เข้าชมกดไปดูผลงานวิจัยทั้งหมดในคลัง Google Scholar ได้ในคลิกเดียว
                     </span>
                     <a
                       href={`https://scholar.google.com/scholar?q=${encodeURIComponent(
@@ -3535,7 +4085,7 @@ export function PersonnelAdminClient({
                 </div>
               ) : (
                 <>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-border/60">
                     <div>
                       <h3 className="text-sm font-semibold text-foreground">
                         ผลงานวิจัยและวิชาการของอาจารย์ ({editingResearchList.length} เรื่อง)
@@ -3545,17 +4095,55 @@ export function PersonnelAdminClient({
                       </p>
                     </div>
 
-                    {!showAddResearchForm && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <Button
                         type="button"
+                        variant="outline"
                         size="sm"
-                        onClick={() => setShowAddResearchForm(true)}
-                        className="gap-1.5 cursor-pointer text-xs"
+                        onClick={handleExportSingleTeacherResearchCsv}
+                        className="h-7 px-2.5 text-xs gap-1 cursor-pointer bg-muted/40 hover:bg-muted font-medium"
+                        title="ส่งออกผลงานวิจัยของอาจารย์ท่านนี้เป็นไฟล์ CSV สำหรับเปิดใน Excel"
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>เพิ่มผลงานวิจัยให้อาจารย์</span>
+                        <Download className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>ส่งออกผลงาน (CSV)</span>
                       </Button>
-                    )}
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={downloadResearchCsvTemplate}
+                        className="h-7 px-2.5 text-xs gap-1 cursor-pointer bg-muted/40 hover:bg-muted font-medium"
+                        title="ดาวน์โหลดแม่แบบ CSV สำหรับนำไปกรอกผลงานวิจัยของอาจารย์ใน Excel แล้วนำเข้ากลับมา"
+                      >
+                        <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>แม่แบบกรอกผลงาน (CSV)</span>
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => singleImportInputRef.current?.click()}
+                        className="h-7 px-2.5 text-xs gap-1 cursor-pointer bg-muted/40 hover:bg-muted font-medium"
+                        title="นำเข้าไฟล์ CSV หรือ JSON ที่มีข้อมูลผลงานวิจัยของอาจารย์ท่านนี้"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-amber-600" />
+                        <span>นำเข้าผลงาน</span>
+                      </Button>
+
+                      {!showAddResearchForm && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => setShowAddResearchForm(true)}
+                          className="h-7 px-2.5 gap-1.5 cursor-pointer text-xs"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>เพิ่มผลงานวิจัย</span>
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Inline Form to Add Research */}
@@ -3632,7 +4220,7 @@ export function PersonnelAdminClient({
                           <div className="space-y-1">
                             <div className="flex items-center justify-between">
                               <label htmlFor="new-pub-url" className="text-xs font-medium text-foreground">
-                                ไฟล์บทความวิจัย หรือ URL ลิงก์
+                                ไฟล์บทความวิจัย หรือ URL ลิงก์เฉพาะเรื่องนี้ (เช่น ลิงก์ ThaiJO / Google Scholar รายบทความ หรือ PDF)
                               </label>
                               <div className="flex items-center gap-1.5">
                                 <input

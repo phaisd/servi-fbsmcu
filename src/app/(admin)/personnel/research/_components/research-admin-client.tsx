@@ -14,6 +14,8 @@ import {
   Users,
   Building,
   Sparkles,
+  Download,
+  FileSpreadsheet,
 } from "lucide-react";
 import {
   LiyonCard,
@@ -216,6 +218,133 @@ export function ResearchAdminClient({
     });
   };
 
+  const handleExportCSV = () => {
+    if (filtered.length === 0) {
+      toast.error("ไม่มีข้อมูลผลงานวิจัยสำหรับส่งออก");
+      return;
+    }
+
+    const headers = [
+      "ลำดับ",
+      "ชื่อบทความวิจัย / วิชาการ (ไทย)",
+      "ชื่อภาษาอังกฤษ (English Title)",
+      "ผู้วิจัย / อาจารย์ผู้เขียน",
+      "ชื่อวารสารที่ตีพิมพ์ / แหล่งเผยแพร่",
+      "ประเภทผลงาน",
+      "ปีที่ตีพิมพ์ (พ.ศ.)",
+      "ระดับกลุ่มวารสาร (Tier)",
+      "ปีที่ (Volume)",
+      "ฉบับที่ (Issue)",
+      "หน้า (Pages)",
+      "ISSN",
+      "ลิงก์ไฟล์หรือบทความ (URL)",
+    ];
+
+    const escapeCsv = (v: unknown): string => {
+      if (v === null || v === undefined) return '""';
+      const str = String(v).replace(/"/g, '""');
+      return `"${str}"`;
+    };
+
+    const rows = filtered.map((r, idx) => {
+      const authorObj = personnelList.find((p) => p.id === r.personnelId);
+      const authorDisplay = authorObj
+        ? `${authorObj.academicPosition ? authorObj.academicPosition + " " : ""}${authorObj.firstNameTh} ${authorObj.lastNameTh}`.trim()
+        : r.authors;
+
+      return [
+        escapeCsv(idx + 1),
+        escapeCsv(r.titleTh),
+        escapeCsv(r.titleEn || ""),
+        escapeCsv(authorDisplay),
+        escapeCsv(r.journalName),
+        escapeCsv(r.type),
+        escapeCsv(r.publicationYear || ""),
+        escapeCsv(r.tier || ""),
+        escapeCsv(r.volume || ""),
+        escapeCsv(r.issue || ""),
+        escapeCsv(r.pages || ""),
+        escapeCsv(r.issn || ""),
+        escapeCsv(r.url || ""),
+      ];
+    });
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map((row) => row.join(","))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `research_publications_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`ส่งออกข้อมูลผลงานวิจัยเรียบร้อยแล้ว (${filtered.length} รายการ)`);
+  };
+
+  const downloadResearchTemplate = () => {
+    const headers = [
+      "ลำดับ",
+      "ชื่อบทความวิจัย / วิชาการ (ไทย)",
+      "ชื่อภาษาอังกฤษ (English Title)",
+      "ผู้วิจัย / อาจารย์ผู้เขียน",
+      "ชื่อวารสารที่ตีพิมพ์ / แหล่งเผยแพร่",
+      "ประเภทผลงาน (RESEARCH/ACADEMIC/DISSERTATION)",
+      "ปีที่ตีพิมพ์ (พ.ศ.)",
+      "ระดับกลุ่มวารสาร (Tier)",
+      "ปีที่ (Volume)",
+      "ฉบับที่ (Issue)",
+      "หน้า (Pages)",
+      "ISSN",
+      "ลิงก์ไฟล์หรือบทความ (URL)",
+    ];
+
+    const sampleRows = [
+      [
+        '"1"',
+        '"การพัฒนาตัวแบบการจัดการเรียนรู้วิปัสสนากรรมฐานสำหรับนิสิตระดับปริญญาตรี คณะพุทธศาสตร์"',
+        '"The Development of a Vipassana Meditation Learning Management Model for Undergraduate Students"',
+        '"ผศ.ดร. พระมหา สมัคร ปุญฺญสิริ"',
+        '"วารสาร มจร พุทธปัญญาปริทรรศน์"',
+        '"RESEARCH"',
+        '"๒๕๖๙"',
+        '"TCI กลุ่ม 1"',
+        '"11"',
+        '"2"',
+        '"125-140"',
+        '"2651-1681"',
+        '"https://so03.tci-thaijo.org/index.php/jmp/article/view/sample"',
+      ],
+      [
+        '"2"',
+        '"พุทธธรรมกับการเสริมสร้างคุณธรรมจริยธรรมของเยาวชนในยุคดิจิทัล"',
+        '"Buddhadhamma and Moral-Ethical Cultivation for Youths in the Digital Era"',
+        '"อาจารย์ ไชยา เสนแสนยา"',
+        '"วารสาร มจร สังคมศาสตร์ปริทรรศน์"',
+        '"ACADEMIC"',
+        '"๒๕๖๘"',
+        '"TCI กลุ่ม 2"',
+        '"10"',
+        '"1"',
+        '"45-58"',
+        '"2287-013X"',
+        '""',
+      ],
+    ];
+
+    const csvContent = "\uFEFF" + [headers.join(","), ...sampleRows.map((r) => r.join(","))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "template_research_publications.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("ดาวน์โหลดแม่แบบ CSV ผลงานวิจัยเรียบร้อยแล้ว");
+  };
+
   const filtered = items.filter((pub) => {
     const q = search.toLowerCase().trim();
     const matchesSearch =
@@ -242,12 +371,36 @@ export function ResearchAdminClient({
           </p>
         </div>
 
-        {canManage && (
-          <Button onClick={openCreate} className="gap-2 cursor-pointer shadow-xs">
-            <Plus className="w-4 h-4" />
-            <span>เพิ่มผลงานวิจัย</span>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleExportCSV}
+            className="gap-2 cursor-pointer shadow-xs"
+            title="ส่งออกผลงานวิจัยทั้งหมดหรือที่ผ่านการกรองเป็นไฟล์ Excel / CSV"
+          >
+            <Download className="w-4 h-4 text-emerald-600" />
+            <span>ส่งออก CSV / Excel</span>
           </Button>
-        )}
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={downloadResearchTemplate}
+            className="gap-2 cursor-pointer shadow-xs"
+            title="ดาวน์โหลดแม่แบบ CSV สำหรับกรอกข้อมูลผลงานวิจัย"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-primary" />
+            <span>แม่แบบกรอกข้อมูล (CSV)</span>
+          </Button>
+
+          {canManage && (
+            <Button onClick={openCreate} className="gap-2 cursor-pointer shadow-xs">
+              <Plus className="w-4 h-4" />
+              <span>เพิ่มผลงานวิจัย</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Module Navigation Strip */}
@@ -653,7 +806,7 @@ export function ResearchAdminClient({
               </LiyonField>
             </div>
 
-            <LiyonField label="ลิงก์อ่านบทความฉบับเต็ม (ThaiJO / Journal URL)" htmlFor="pub-url">
+            <LiyonField label="ลิงก์อ่านบทความฉบับเต็ม (ThaiJO / Google Scholar / Journal URL)" htmlFor="pub-url" hint="ลิงก์เปิดอ่านบทความเฉพาะเรื่องนี้ เช่น ThaiJO, ลิงก์บทความบน Google Scholar หรือไฟล์ PDF">
               <input
                 id="pub-url"
                 value={formUrl}
